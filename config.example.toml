@@ -1,0 +1,163 @@
+# Claudex Configuration
+# Copy this file to ~/.config/claudex/config.toml and edit
+
+# Path to claude binary (default: "claude" from PATH)
+# claude_binary = "/usr/local/bin/claude"
+
+# Proxy settings
+proxy_port = 13456
+proxy_host = "127.0.0.1"
+
+# Log level: trace, debug, info, warn, error
+log_level = "info"
+
+# Model aliases (shorthand → full model name)
+[model_aliases]
+grok3 = "grok-3-beta"
+gpt4o = "gpt-4o"
+ds3 = "deepseek-chat"
+claude = "claude-sonnet-4-20250514"
+
+# ─── Profiles ───────────────────────────────────────────
+
+# Anthropic (native, no translation needed)
+[[profiles]]
+name = "anthropic"
+provider_type = "DirectAnthropic"
+base_url = "https://api.anthropic.com"
+api_key = "sk-ant-..."          # or use api_key_keyring = "anthropic"
+default_model = "claude-sonnet-4-20250514"
+enabled = true
+priority = 100
+
+# MiniMax (Anthropic-compatible)
+[[profiles]]
+name = "minimax"
+provider_type = "DirectAnthropic"
+base_url = "https://api.minimax.io/anthropic"
+api_key = "..."
+default_model = "claude-sonnet-4-20250514"
+backup_providers = ["anthropic"]
+enabled = true
+priority = 90
+
+# OpenRouter (Anthropic-compatible)
+[[profiles]]
+name = "openrouter"
+provider_type = "DirectAnthropic"
+base_url = "https://openrouter.ai/api"
+api_key = "sk-or-..."
+default_model = "anthropic/claude-sonnet-4"
+enabled = true
+priority = 80
+
+# Grok (xAI, needs translation)
+[[profiles]]
+name = "grok"
+provider_type = "OpenAICompatible"
+base_url = "https://api.x.ai/v1"
+api_key = "xai-..."
+default_model = "grok-3-beta"
+backup_providers = ["deepseek"]
+enabled = true
+priority = 100
+
+# OpenAI (needs translation)
+[[profiles]]
+name = "chatgpt"
+provider_type = "OpenAICompatible"
+base_url = "https://api.openai.com/v1"
+api_key = "sk-..."
+default_model = "gpt-4o"
+enabled = true
+priority = 90
+
+# DeepSeek (needs translation)
+[[profiles]]
+name = "deepseek"
+provider_type = "OpenAICompatible"
+base_url = "https://api.deepseek.com"
+api_key = "sk-..."
+default_model = "deepseek-chat"
+backup_providers = ["grok"]
+enabled = true
+priority = 100
+
+# Kimi / Moonshot (needs translation)
+[[profiles]]
+name = "kimi"
+provider_type = "OpenAICompatible"
+base_url = "https://api.moonshot.cn/v1"
+api_key = "sk-..."
+default_model = "moonshot-v1-128k"
+enabled = true
+priority = 70
+
+# GLM / 智谱 (needs translation)
+[[profiles]]
+name = "glm"
+provider_type = "OpenAICompatible"
+base_url = "https://open.bigmodel.cn/api/paas/v4"
+api_key = "..."
+default_model = "glm-4-plus"
+enabled = true
+priority = 70
+
+# ─── Local Models (via Ollama / vLLM / LM Studio) ──────
+
+# Ollama
+[[profiles]]
+name = "local-qwen"
+provider_type = "OpenAICompatible"
+base_url = "http://localhost:11434/v1"
+api_key = ""
+default_model = "qwen2.5:72b"
+enabled = false
+priority = 50
+
+# vLLM / llama.cpp server / LM Studio
+[[profiles]]
+name = "local-llama"
+provider_type = "OpenAICompatible"
+base_url = "http://localhost:8000/v1"
+api_key = ""
+default_model = "llama-3.3-70b"
+enabled = false
+priority = 50
+
+# ─── Smart Router (optional) ───────────────────────────
+
+[router]
+enabled = false
+classifier_url = "http://localhost:11434/v1"   # Ollama or any OpenAI-compatible local service
+classifier_model = "qwen2.5:3b"
+classifier_api_key = ""
+
+[router.rules]
+code = "deepseek"
+analysis = "grok"
+creative = "chatgpt"
+search = "kimi"
+math = "deepseek"
+default = "grok"
+
+# ─── Context Engine (optional) ─────────────────────────
+
+[context.compression]
+enabled = false
+threshold_tokens = 50000
+keep_recent = 10
+summarizer_url = "http://localhost:11434/v1"
+summarizer_model = "qwen2.5:3b"
+
+[context.sharing]
+enabled = false
+max_context_size = 2000
+
+[context.rag]
+enabled = false
+index_paths = ["./src", "./docs"]
+embedding_url = "http://localhost:11434/v1"
+embedding_model = "nomic-embed-text"
+chunk_size = 512
+top_k = 5

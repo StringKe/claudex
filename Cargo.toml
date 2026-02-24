@@ -1,0 +1,79 @@
+[package]
+name = "claudex"
+version = "0.1.0"
+edition = "2021"
+description = "Multi-instance Claude Code manager with intelligent translation proxy"
+license = "MIT"
+repository = "https://github.com/StringKe/claudex"
+homepage = "https://github.com/StringKe/claudex"
+keywords = ["claude", "proxy", "llm", "ai", "translation"]
+categories = ["command-line-utilities", "web-programming"]
+
+[dependencies]
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Web framework (proxy)
+axum = { version = "0.8", features = ["macros"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls"], default-features = false }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
+
+# Error handling
+anyhow = "1"
+thiserror = "2"
+
+# TUI
+ratatui = "0.29"
+crossterm = "0.28"
+
+# Keyring
+keyring = { version = "3", features = ["apple-native", "linux-native"] }
+
+# File watching (hot reload)
+notify = "7"
+
+# Async SSE streaming
+tokio-stream = "0.1"
+futures = "0.3"
+async-stream = "0.3"
+
+# UUID for request IDs
+uuid = { version = "1", features = ["v4"] }
+
+# Time
+chrono = "0.4"
+
+# Dirs for config path
+dirs = "6"
+
+# Byte counting
+bytecount = "0.6"
+
+# HTTP types
+http = "1"
+http-body-util = "0.1"
+bytes = "1"
+
+# System
+libc = "0.2"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

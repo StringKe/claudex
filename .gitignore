@@ -1,0 +1,21 @@
+# Build
+/target
+
+# Editor
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+
+# Runtime config (contains API keys)
+config.toml
+
+# Claude Code runtime data
+.claude/projects/
+.claude/todos/
+.claude/statsig/
+.claude/*.jsonl
