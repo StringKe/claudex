@@ -1,6 +1,7 @@
 pub mod fallback;
 pub mod handler;
 pub mod health;
+pub mod middleware;
 pub mod models;
 pub mod streaming;
 pub mod translation;
@@ -13,6 +14,8 @@ use axum::Router;
 use tokio::sync::RwLock;
 
 use crate::config::ClaudexConfig;
+use crate::context::rag::RagIndex;
+use crate::context::sharing::SharedContext;
 use crate::metrics::MetricsStore;
 
 pub struct ProxyState {
@@ -20,19 +23,38 @@ pub struct ProxyState {
     pub metrics: MetricsStore,
     pub http_client: reqwest::Client,
     pub health_status: Arc<RwLock<health::HealthMap>>,
+    pub circuit_breakers: fallback::CircuitBreakerMap,
+    pub shared_context: SharedContext,
+    pub rag_index: Option<RagIndex>,
 }
 
 pub async fn start_proxy(config: ClaudexConfig, port_override: Option<u16>) -> Result<()> {
     let port = port_override.unwrap_or(config.proxy_port);
     let host = config.proxy_host.clone();
 
+    let http_client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(300))
+        .build()?;
+
+    // Build RAG index if enabled
+    let rag_index = if config.context.rag.enabled {
+        let index = RagIndex::new(config.context.rag.clone());
+        if let Err(e) = index.build_index(&http_client).await {
+            tracing::warn!("failed to build RAG index: {e}");
+        }
+        Some(index)
+    } else {
+        None
+    };
+
     let state = Arc::new(ProxyState {
         config: Arc::new(RwLock::new(config)),
         metrics: MetricsStore::new(),
-        http_client: reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(300))
-            .build()?,
+        http_client,
         health_status: Arc::new(RwLock::new(health::HealthMap::new())),
+        circuit_breakers: fallback::new_circuit_breaker_map(),
+        shared_context: SharedContext::new(),
+        rag_index,
     });
 
     health::spawn_health_checker(state.clone());

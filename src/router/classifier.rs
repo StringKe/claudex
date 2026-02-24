@@ -34,7 +34,10 @@ pub async fn classify_intent(
 
     let mut req = http_client.post(&url).json(&body);
     if !config.classifier_api_key.is_empty() {
-        req = req.header("Authorization", format!("Bearer {}", config.classifier_api_key));
+        req = req.header(
+            "Authorization",
+            format!("Bearer {}", config.classifier_api_key),
+        );
     }
 
     let resp: Value = req.send().await?.json().await?;
@@ -77,4 +80,71 @@ pub fn extract_last_user_message(body: &Value) -> Option<String> {
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_extract_string_content() {
+        let body = json!({
+            "messages": [{"role": "user", "content": "hello world"}]
+        });
+        assert_eq!(
+            extract_last_user_message(&body),
+            Some("hello world".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_array_content() {
+        let body = json!({
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "part1"},
+                    {"type": "image", "source": {}},
+                    {"type": "text", "text": "part2"}
+                ]
+            }]
+        });
+        assert_eq!(
+            extract_last_user_message(&body),
+            Some("part1\npart2".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_last_user_among_multiple() {
+        let body = json!({
+            "messages": [
+                {"role": "user", "content": "first"},
+                {"role": "assistant", "content": "reply"},
+                {"role": "user", "content": "second"}
+            ]
+        });
+        assert_eq!(extract_last_user_message(&body), Some("second".to_string()));
+    }
+
+    #[test]
+    fn test_extract_no_user_message() {
+        let body = json!({
+            "messages": [{"role": "assistant", "content": "hi"}]
+        });
+        assert_eq!(extract_last_user_message(&body), None);
+    }
+
+    #[test]
+    fn test_extract_empty_messages() {
+        let body = json!({"messages": []});
+        assert_eq!(extract_last_user_message(&body), None);
+    }
+
+    #[test]
+    fn test_extract_no_messages_field() {
+        let body = json!({"other": "field"});
+        assert_eq!(extract_last_user_message(&body), None);
+    }
 }

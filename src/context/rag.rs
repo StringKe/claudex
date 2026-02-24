@@ -62,11 +62,7 @@ impl RagIndex {
         Ok(())
     }
 
-    pub async fn search(
-        &self,
-        query: &str,
-        http_client: &reqwest::Client,
-    ) -> Result<Vec<String>> {
+    pub async fn search(&self, query: &str, http_client: &reqwest::Client) -> Result<Vec<String>> {
         if !self.config.enabled {
             return Ok(Vec::new());
         }
@@ -112,7 +108,9 @@ impl RagIndex {
     }
 
     fn collect_files(&self, dir: &Path, chunks: &mut Vec<TextChunk>) -> Result<()> {
-        let extensions = ["rs", "ts", "tsx", "js", "jsx", "java", "py", "go", "md", "toml", "yaml", "yml"];
+        let extensions = [
+            "rs", "ts", "tsx", "js", "jsx", "java", "py", "go", "md", "toml", "yaml", "yml",
+        ];
 
         for entry in std::fs::read_dir(dir)? {
             let entry = entry?;
@@ -120,7 +118,11 @@ impl RagIndex {
 
             if path.is_dir() {
                 let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                if name.starts_with('.') || name == "node_modules" || name == "target" || name == "dist" {
+                if name.starts_with('.')
+                    || name == "node_modules"
+                    || name == "target"
+                    || name == "dist"
+                {
                     continue;
                 }
                 self.collect_files(&path, chunks)?;
@@ -173,7 +175,13 @@ impl RagIndex {
             "input": texts,
         });
 
-        let resp: Value = http_client.post(&url).json(&body).send().await?.json().await?;
+        let resp: Value = http_client
+            .post(&url)
+            .json(&body)
+            .send()
+            .await?
+            .json()
+            .await?;
 
         let embeddings = resp
             .get("data")
@@ -181,13 +189,11 @@ impl RagIndex {
             .map(|data| {
                 data.iter()
                     .filter_map(|item| {
-                        item.get("embedding")
-                            .and_then(|e| e.as_array())
-                            .map(|arr| {
-                                arr.iter()
-                                    .filter_map(|v| v.as_f64().map(|f| f as f32))
-                                    .collect()
-                            })
+                        item.get("embedding").and_then(|e| e.as_array()).map(|arr| {
+                            arr.iter()
+                                .filter_map(|v| v.as_f64().map(|f| f as f32))
+                                .collect()
+                        })
                     })
                     .collect()
             })

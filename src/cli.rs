@@ -1,7 +1,11 @@
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "claudex", version, about = "Multi-instance Claude Code manager with intelligent translation proxy")]
+#[command(
+    name = "claudex",
+    version,
+    about = "Multi-instance Claude Code manager with intelligent translation proxy"
+)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Commands>,
@@ -37,7 +41,18 @@ pub enum Commands {
     Dashboard,
 
     /// Show current configuration
-    Config,
+    Config {
+        /// Initialize claudex.toml in the current directory
+        #[arg(long)]
+        init: bool,
+    },
+
+    /// Self-update claudex binary
+    Update {
+        /// Only check for updates, don't install
+        #[arg(long)]
+        check: bool,
+    },
 }
 
 #[derive(Subcommand)]

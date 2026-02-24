@@ -70,7 +70,13 @@ async fn call_summarizer(
         "temperature": 0.3,
     });
 
-    let resp: Value = http_client.post(&url).json(&body).send().await?.json().await?;
+    let resp: Value = http_client
+        .post(&url)
+        .json(&body)
+        .send()
+        .await?
+        .json()
+        .await?;
 
     let summary = resp
         .get("choices")

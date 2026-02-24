@@ -46,3 +46,44 @@ impl RouterConfig {
             .cloned()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_resolve_exact_match() {
+        let mut config = RouterConfig::default();
+        config
+            .rules
+            .insert("code".to_string(), "deepseek".to_string());
+        assert_eq!(config.resolve_profile("code"), Some("deepseek".to_string()));
+    }
+
+    #[test]
+    fn test_resolve_fallback_to_default() {
+        let mut config = RouterConfig::default();
+        config
+            .rules
+            .insert("default".to_string(), "grok".to_string());
+        assert_eq!(
+            config.resolve_profile("unknown_intent"),
+            Some("grok".to_string())
+        );
+    }
+
+    #[test]
+    fn test_resolve_no_match_no_default() {
+        let config = RouterConfig::default();
+        assert_eq!(config.resolve_profile("anything"), None);
+    }
+
+    #[test]
+    fn test_defaults() {
+        let config = RouterConfig::default();
+        assert!(!config.enabled);
+        assert_eq!(config.classifier_url, "http://localhost:11434/v1");
+        assert_eq!(config.classifier_model, "qwen2.5:3b");
+        assert!(config.rules.is_empty());
+    }
+}

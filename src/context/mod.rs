@@ -80,7 +80,6 @@ fn default_top_k() -> usize {
     5
 }
 
-
 impl Default for CompressionConfig {
     fn default() -> Self {
         Self {

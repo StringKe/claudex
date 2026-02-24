@@ -1,8 +1,13 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use super::{App, LogLevel};
+use super::App;
 
 pub fn handle_key_event(app: &mut App, key: KeyEvent) {
+    if app.show_help {
+        app.show_help = false;
+        return;
+    }
+
     if app.search_mode {
         handle_search_input(app, key);
         return;
@@ -16,29 +21,42 @@ pub fn handle_key_event(app: &mut App, key: KeyEvent) {
             app.should_quit = true;
         }
         KeyCode::Up | KeyCode::Char('k') => {
-            if app.selected_profile > 0 {
-                app.selected_profile -= 1;
-            }
+            app.select_previous();
         }
         KeyCode::Down | KeyCode::Char('j') => {
-            app.selected_profile += 1;
-            // Will be clamped during render
+            app.select_next();
         }
         KeyCode::Char('/') => {
             app.search_mode = true;
             app.search_query.clear();
         }
+        KeyCode::Char('?') => {
+            app.show_help = true;
+        }
         KeyCode::Char('t') => {
-            app.add_log(LogLevel::Info, "Testing profile...".to_string());
+            if let Some(name) = app.selected_profile_name() {
+                app.test_profile = Some(name);
+            }
         }
         KeyCode::Enter => {
-            app.add_log(LogLevel::Info, "Launching claude...".to_string());
+            if let Some(name) = app.selected_profile_name() {
+                log::info!("Launching claude with profile '{name}'...");
+                app.launch_profile = Some(name);
+            }
         }
         KeyCode::Char('a') => {
-            app.add_log(LogLevel::Info, "Add profile: use CLI `claudex profile add`".to_string());
+            log::info!("Add profile: use CLI `claudex profile add`");
         }
         KeyCode::Char('d') => {
-            app.add_log(LogLevel::Warn, "Delete: confirm with CLI `claudex profile remove`".to_string());
+            log::warn!("Delete: confirm with CLI `claudex profile remove`");
+        }
+        KeyCode::Char('p') => {
+            let status = if app.proxy_running {
+                "running"
+            } else {
+                "stopped"
+            };
+            log::info!("Proxy is {status}. Use CLI to start/stop.");
         }
         _ => {}
     }

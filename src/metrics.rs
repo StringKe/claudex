@@ -83,3 +83,111 @@ impl MetricsStore {
         self.inner.lock().unwrap().clone()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new_metrics_are_zero() {
+        let m = ProfileMetrics::new();
+        assert_eq!(m.total_requests.load(Ordering::Relaxed), 0);
+        assert_eq!(m.success_count.load(Ordering::Relaxed), 0);
+        assert_eq!(m.failure_count.load(Ordering::Relaxed), 0);
+        assert_eq!(m.total_tokens.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn test_record_success() {
+        let m = ProfileMetrics::new();
+        m.record_request(true, Duration::from_millis(100), 50);
+
+        assert_eq!(m.total_requests.load(Ordering::Relaxed), 1);
+        assert_eq!(m.success_count.load(Ordering::Relaxed), 1);
+        assert_eq!(m.failure_count.load(Ordering::Relaxed), 0);
+        assert_eq!(m.total_tokens.load(Ordering::Relaxed), 50);
+    }
+
+    #[test]
+    fn test_record_failure() {
+        let m = ProfileMetrics::new();
+        m.record_request(false, Duration::from_millis(200), 0);
+
+        assert_eq!(m.total_requests.load(Ordering::Relaxed), 1);
+        assert_eq!(m.success_count.load(Ordering::Relaxed), 0);
+        assert_eq!(m.failure_count.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn test_avg_latency_empty() {
+        let m = ProfileMetrics::new();
+        assert!(m.avg_latency().is_none());
+    }
+
+    #[test]
+    fn test_avg_latency_single() {
+        let m = ProfileMetrics::new();
+        m.record_request(true, Duration::from_millis(100), 0);
+        assert_eq!(m.avg_latency(), Some(Duration::from_millis(100)));
+    }
+
+    #[test]
+    fn test_avg_latency_multiple() {
+        let m = ProfileMetrics::new();
+        m.record_request(true, Duration::from_millis(100), 0);
+        m.record_request(true, Duration::from_millis(200), 0);
+        m.record_request(true, Duration::from_millis(300), 0);
+        assert_eq!(m.avg_latency(), Some(Duration::from_millis(200)));
+    }
+
+    #[test]
+    fn test_latency_buffer_cap_at_100() {
+        let m = ProfileMetrics::new();
+        for i in 0..110 {
+            m.record_request(true, Duration::from_millis(i), 0);
+        }
+        let lat = m.latencies.lock().unwrap();
+        assert_eq!(lat.len(), 100);
+        // Should have dropped first 10, so earliest should be 10ms
+        assert_eq!(*lat.front().unwrap(), Duration::from_millis(10));
+    }
+
+    #[test]
+    fn test_success_rate_no_requests() {
+        let m = ProfileMetrics::new();
+        assert_eq!(m.success_rate(), 100.0);
+    }
+
+    #[test]
+    fn test_success_rate_mixed() {
+        let m = ProfileMetrics::new();
+        m.record_request(true, Duration::from_millis(10), 0);
+        m.record_request(true, Duration::from_millis(10), 0);
+        m.record_request(false, Duration::from_millis(10), 0);
+        // 2/3 = 66.67%
+        let rate = m.success_rate();
+        assert!((rate - 66.67).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_metrics_store_get_or_create() {
+        let store = MetricsStore::new();
+        let m1 = store.get_or_create("grok");
+        m1.record_request(true, Duration::from_millis(50), 10);
+
+        let m2 = store.get_or_create("grok");
+        assert_eq!(m2.total_requests.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn test_metrics_store_snapshot() {
+        let store = MetricsStore::new();
+        store.get_or_create("a");
+        store.get_or_create("b");
+
+        let snap = store.snapshot();
+        assert_eq!(snap.len(), 2);
+        assert!(snap.contains_key("a"));
+        assert!(snap.contains_key("b"));
+    }
+}

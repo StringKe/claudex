@@ -286,3 +286,195 @@ fn format_sse(event: &str, data: &Value) -> String {
         serde_json::to_string(data).unwrap_or_default()
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_format_sse() {
+        let data = json!({"type": "test"});
+        let result = format_sse("my_event", &data);
+        assert!(result.starts_with("event: my_event\ndata: "));
+        assert!(result.ends_with("\n\n"));
+        assert!(result.contains("\"type\":\"test\""));
+    }
+
+    #[test]
+    fn test_process_text_delta() {
+        let mut state = StreamState::new();
+        let line = format!(
+            "data: {}",
+            json!({
+                "choices": [{"delta": {"content": "Hello"}}]
+            })
+        );
+        let events = state.process_openai_line(&line).unwrap();
+        // Should emit content_block_start + content_block_delta
+        assert_eq!(events.len(), 2);
+        assert!(events[0].contains("content_block_start"));
+        assert!(events[1].contains("text_delta"));
+        assert!(events[1].contains("Hello"));
+        assert!(state.block_started);
+    }
+
+    #[test]
+    fn test_subsequent_text_delta_no_block_start() {
+        let mut state = StreamState::new();
+        state.block_started = true; // simulate already started
+        let line = format!(
+            "data: {}",
+            json!({"choices": [{"delta": {"content": "world"}}]})
+        );
+        let events = state.process_openai_line(&line).unwrap();
+        // Only content_block_delta, no start
+        assert_eq!(events.len(), 1);
+        assert!(events[0].contains("text_delta"));
+    }
+
+    #[test]
+    fn test_empty_content_ignored() {
+        let mut state = StreamState::new();
+        let line = format!("data: {}", json!({"choices": [{"delta": {"content": ""}}]}));
+        assert!(state.process_openai_line(&line).is_none());
+    }
+
+    #[test]
+    fn test_done_marker() {
+        let mut state = StreamState::new();
+        let result = state.process_openai_line("data: [DONE]");
+        // No tool call pending, so None
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_invalid_json_returns_none() {
+        let mut state = StreamState::new();
+        assert!(state.process_openai_line("data: {invalid}").is_none());
+    }
+
+    #[test]
+    fn test_no_data_prefix_returns_none() {
+        let mut state = StreamState::new();
+        assert!(state.process_openai_line("not a data line").is_none());
+    }
+
+    #[test]
+    fn test_tool_call_start() {
+        let mut state = StreamState::new();
+        let line = format!(
+            "data: {}",
+            json!({
+                "choices": [{
+                    "delta": {
+                        "tool_calls": [{
+                            "id": "call_1",
+                            "function": {"name": "search", "arguments": "{\"q\":"}
+                        }]
+                    }
+                }]
+            })
+        );
+        let events = state.process_openai_line(&line).unwrap();
+        // Should have content_block_start (tool_use) + content_block_delta (input_json_delta)
+        assert!(events.iter().any(|e| e.contains("tool_use")));
+        assert!(events.iter().any(|e| e.contains("input_json_delta")));
+        assert!(state.current_tool_call.is_some());
+    }
+
+    #[test]
+    fn test_tool_call_argument_accumulation() {
+        let mut state = StreamState::new();
+        state.current_tool_call = Some(ToolCallState {
+            id: "call_1".to_string(),
+            name: "search".to_string(),
+            arguments_buffer: "{\"q\":".to_string(),
+        });
+        state.block_started = true;
+
+        let line = format!(
+            "data: {}",
+            json!({
+                "choices": [{
+                    "delta": {
+                        "tool_calls": [{"function": {"arguments": "\"rust\"}"}}]
+                    }
+                }]
+            })
+        );
+        let events = state.process_openai_line(&line).unwrap();
+        assert!(events.iter().any(|e| e.contains("input_json_delta")));
+        assert_eq!(
+            state.current_tool_call.as_ref().unwrap().arguments_buffer,
+            "{\"q\":\"rust\"}"
+        );
+    }
+
+    #[test]
+    fn test_finish_reason_tool_calls_finalizes() {
+        let mut state = StreamState::new();
+        state.current_tool_call = Some(ToolCallState {
+            id: "call_1".to_string(),
+            name: "search".to_string(),
+            arguments_buffer: "{}".to_string(),
+        });
+        state.block_started = true;
+
+        let line = format!(
+            "data: {}",
+            json!({"choices": [{"delta": {}, "finish_reason": "tool_calls"}]})
+        );
+        let events = state.process_openai_line(&line).unwrap();
+        assert!(events.iter().any(|e| e.contains("content_block_stop")));
+        assert!(state.current_tool_call.is_none());
+    }
+
+    #[test]
+    fn test_usage_tracking() {
+        let mut state = StreamState::new();
+        let line = format!(
+            "data: {}",
+            json!({
+                "choices": [{"delta": {"content": "hi"}}],
+                "usage": {"completion_tokens": 42}
+            })
+        );
+        state.process_openai_line(&line);
+        assert_eq!(state.output_tokens, 42);
+    }
+
+    #[test]
+    fn test_finalize_tool_call_no_pending() {
+        let mut state = StreamState::new();
+        assert!(state.finalize_tool_call().is_none());
+    }
+
+    #[test]
+    fn test_block_index_increments() {
+        let mut state = StreamState::new();
+        assert_eq!(state.block_index, 0);
+
+        // Start a text block
+        let line1 = format!(
+            "data: {}",
+            json!({"choices": [{"delta": {"content": "hi"}}]})
+        );
+        state.process_openai_line(&line1);
+        assert_eq!(state.block_index, 0); // still 0 during first block
+
+        // Start a tool call (should close text block and increment)
+        let line2 = format!(
+            "data: {}",
+            json!({
+                "choices": [{
+                    "delta": {
+                        "tool_calls": [{"id": "c1", "function": {"name": "f"}}]
+                    }
+                }]
+            })
+        );
+        state.process_openai_line(&line2);
+        assert_eq!(state.block_index, 1); // incremented after closing text block
+    }
+}

@@ -61,10 +61,7 @@ impl CircuitBreaker {
 
         if self.failure_count >= self.threshold {
             self.state = CircuitState::Open;
-            tracing::warn!(
-                failures = self.failure_count,
-                "circuit breaker opened"
-            );
+            tracing::warn!(failures = self.failure_count, "circuit breaker opened");
         }
     }
 
@@ -85,6 +82,7 @@ pub fn new_circuit_breaker_map() -> CircuitBreakerMap {
     Arc::new(RwLock::new(HashMap::new()))
 }
 
+#[allow(dead_code)]
 pub async fn get_or_create(map: &CircuitBreakerMap, profile: &str) -> CircuitBreaker {
     let read = map.read().await;
     if let Some(cb) = read.get(profile) {
@@ -109,5 +107,113 @@ pub async fn get_or_create(map: &CircuitBreakerMap, profile: &str) -> CircuitBre
         last_failure: cb.last_failure,
         threshold: cb.threshold,
         recovery_timeout: cb.recovery_timeout,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_default_values() {
+        let cb = CircuitBreaker::default();
+        assert_eq!(cb.state, CircuitState::Closed);
+        assert_eq!(cb.failure_count, 0);
+        assert_eq!(cb.threshold, 3);
+        assert_eq!(cb.recovery_timeout, Duration::from_secs(30));
+        assert!(cb.last_failure.is_none());
+    }
+
+    #[test]
+    fn test_closed_can_attempt() {
+        let mut cb = CircuitBreaker::default();
+        assert!(cb.can_attempt());
+    }
+
+    #[test]
+    fn test_single_failure_stays_closed() {
+        let mut cb = CircuitBreaker::default();
+        cb.record_failure();
+        assert_eq!(cb.failure_count, 1);
+        assert_eq!(cb.state, CircuitState::Closed);
+        assert!(cb.can_attempt());
+    }
+
+    #[test]
+    fn test_threshold_opens_circuit() {
+        let mut cb = CircuitBreaker::new(3, Duration::from_secs(30));
+        cb.record_failure();
+        cb.record_failure();
+        assert_eq!(cb.state, CircuitState::Closed);
+        cb.record_failure(); // hits threshold
+        assert_eq!(cb.state, CircuitState::Open);
+        assert!(cb.is_open());
+    }
+
+    #[test]
+    fn test_open_rejects_attempts() {
+        let mut cb = CircuitBreaker::new(2, Duration::from_secs(60));
+        cb.record_failure();
+        cb.record_failure();
+        assert_eq!(cb.state, CircuitState::Open);
+        assert!(!cb.can_attempt()); // should reject
+    }
+
+    #[test]
+    fn test_success_resets_state() {
+        let mut cb = CircuitBreaker::new(3, Duration::from_secs(30));
+        cb.record_failure();
+        cb.record_failure();
+        assert_eq!(cb.failure_count, 2);
+
+        cb.record_success();
+        assert_eq!(cb.state, CircuitState::Closed);
+        assert_eq!(cb.failure_count, 0);
+    }
+
+    #[test]
+    fn test_halfopen_after_timeout() {
+        let mut cb = CircuitBreaker::new(1, Duration::from_millis(0)); // instant recovery
+        cb.record_failure(); // opens circuit
+        assert_eq!(cb.state, CircuitState::Open);
+
+        // With 0ms timeout, should immediately transition to HalfOpen
+        assert!(cb.can_attempt());
+        assert_eq!(cb.state, CircuitState::HalfOpen);
+    }
+
+    #[test]
+    fn test_halfopen_allows_attempt() {
+        let mut cb = CircuitBreaker::default();
+        cb.state = CircuitState::HalfOpen;
+        assert!(cb.can_attempt());
+    }
+
+    #[test]
+    fn test_halfopen_success_closes() {
+        let mut cb = CircuitBreaker::default();
+        cb.state = CircuitState::HalfOpen;
+        cb.record_success();
+        assert_eq!(cb.state, CircuitState::Closed);
+        assert_eq!(cb.failure_count, 0);
+    }
+
+    #[test]
+    fn test_halfopen_failure_reopens() {
+        let mut cb = CircuitBreaker::new(1, Duration::from_secs(30));
+        cb.state = CircuitState::HalfOpen;
+        cb.failure_count = 0;
+        cb.record_failure(); // threshold=1, so this reopens
+        assert_eq!(cb.state, CircuitState::Open);
+    }
+
+    #[test]
+    fn test_is_open() {
+        let mut cb = CircuitBreaker::default();
+        assert!(!cb.is_open());
+        cb.state = CircuitState::Open;
+        assert!(cb.is_open());
+        cb.state = CircuitState::HalfOpen;
+        assert!(!cb.is_open());
     }
 }

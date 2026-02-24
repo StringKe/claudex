@@ -10,6 +10,7 @@ mod profile;
 mod proxy;
 mod router;
 mod tui;
+mod update;
 
 use anyhow::Result;
 use clap::Parser;
@@ -27,8 +28,7 @@ async fn main() -> Result<()> {
     // Init tracing
     tracing_subscriber::fmt()
         .with_env_filter(
-            EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new(&config.log_level)),
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&config.log_level)),
         )
         .init();
 
@@ -65,8 +65,7 @@ async fn main() -> Result<()> {
                 profile::test_profile(&config, &name).await?;
             }
             ProfileAction::Add => {
-                println!("Interactive profile creation:");
-                println!("  (For now, edit config.toml directly at {:?})", ClaudexConfig::config_path()?);
+                profile::interactive_add(&mut config).await?;
             }
             ProfileAction::Remove { name } => {
                 profile::remove_profile(&mut config, &name)?;
@@ -74,7 +73,10 @@ async fn main() -> Result<()> {
         },
 
         Some(Commands::Proxy { action }) => match action {
-            ProxyAction::Start { port, daemon: as_daemon } => {
+            ProxyAction::Start {
+                port,
+                daemon: as_daemon,
+            } => {
                 if as_daemon {
                     start_proxy_background(&config).await?;
                 } else {
@@ -92,18 +94,68 @@ async fn main() -> Result<()> {
         Some(Commands::Dashboard) => {
             let config_arc = std::sync::Arc::new(tokio::sync::RwLock::new(config));
             let metrics_store = metrics::MetricsStore::new();
-            let health = std::sync::Arc::new(tokio::sync::RwLock::new(
-                std::collections::HashMap::new(),
-            ));
+            let health =
+                std::sync::Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new()));
             tui::run_tui(config_arc, metrics_store, health).await?;
         }
 
-        Some(Commands::Config) => {
-            let path = ClaudexConfig::config_path()?;
-            println!("Config path: {}", path.display());
-            println!("Profiles: {}", config.profiles.len());
-            println!("Proxy: {}:{}", config.proxy_host, config.proxy_port);
-            println!("Router: {}", if config.router.enabled { "enabled" } else { "disabled" });
+        Some(Commands::Config { init }) => {
+            if init {
+                ClaudexConfig::init_local()?;
+            } else {
+                let source_display = config
+                    .config_source
+                    .as_ref()
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_else(|| "(default)".to_string());
+                println!("Config loaded from: {}", source_display);
+                println!("Profiles: {}", config.profiles.len());
+                println!("Proxy: {}:{}", config.proxy_host, config.proxy_port);
+                println!(
+                    "Router: {}",
+                    if config.router.enabled {
+                        "enabled"
+                    } else {
+                        "disabled"
+                    }
+                );
+                println!("Context engine:");
+                println!(
+                    "  Compression: {}",
+                    if config.context.compression.enabled {
+                        "enabled"
+                    } else {
+                        "disabled"
+                    }
+                );
+                println!(
+                    "  Sharing: {}",
+                    if config.context.sharing.enabled {
+                        "enabled"
+                    } else {
+                        "disabled"
+                    }
+                );
+                println!(
+                    "  RAG: {}",
+                    if config.context.rag.enabled {
+                        "enabled"
+                    } else {
+                        "disabled"
+                    }
+                );
+            }
+        }
+
+        Some(Commands::Update { check }) => {
+            if check {
+                match update::check_update().await? {
+                    Some(version) => println!("New version available: {version}"),
+                    None => println!("Already up to date (v{})", env!("CARGO_PKG_VERSION")),
+                }
+            } else {
+                update::self_update().await?;
+            }
         }
 
         None => {
@@ -113,16 +165,18 @@ async fn main() -> Result<()> {
                 println!();
                 println!("Get started:");
                 println!("  1. Create config: claudex config");
-                println!("  2. Add a profile: edit {:?}", ClaudexConfig::config_path()?);
+                println!(
+                    "  2. Add a profile: edit {:?}",
+                    ClaudexConfig::config_path()?
+                );
                 println!("  3. Run claude:    claudex run <profile>");
                 println!();
                 println!("Use --help for more options.");
             } else {
                 let config_arc = std::sync::Arc::new(tokio::sync::RwLock::new(config));
                 let metrics_store = metrics::MetricsStore::new();
-                let health = std::sync::Arc::new(tokio::sync::RwLock::new(
-                    std::collections::HashMap::new(),
-                ));
+                let health =
+                    std::sync::Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new()));
                 tui::run_tui(config_arc, metrics_store, health).await?;
             }
         }

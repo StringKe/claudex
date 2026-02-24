@@ -7,9 +7,9 @@ use ratatui::Frame;
 use crate::config::ClaudexConfig;
 use crate::proxy::health::HealthMap;
 
-use super::{App, LogLevel};
+use super::App;
 
-pub fn render(f: &mut Frame, app: &App, config: &ClaudexConfig, health: &HealthMap) {
+pub fn render(f: &mut Frame, app: &mut App, config: &ClaudexConfig, health: &HealthMap) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -32,7 +32,7 @@ pub fn render(f: &mut Frame, app: &App, config: &ClaudexConfig, health: &HealthM
 
 fn render_profiles(
     f: &mut Frame,
-    app: &App,
+    app: &mut App,
     config: &ClaudexConfig,
     health: &HealthMap,
     area: Rect,
@@ -55,7 +55,9 @@ fn render_profiles(
                 None => ("○", "--".to_string()),
             };
 
-            let style = if i == app.selected_profile {
+            let is_selected = app.profile_state.selected() == Some(i);
+
+            let style = if is_selected {
                 Style::default()
                     .fg(Color::Yellow)
                     .add_modifier(Modifier::BOLD)
@@ -65,61 +67,53 @@ fn render_profiles(
                 Style::default()
             };
 
-            let prefix = if i == app.selected_profile {
-                "►"
-            } else {
-                " "
-            };
+            let prefix = if is_selected { "►" } else { " " };
 
-            ListItem::new(Line::from(vec![
-                Span::styled(
-                    format!("{prefix} {:<12} {indicator} {latency_str:>6}", profile.name),
-                    style,
-                ),
-            ]))
+            ListItem::new(Line::from(vec![Span::styled(
+                format!("{prefix} {:<12} {indicator} {latency_str:>6}", profile.name),
+                style,
+            )]))
         })
         .collect();
 
-    let list = List::new(items).block(
-        Block::default()
-            .title(" Profiles ")
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Cyan)),
-    );
+    let list = List::new(items)
+        .block(
+            Block::default()
+                .title(" Profiles ")
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::Cyan)),
+        )
+        .highlight_style(
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        );
 
-    f.render_widget(list, area);
+    // render_stateful_widget uses ListState for proper selection + scroll
+    f.render_stateful_widget(list, area, &mut app.profile_state);
 }
 
 fn render_logs(f: &mut Frame, app: &App, area: Rect) {
-    let max_logs = area.height.saturating_sub(2) as usize;
-    let start = app.logs.len().saturating_sub(max_logs);
+    // tui-logger SmartWidget: scrollable log view integrated with `log` crate
+    let log_widget = tui_logger::TuiLoggerSmartWidget::default()
+        .style_error(Style::default().fg(Color::Red))
+        .style_warn(Style::default().fg(Color::Yellow))
+        .style_info(Style::default().fg(Color::Green))
+        .style_debug(Style::default().fg(Color::Blue))
+        .style_trace(Style::default().fg(Color::DarkGray))
+        .output_separator(':')
+        .output_timestamp(Some("%H:%M:%S".to_string()))
+        .output_level(Some(tui_logger::TuiLoggerLevelOutput::Abbreviated))
+        .output_target(false)
+        .output_file(false)
+        .output_line(false)
+        .title_log(" Logs ")
+        .title_target("")
+        .border_type(ratatui::widgets::BorderType::Plain)
+        .style(Style::default().fg(Color::White))
+        .state(&app.log_state);
 
-    let items: Vec<ListItem> = app.logs[start..]
-        .iter()
-        .map(|log| {
-            let time = log.timestamp.format("%H:%M:%S");
-            let (color, prefix) = match log.level {
-                LogLevel::Info => (Color::Green, "INFO"),
-                LogLevel::Warn => (Color::Yellow, "WARN"),
-                LogLevel::Error => (Color::Red, "ERR "),
-            };
-
-            ListItem::new(Line::from(vec![
-                Span::styled(format!("[{time}] "), Style::default().fg(Color::DarkGray)),
-                Span::styled(format!("{prefix} "), Style::default().fg(color)),
-                Span::raw(&log.message),
-            ]))
-        })
-        .collect();
-
-    let list = List::new(items).block(
-        Block::default()
-            .title(" Logs ")
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Cyan)),
-    );
-
-    f.render_widget(list, area);
+    f.render_widget(log_widget, area);
 }
 
 fn render_metrics(f: &mut Frame, app: &App, area: Rect) {
@@ -135,10 +129,7 @@ fn render_metrics(f: &mut Frame, app: &App, area: Rect) {
         .sum();
 
     let avg_latency = {
-        let latencies: Vec<_> = snapshot
-            .values()
-            .filter_map(|m| m.avg_latency())
-            .collect();
+        let latencies: Vec<_> = snapshot.values().filter_map(|m| m.avg_latency()).collect();
         if latencies.is_empty() {
             "N/A".to_string()
         } else {
@@ -156,7 +147,10 @@ fn render_metrics(f: &mut Frame, app: &App, area: Rect) {
         if total_requests == 0 {
             "100%".to_string()
         } else {
-            format!("{:.0}%", (total_success as f64 / total_requests as f64) * 100.0)
+            format!(
+                "{:.0}%",
+                (total_success as f64 / total_requests as f64) * 100.0
+            )
         }
     };
 
@@ -181,7 +175,8 @@ fn render_metrics(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_status_bar(f: &mut Frame, area: Rect) {
-    let text = " [Enter] Run  [e] Edit  [d] Delete  [p] Proxy  [/] Search  [a] Add  [t] Test  [q] Quit  [?] Help";
+    let text =
+        " [Enter] Run  [e] Edit  [d] Delete  [p] Proxy  [/] Search  [a] Add  [t] Test  [q] Quit  [?] Help";
     let paragraph = Paragraph::new(text).style(Style::default().fg(Color::DarkGray));
     f.render_widget(paragraph, area);
 }
