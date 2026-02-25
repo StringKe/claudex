@@ -8,20 +8,20 @@ import { Aside } from '@astrojs/starlight/components';
 The context engine enhances your AI interactions through three mechanisms: conversation compression, cross-profile context sharing, and local RAG (Retrieval-Augmented Generation).
 
 <Aside type="caution">
-  The context engine features require a local LLM service (like Ollama) for summarization and embedding generation.
+  The context engine features require an LLM service for summarization and embedding generation. You can use any existing profile (local Ollama, cloud providers like OpenRouter, etc.).
 </Aside>
 
 ## Conversation Compression
 
-When conversations grow beyond a token threshold, Claudex uses a local LLM to summarize older messages, keeping recent ones intact.
+When conversations grow beyond a token threshold, Claudex uses an LLM to summarize older messages, keeping recent ones intact.
 
 ```toml
 [context.compression]
 enabled = true
 threshold_tokens = 50000    # compress when total tokens exceed this
 keep_recent = 10            # always keep the last N messages
-summarizer_url = "http://localhost:11434/v1"
-summarizer_model = "qwen2.5:3b"
+profile = "openrouter"      # reuse a profile's base_url + api_key
+model = "qwen/qwen-2.5-7b-instruct"  # override model (optional)
 ```
 
 ### How It Works
@@ -51,8 +51,8 @@ Index local code and documentation for retrieval-augmented generation. Relevant 
 [context.rag]
 enabled = true
 index_paths = ["./src", "./docs"]     # directories to index
-embedding_url = "http://localhost:11434/v1"
-embedding_model = "nomic-embed-text"  # embedding model
+profile = "openrouter"                 # reuse a profile's base_url + api_key
+model = "openai/text-embedding-3-small"  # embedding model
 chunk_size = 512                       # text chunk size
 top_k = 5                             # number of results to inject
 ```

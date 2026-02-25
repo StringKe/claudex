@@ -1,8 +1,6 @@
 use anyhow::Result;
 use serde_json::{json, Value};
 
-use super::RouterConfig;
-
 const CLASSIFICATION_PROMPT: &str = r#"Analyze the following user request and classify its intent into exactly ONE of these categories:
 - code: Code generation, modification, debugging, or programming tasks
 - analysis: Code review, project analysis, architecture discussion
@@ -13,17 +11,19 @@ const CLASSIFICATION_PROMPT: &str = r#"Analyze the following user request and cl
 Respond with ONLY the category name, nothing else."#;
 
 pub async fn classify_intent(
-    config: &RouterConfig,
+    base_url: &str,
+    api_key: &str,
+    model: &str,
     prompt: &str,
     http_client: &reqwest::Client,
 ) -> Result<String> {
     let url = format!(
         "{}/chat/completions",
-        config.classifier_url.trim_end_matches('/')
+        base_url.trim_end_matches('/')
     );
 
     let body = json!({
-        "model": config.classifier_model,
+        "model": model,
         "messages": [
             {"role": "system", "content": CLASSIFICATION_PROMPT},
             {"role": "user", "content": prompt},
@@ -33,11 +33,8 @@ pub async fn classify_intent(
     });
 
     let mut req = http_client.post(&url).json(&body);
-    if !config.classifier_api_key.is_empty() {
-        req = req.header(
-            "Authorization",
-            format!("Bearer {}", config.classifier_api_key),
-        );
+    if !api_key.is_empty() {
+        req = req.header("Authorization", format!("Bearer {api_key}"));
     }
 
     let resp: Value = req.send().await?.json().await?;

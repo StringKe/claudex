@@ -63,6 +63,7 @@ pub async fn handle_messages(
         .collect();
 
     let context_config = config.context.clone();
+    let full_config = config.clone();
     let metrics = state.metrics.get_or_create(&resolved_profile_name);
     drop(config);
 
@@ -72,6 +73,7 @@ pub async fn handle_messages(
         &state,
         &resolved_profile_name,
         &context_config,
+        &full_config,
     )
     .await;
 
@@ -159,6 +161,13 @@ async fn resolve_auto_profile(state: &ProxyState, body: &Value) -> String {
     }
 
     let router_config = config.router.clone();
+
+    // Resolve classifier profile endpoint
+    let endpoint = crate::context::resolve_profile_endpoint(
+        &config,
+        &router_config.profile,
+        &router_config.model,
+    );
     drop(config);
 
     let user_message = classifier::extract_last_user_message(body).unwrap_or_default();
@@ -169,7 +178,20 @@ async fn resolve_auto_profile(state: &ProxyState, body: &Value) -> String {
             .unwrap_or_else(|| "default".to_string());
     }
 
-    match classifier::classify_intent(&router_config, &user_message, &state.http_client).await {
+    let (base_url, api_key, model) = match endpoint {
+        Some(v) => v,
+        None => {
+            tracing::warn!(
+                profile = %router_config.profile,
+                "router classifier profile not found, using default"
+            );
+            return router_config
+                .resolve_profile("default")
+                .unwrap_or_else(|| "default".to_string());
+        }
+    };
+
+    match classifier::classify_intent(&base_url, &api_key, &model, &user_message, &state.http_client).await {
         Ok(intent) => {
             let profile_name = router_config.resolve_profile(&intent).unwrap_or_else(|| {
                 router_config

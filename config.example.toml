@@ -129,9 +129,8 @@ priority = 50
 
 [router]
 enabled = false
-classifier_url = "http://localhost:11434/v1"   # Ollama or any OpenAI-compatible local service
-classifier_model = "qwen2.5:3b"
-classifier_api_key = ""
+profile = "local-qwen"              # reuse a profile's base_url + api_key for classification
+model = "qwen2.5:3b"                # override model (optional, defaults to profile's default_model)
 
 [router.rules]
 code = "deepseek"
@@ -147,8 +146,8 @@ default = "grok"
 enabled = false
 threshold_tokens = 50000
 keep_recent = 10
-summarizer_url = "http://localhost:11434/v1"
-summarizer_model = "qwen2.5:3b"
+profile = "local-qwen"              # reuse a profile's base_url + api_key for summarization
+model = "qwen2.5:3b"                # override model (optional)
 
 [context.sharing]
 enabled = false
@@ -157,7 +156,7 @@ max_context_size = 2000
 [context.rag]
 enabled = false
 index_paths = ["./src", "./docs"]
-embedding_url = "http://localhost:11434/v1"
-embedding_model = "nomic-embed-text"
+profile = "local-qwen"              # reuse a profile's base_url + api_key for embeddings
+model = "nomic-embed-text"           # embedding model
 chunk_size = 512
 top_k = 5

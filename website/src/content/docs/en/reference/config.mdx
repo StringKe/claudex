@@ -175,17 +175,15 @@ enabled = false
 ```toml
 [router]
 enabled = false
-classifier_url = "http://localhost:11434/v1"
-classifier_model = "qwen2.5:3b"
-classifier_api_key = ""
+profile = "local-qwen"    # reuse a profile's base_url + api_key
+model = "qwen2.5:3b"      # override model (optional)
 ```
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `enabled` | boolean | `false` | Enable smart routing |
-| `classifier_url` | string | `"http://localhost:11434/v1"` | OpenAI-compatible endpoint for intent classification |
-| `classifier_model` | string | `"qwen2.5:3b"` | Model to use for classification |
-| `classifier_api_key` | string | `""` | API key for classifier (empty for local services) |
+| `profile` | string | `""` | Profile name to reuse for classification (uses its `base_url` + `api_key`) |
+| `model` | string | `""` | Model override for classification (defaults to profile's `default_model`) |
 
 ### Routing Rules
 
@@ -217,8 +215,8 @@ default = "grok"
 enabled = false
 threshold_tokens = 50000
 keep_recent = 10
-summarizer_url = "http://localhost:11434/v1"
-summarizer_model = "qwen2.5:3b"
+profile = "local-qwen"    # reuse a profile's base_url + api_key
+model = "qwen2.5:3b"      # override model (optional)
 ```
 
 | Field | Type | Default | Description |
@@ -226,8 +224,8 @@ summarizer_model = "qwen2.5:3b"
 | `enabled` | boolean | `false` | Enable conversation compression |
 | `threshold_tokens` | integer | `50000` | Compress when token count exceeds this |
 | `keep_recent` | integer | `10` | Always keep the last N messages uncompressed |
-| `summarizer_url` | string | — | LLM endpoint for generating summaries |
-| `summarizer_model` | string | — | Model to use for summarization |
+| `profile` | string | `""` | Profile name to reuse for summarization (uses its `base_url` + `api_key`) |
+| `model` | string | `""` | Model override for summarization (defaults to profile's `default_model`) |
 
 ### Cross-Profile Sharing
 
@@ -248,8 +246,8 @@ max_context_size = 2000
 [context.rag]
 enabled = false
 index_paths = ["./src", "./docs"]
-embedding_url = "http://localhost:11434/v1"
-embedding_model = "nomic-embed-text"
+profile = "local-qwen"              # reuse a profile's base_url + api_key
+model = "nomic-embed-text"           # embedding model
 chunk_size = 512
 top_k = 5
 ```
@@ -258,7 +256,7 @@ top_k = 5
 |-------|------|---------|-------------|
 | `enabled` | boolean | `false` | Enable local RAG |
 | `index_paths` | string[] | `[]` | Directories to index |
-| `embedding_url` | string | — | Endpoint for embedding generation |
-| `embedding_model` | string | — | Embedding model name |
+| `profile` | string | `""` | Profile name to reuse for embeddings (uses its `base_url` + `api_key`) |
+| `model` | string | `""` | Embedding model name (defaults to profile's `default_model`) |
 | `chunk_size` | integer | `512` | Text chunk size in tokens |
 | `top_k` | integer | `5` | Number of results to inject |

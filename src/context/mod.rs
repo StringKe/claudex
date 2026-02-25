@@ -4,6 +4,8 @@ pub mod sharing;
 
 use serde::{Deserialize, Serialize};
 
+use crate::config::ClaudexConfig;
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ContextEngineConfig {
     #[serde(default)]
@@ -22,10 +24,10 @@ pub struct CompressionConfig {
     pub threshold_tokens: usize,
     #[serde(default = "default_keep_recent")]
     pub keep_recent: usize,
-    #[serde(default = "default_summarizer_url")]
-    pub summarizer_url: String,
-    #[serde(default = "default_summarizer_model")]
-    pub summarizer_model: String,
+    #[serde(default)]
+    pub profile: String,
+    #[serde(default)]
+    pub model: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -42,10 +44,10 @@ pub struct RagConfig {
     pub enabled: bool,
     #[serde(default)]
     pub index_paths: Vec<String>,
-    #[serde(default = "default_embedding_url")]
-    pub embedding_url: String,
-    #[serde(default = "default_embedding_model")]
-    pub embedding_model: String,
+    #[serde(default)]
+    pub profile: String,
+    #[serde(default)]
+    pub model: String,
     #[serde(default = "default_chunk_size")]
     pub chunk_size: usize,
     #[serde(default = "default_top_k")]
@@ -58,20 +60,8 @@ fn default_threshold_tokens() -> usize {
 fn default_keep_recent() -> usize {
     10
 }
-fn default_summarizer_url() -> String {
-    "http://localhost:11434/v1".to_string()
-}
-fn default_summarizer_model() -> String {
-    "qwen2.5:3b".to_string()
-}
 fn default_max_context_size() -> usize {
     2000
-}
-fn default_embedding_url() -> String {
-    "http://localhost:11434/v1".to_string()
-}
-fn default_embedding_model() -> String {
-    "nomic-embed-text".to_string()
 }
 fn default_chunk_size() -> usize {
     512
@@ -86,8 +76,8 @@ impl Default for CompressionConfig {
             enabled: false,
             threshold_tokens: default_threshold_tokens(),
             keep_recent: default_keep_recent(),
-            summarizer_url: default_summarizer_url(),
-            summarizer_model: default_summarizer_model(),
+            profile: String::new(),
+            model: String::new(),
         }
     }
 }
@@ -106,10 +96,26 @@ impl Default for RagConfig {
         Self {
             enabled: false,
             index_paths: Vec::new(),
-            embedding_url: default_embedding_url(),
-            embedding_model: default_embedding_model(),
+            profile: String::new(),
+            model: String::new(),
             chunk_size: default_chunk_size(),
             top_k: default_top_k(),
         }
     }
+}
+
+/// Resolve a profile reference to (base_url, api_key, model).
+/// `model_override` takes precedence over the profile's `default_model`.
+pub fn resolve_profile_endpoint(
+    config: &ClaudexConfig,
+    profile_name: &str,
+    model_override: &str,
+) -> Option<(String, String, String)> {
+    let p = config.find_profile(profile_name)?;
+    let model = if model_override.is_empty() {
+        &p.default_model
+    } else {
+        model_override
+    };
+    Some((p.base_url.clone(), p.api_key.clone(), model.to_string()))
 }

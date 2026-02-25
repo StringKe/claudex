@@ -1,5 +1,7 @@
 use serde_json::Value;
 
+use crate::config::ClaudexConfig;
+use crate::context::resolve_profile_endpoint;
 use crate::context::ContextEngineConfig;
 use crate::proxy::ProxyState;
 use crate::router::classifier;
@@ -11,11 +13,12 @@ pub async fn apply_context_engine(
     state: &ProxyState,
     profile: &str,
     context_config: &ContextEngineConfig,
+    config: &ClaudexConfig,
 ) {
     // 1. RAG injection
     if context_config.rag.enabled {
         if let Some(ref rag_index) = state.rag_index {
-            inject_rag_context(body, rag_index, state).await;
+            inject_rag_context(body, rag_index, state, config, context_config).await;
         }
     }
 
@@ -35,7 +38,7 @@ pub async fn apply_context_engine(
 
     // 3. Conversation compression
     if context_config.compression.enabled {
-        compress_if_needed(body, &context_config.compression, &state.http_client).await;
+        compress_if_needed(body, &context_config.compression, &state.http_client, config).await;
     }
 }
 
@@ -44,13 +47,34 @@ async fn inject_rag_context(
     body: &mut Value,
     rag_index: &crate::context::rag::RagIndex,
     state: &ProxyState,
+    config: &ClaudexConfig,
+    context_config: &ContextEngineConfig,
 ) {
     let query = classifier::extract_last_user_message(body).unwrap_or_default();
     if query.is_empty() {
         return;
     }
 
-    match rag_index.search(&query, &state.http_client).await {
+    let endpoint = resolve_profile_endpoint(
+        config,
+        &context_config.rag.profile,
+        &context_config.rag.model,
+    );
+    let (base_url, api_key) = match endpoint {
+        Some((url, key, _)) => (url, key),
+        None => {
+            tracing::debug!(
+                profile = %context_config.rag.profile,
+                "RAG profile not found, skipping search"
+            );
+            return;
+        }
+    };
+
+    match rag_index
+        .search(&query, &state.http_client, &base_url, &api_key)
+        .await
+    {
         Ok(results) if !results.is_empty() => {
             let rag_context = format!("[Relevant code context]\n{}", results.join("\n---\n"));
             inject_system_context(body, &rag_context);
@@ -85,8 +109,9 @@ fn inject_system_context(body: &mut Value, context: &str) {
 /// Compress conversation if it exceeds the token threshold
 async fn compress_if_needed(
     body: &mut Value,
-    config: &crate::context::CompressionConfig,
+    compression: &crate::context::CompressionConfig,
     http_client: &reqwest::Client,
+    config: &ClaudexConfig,
 ) {
     let messages = match body.get("messages").and_then(|m| m.as_array()) {
         Some(m) => m.clone(),
@@ -97,11 +122,34 @@ async fn compress_if_needed(
     let total_chars: usize = messages.iter().map(|m| m.to_string().len()).sum();
     let estimated_tokens = total_chars / 4;
 
-    if estimated_tokens <= config.threshold_tokens {
+    if estimated_tokens <= compression.threshold_tokens {
         return;
     }
 
-    match crate::context::compression::compress_messages(config, &messages, http_client).await {
+    let endpoint =
+        resolve_profile_endpoint(config, &compression.profile, &compression.model);
+    let (base_url, api_key, model) = match endpoint {
+        Some(v) => v,
+        None => {
+            tracing::warn!(
+                profile = %compression.profile,
+                "compression profile not found, skipping"
+            );
+            return;
+        }
+    };
+
+    match crate::context::compression::compress_messages(
+        compression.enabled,
+        compression.keep_recent,
+        &base_url,
+        &api_key,
+        &model,
+        &messages,
+        http_client,
+    )
+    .await
+    {
         Ok(compressed) => {
             body["messages"] = compressed;
             tracing::info!(

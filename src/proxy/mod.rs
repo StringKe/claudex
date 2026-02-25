@@ -39,8 +39,19 @@ pub async fn start_proxy(config: ClaudexConfig, port_override: Option<u16>) -> R
     // Build RAG index if enabled
     let rag_index = if config.context.rag.enabled {
         let index = RagIndex::new(config.context.rag.clone());
-        if let Err(e) = index.build_index(&http_client).await {
-            tracing::warn!("failed to build RAG index: {e}");
+        if let Some((base_url, api_key, _)) = crate::context::resolve_profile_endpoint(
+            &config,
+            &config.context.rag.profile,
+            &config.context.rag.model,
+        ) {
+            if let Err(e) = index.build_index(&http_client, &base_url, &api_key).await {
+                tracing::warn!("failed to build RAG index: {e}");
+            }
+        } else {
+            tracing::warn!(
+                profile = %config.context.rag.profile,
+                "RAG profile not found, skipping index build"
+            );
         }
         Some(index)
     } else {

@@ -1,8 +1,6 @@
 use anyhow::Result;
 use serde_json::{json, Value};
 
-use super::CompressionConfig;
-
 const COMPRESSION_PROMPT: &str = r#"You are a conversation summarizer. Compress the following conversation history into a concise summary that preserves:
 1. Key decisions and conclusions
 2. Important code snippets or file paths mentioned
@@ -12,15 +10,19 @@ const COMPRESSION_PROMPT: &str = r#"You are a conversation summarizer. Compress 
 Output a brief but comprehensive summary."#;
 
 pub async fn compress_messages(
-    config: &CompressionConfig,
+    enabled: bool,
+    keep_recent: usize,
+    base_url: &str,
+    api_key: &str,
+    model: &str,
     messages: &[Value],
     http_client: &reqwest::Client,
 ) -> Result<Value> {
-    if !config.enabled || messages.len() <= config.keep_recent {
+    if !enabled || messages.len() <= keep_recent {
         return Ok(json!(messages));
     }
 
-    let split_at = messages.len().saturating_sub(config.keep_recent);
+    let split_at = messages.len().saturating_sub(keep_recent);
     let old_messages = &messages[..split_at];
     let recent_messages = &messages[split_at..];
 
@@ -39,7 +41,7 @@ pub async fn compress_messages(
         return Ok(json!(messages));
     }
 
-    let summary = call_summarizer(config, &conversation_text, http_client).await?;
+    let summary = call_summarizer(base_url, api_key, model, &conversation_text, http_client).await?;
 
     let mut result = vec![json!({
         "role": "user",
@@ -51,17 +53,19 @@ pub async fn compress_messages(
 }
 
 async fn call_summarizer(
-    config: &CompressionConfig,
+    base_url: &str,
+    api_key: &str,
+    model: &str,
     text: &str,
     http_client: &reqwest::Client,
 ) -> Result<String> {
     let url = format!(
         "{}/chat/completions",
-        config.summarizer_url.trim_end_matches('/')
+        base_url.trim_end_matches('/')
     );
 
     let body = json!({
-        "model": config.summarizer_model,
+        "model": model,
         "messages": [
             {"role": "system", "content": COMPRESSION_PROMPT},
             {"role": "user", "content": text},
@@ -70,13 +74,12 @@ async fn call_summarizer(
         "temperature": 0.3,
     });
 
-    let resp: Value = http_client
-        .post(&url)
-        .json(&body)
-        .send()
-        .await?
-        .json()
-        .await?;
+    let mut req = http_client.post(&url).json(&body);
+    if !api_key.is_empty() {
+        req = req.header("Authorization", format!("Bearer {api_key}"));
+    }
+
+    let resp: Value = req.send().await?.json().await?;
 
     let summary = resp
         .get("choices")

@@ -8,20 +8,20 @@ import { Aside } from '@astrojs/starlight/components';
 上下文引擎通过三种机制增强 AI 交互：对话压缩、跨 profile 上下文共享和本地 RAG（检索增强生成）。
 
 <Aside type="caution">
-  上下文引擎功能需要本地 LLM 服务（如 Ollama）来生成摘要和 embedding。
+  上下文引擎功能需要 LLM 服务来生成摘要和 embedding。可以复用任何已有的 profile（本地 Ollama、云端 OpenRouter 等）。
 </Aside>
 
 ## 对话压缩
 
-当对话超过 token 阈值时，Claudex 使用本地 LLM 压缩旧消息，保留最近的消息不变。
+当对话超过 token 阈值时，Claudex 使用 LLM 压缩旧消息，保留最近的消息不变。
 
 ```toml
 [context.compression]
 enabled = true
 threshold_tokens = 50000    # token 总数超过此值时压缩
 keep_recent = 10            # 始终保留最近 N 条消息
-summarizer_url = "http://localhost:11434/v1"
-summarizer_model = "qwen2.5:3b"
+profile = "openrouter"      # 复用此 profile 的 base_url + api_key
+model = "qwen/qwen-2.5-7b-instruct"  # 覆盖模型（可选）
 ```
 
 ### 工作流程
@@ -51,8 +51,8 @@ max_context_size = 2000    # 从其他 profile 注入的最大 token 数
 [context.rag]
 enabled = true
 index_paths = ["./src", "./docs"]     # 要索引的目录
-embedding_url = "http://localhost:11434/v1"
-embedding_model = "nomic-embed-text"  # embedding 模型
+profile = "openrouter"                 # 复用此 profile 的 base_url + api_key
+model = "openai/text-embedding-3-small"  # embedding 模型
 chunk_size = 512                       # 文本块大小
 top_k = 5                             # 注入的结果数量
 ```

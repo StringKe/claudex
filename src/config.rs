@@ -402,6 +402,8 @@ mod tests {
         let toml_str = r#"
             [router]
             enabled = true
+            profile = "openrouter"
+            model = "qwen/qwen-2.5-7b-instruct"
             [router.rules]
             code = "deepseek"
             default = "grok"
@@ -409,14 +411,28 @@ mod tests {
             [context.compression]
             enabled = true
             threshold_tokens = 10000
+            profile = "openrouter"
+            model = "qwen/qwen-2.5-7b-instruct"
+
+            [context.rag]
+            enabled = false
+            profile = "openrouter"
+            model = "openai/text-embedding-3-small"
         "#;
         let config: ClaudexConfig = toml::from_str(toml_str).unwrap();
         assert!(config.router.enabled);
+        assert_eq!(config.router.profile, "openrouter");
+        assert_eq!(config.router.model, "qwen/qwen-2.5-7b-instruct");
         assert_eq!(
             config.router.resolve_profile("code"),
             Some("deepseek".to_string())
         );
         assert!(config.context.compression.enabled);
         assert_eq!(config.context.compression.threshold_tokens, 10000);
+        assert_eq!(config.context.compression.profile, "openrouter");
+        assert_eq!(config.context.compression.model, "qwen/qwen-2.5-7b-instruct");
+        assert!(!config.context.rag.enabled);
+        assert_eq!(config.context.rag.profile, "openrouter");
+        assert_eq!(config.context.rag.model, "openai/text-embedding-3-small");
     }
 }

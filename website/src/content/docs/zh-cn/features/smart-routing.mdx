@@ -21,9 +21,8 @@ import { Aside } from '@astrojs/starlight/components';
 ```toml
 [router]
 enabled = true
-classifier_url = "http://localhost:11434/v1"    # Ollama 端点
-classifier_model = "qwen2.5:3b"                 # 用于分类的轻量模型
-classifier_api_key = ""                          # Ollama 不需要
+profile = "local-qwen"      # 复用此 profile 的 base_url + api_key 进行分类
+model = "qwen2.5:3b"        # 覆盖模型（可选，默认用 profile 的 default_model）
 
 [router.rules]
 code = "deepseek"       # 编程任务 → DeepSeek
@@ -45,7 +44,7 @@ default = "grok"        # 未分类的默认路由
 | `math` | 数学和逻辑任务 | 计算复杂度、证明正确性 |
 
 <Aside type="note">
-  智能路由需要本地 LLM 服务（如 Ollama）进行意图分类。分类器模型应选择小而快的 — `qwen2.5:3b` 效果很好。
+  智能路由需要 LLM 服务进行意图分类，复用已有 profile 的 `base_url` 和 `api_key`。分类器模型应选择小而快的 — `qwen2.5:3b` 效果很好。
 </Aside>
 
 ## 使用

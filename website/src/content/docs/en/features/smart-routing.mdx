@@ -21,9 +21,8 @@ Smart routing automatically selects the best provider for each request based on 
 ```toml
 [router]
 enabled = true
-classifier_url = "http://localhost:11434/v1"    # Ollama endpoint
-classifier_model = "qwen2.5:3b"                 # lightweight model for classification
-classifier_api_key = ""                          # not needed for Ollama
+profile = "local-qwen"      # reuse a profile's base_url + api_key for classification
+model = "qwen2.5:3b"        # override model (optional, defaults to profile's default_model)
 
 [router.rules]
 code = "deepseek"       # coding tasks → DeepSeek
@@ -45,7 +44,7 @@ default = "grok"        # fallback for unclassified
 | `math` | Mathematical and logical tasks | Calculate complexity, prove correctness |
 
 <Aside type="note">
-  Smart routing requires a local LLM service (like Ollama) for intent classification. The classifier model should be small and fast — `qwen2.5:3b` works well.
+  Smart routing requires an LLM service for intent classification. It reuses an existing profile's `base_url` and `api_key`. The classifier model should be small and fast — `qwen2.5:3b` works well.
 </Aside>
 
 ## Usage

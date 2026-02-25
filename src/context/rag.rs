@@ -30,7 +30,12 @@ impl RagIndex {
         }
     }
 
-    pub async fn build_index(&self, http_client: &reqwest::Client) -> Result<()> {
+    pub async fn build_index(
+        &self,
+        http_client: &reqwest::Client,
+        base_url: &str,
+        api_key: &str,
+    ) -> Result<()> {
         if !self.config.enabled {
             return Ok(());
         }
@@ -49,10 +54,12 @@ impl RagIndex {
         tracing::info!(chunks = all_chunks.len(), "built RAG index");
 
         // Compute embeddings
+        let model = &self.config.model;
         let mut all_embeddings = Vec::new();
         for chunk_batch in all_chunks.chunks(32) {
             let texts: Vec<&str> = chunk_batch.iter().map(|c| c.content.as_str()).collect();
-            let embeddings = self.compute_embeddings(&texts, http_client).await?;
+            let embeddings =
+                compute_embeddings(&texts, http_client, base_url, api_key, model).await?;
             all_embeddings.extend(embeddings);
         }
 
@@ -74,12 +81,20 @@ impl RagIndex {
         Ok(())
     }
 
-    pub async fn search(&self, query: &str, http_client: &reqwest::Client) -> Result<Vec<String>> {
+    pub async fn search(
+        &self,
+        query: &str,
+        http_client: &reqwest::Client,
+        base_url: &str,
+        api_key: &str,
+    ) -> Result<Vec<String>> {
         if !self.config.enabled {
             return Ok(Vec::new());
         }
 
-        let query_embedding = self.compute_embeddings(&[query], http_client).await?;
+        let model = &self.config.model;
+        let query_embedding =
+            compute_embeddings(&[query], http_client, base_url, api_key, model).await?;
         let query_vec = match query_embedding.first() {
             Some(v) => v,
             None => return Ok(Vec::new()),
@@ -171,48 +186,46 @@ impl RagIndex {
 
         Ok(())
     }
+}
 
-    async fn compute_embeddings(
-        &self,
-        texts: &[&str],
-        http_client: &reqwest::Client,
-    ) -> Result<Vec<Vec<f32>>> {
-        let url = format!(
-            "{}/embeddings",
-            self.config.embedding_url.trim_end_matches('/')
-        );
+async fn compute_embeddings(
+    texts: &[&str],
+    http_client: &reqwest::Client,
+    base_url: &str,
+    api_key: &str,
+    model: &str,
+) -> Result<Vec<Vec<f32>>> {
+    let url = format!("{}/embeddings", base_url.trim_end_matches('/'));
 
-        let body = json!({
-            "model": self.config.embedding_model,
-            "input": texts,
-        });
+    let body = json!({
+        "model": model,
+        "input": texts,
+    });
 
-        let resp: Value = http_client
-            .post(&url)
-            .json(&body)
-            .send()
-            .await?
-            .json()
-            .await?;
-
-        let embeddings = resp
-            .get("data")
-            .and_then(|d| d.as_array())
-            .map(|data| {
-                data.iter()
-                    .filter_map(|item| {
-                        item.get("embedding").and_then(|e| e.as_array()).map(|arr| {
-                            arr.iter()
-                                .filter_map(|v| v.as_f64().map(|f| f as f32))
-                                .collect()
-                        })
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-
-        Ok(embeddings)
+    let mut req = http_client.post(&url).json(&body);
+    if !api_key.is_empty() {
+        req = req.header("Authorization", format!("Bearer {api_key}"));
     }
+
+    let resp: Value = req.send().await?.json().await?;
+
+    let embeddings = resp
+        .get("data")
+        .and_then(|d| d.as_array())
+        .map(|data| {
+            data.iter()
+                .filter_map(|item| {
+                    item.get("embedding").and_then(|e| e.as_array()).map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| v.as_f64().map(|f| f as f32))
+                            .collect()
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    Ok(embeddings)
 }
 
 fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
