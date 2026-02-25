@@ -147,11 +147,10 @@ const CONFIG_DIR_NAMES: &[(&str, &str)] = &[(".claudex", "config.toml")];
 const MAX_PARENT_TRAVERSAL: usize = 10;
 
 impl ClaudexConfig {
-    /// Legacy config path (global)
+    /// Global config path: ~/.config/claudex/config.toml (XDG-style, all platforms)
     pub fn config_path() -> Result<PathBuf> {
-        let config_dir = dirs::config_dir()
-            .context("cannot determine config directory")?
-            .join("claudex");
+        let home = dirs::home_dir().context("cannot determine home directory")?;
+        let config_dir = home.join(".config").join("claudex");
         Ok(config_dir.join("config.toml"))
     }
 
@@ -204,17 +203,7 @@ impl ClaudexConfig {
             }
         }
 
-        // 5. XDG-style ~/.config/claudex/config.toml (优先，跨平台通用)
-        if let Some(home) = dirs::home_dir() {
-            let xdg_path = home.join(".config").join("claudex").join("config.toml");
-            searched.push(xdg_path.clone());
-            if xdg_path.exists() {
-                let config = Self::load_from(&xdg_path)?;
-                return Ok((config, xdg_path));
-            }
-        }
-
-        // 6. Platform config dir (macOS: ~/Library/Application Support/claudex/config.toml)
+        // 5. Global: ~/.config/claudex/config.toml
         let global_path = Self::config_path()?;
         searched.push(global_path.clone());
         if global_path.exists() {
