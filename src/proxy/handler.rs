@@ -308,6 +308,9 @@ async fn try_forward(
         ProviderType::OpenAICompatible => {
             forward_translated(state, profile, body, is_streaming).await
         }
+        ProviderType::OpenAIResponses => {
+            forward_responses(state, profile, body, is_streaming).await
+        }
     }
 }
 
@@ -546,6 +549,136 @@ async fn forward_translated(
         let openai_resp: Value = resp.json().await?;
         let anthropic_resp = translation::openai_to_anthropic(&openai_resp, &tool_name_map)?;
         // Store context from non-streaming translated response
+        extract_and_store_context(state, &profile.name, &anthropic_resp);
+        let response = Response::builder()
+            .status(200)
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&anthropic_resp)?))
+            .map_err(|e| anyhow::anyhow!("failed to build response: {e}"))?;
+        Ok(response)
+    }
+}
+
+async fn forward_responses(
+    state: &ProxyState,
+    profile: &ProfileConfig,
+    body: &Value,
+    is_streaming: bool,
+) -> anyhow::Result<Response> {
+    use super::responses;
+
+    let (responses_body, tool_name_map) =
+        responses::anthropic_to_responses(body, &profile.default_model)?;
+
+    let url = format!("{}/responses", profile.base_url.trim_end_matches('/'));
+
+    let has_key = !profile.api_key.is_empty();
+    let key_preview = if has_key {
+        let k = &profile.api_key;
+        if k.len() > 8 {
+            format!("{}...{}", &k[..4], &k[k.len() - 4..])
+        } else {
+            "***".to_string()
+        }
+    } else {
+        "(empty)".to_string()
+    };
+
+    tracing::info!(
+        profile = %profile.name,
+        url = %url,
+        api_key = %key_preview,
+        streaming = %is_streaming,
+        model = %responses_body.get("model").and_then(|v| v.as_str()).unwrap_or("-"),
+        "forward_responses: sending request"
+    );
+
+    let mut req = state
+        .http_client
+        .post(&url)
+        .header("content-type", "application/json");
+
+    if has_key {
+        req = req.header("Authorization", format!("Bearer {}", profile.api_key));
+    }
+
+    // ChatGPT-Account-ID header（从 extra_env 或 custom_headers 传入）
+    if let Some(account_id) = profile.extra_env.get("CHATGPT_ACCOUNT_ID") {
+        req = req.header("ChatGPT-Account-ID", account_id.as_str());
+    }
+
+    for (k, v) in &profile.custom_headers {
+        req = req.header(k.as_str(), v.as_str());
+    }
+
+    req = req.json(&responses_body);
+
+    let resp = req.send().await?;
+    let status = resp.status();
+
+    tracing::info!(
+        profile = %profile.name,
+        status = %status,
+        "forward_responses: upstream response"
+    );
+
+    if !status.is_success() {
+        let err_body = resp.text().await.unwrap_or_default();
+
+        if status.is_client_error() {
+            tracing::warn!(
+                profile = %profile.name,
+                status = %status,
+                body = %err_body,
+                "forward_responses: client error (non-retryable)"
+            );
+            let error_type = match status.as_u16() {
+                401 => "authentication_error",
+                403 => "permission_error",
+                404 => "not_found_error",
+                429 => "rate_limit_error",
+                _ => "invalid_request_error",
+            };
+            let anthropic_err = serde_json::json!({
+                "type": "error",
+                "error": {
+                    "type": error_type,
+                    "message": err_body,
+                }
+            });
+            let response = Response::builder()
+                .status(status.as_u16())
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::to_vec(&anthropic_err).unwrap_or_default(),
+                ))
+                .map_err(|e| anyhow::anyhow!("failed to build error response: {e}"))?;
+            return Ok(response);
+        }
+
+        tracing::error!(
+            profile = %profile.name,
+            status = %status,
+            body = %err_body,
+            "forward_responses: upstream error"
+        );
+        anyhow::bail!("upstream returned HTTP {status}: {err_body}");
+    }
+
+    if is_streaming {
+        let stream = resp.bytes_stream();
+        let translated_stream =
+            super::responses_streaming::translate_responses_stream(stream, tool_name_map);
+        let response = Response::builder()
+            .status(200)
+            .header("content-type", "text/event-stream")
+            .header("cache-control", "no-cache")
+            .body(Body::from_stream(translated_stream))
+            .map_err(|e| anyhow::anyhow!("failed to build response: {e}"))?;
+        Ok(response)
+    } else {
+        let responses_resp: Value = resp.json().await?;
+        let anthropic_resp = responses::responses_to_anthropic(&responses_resp, &tool_name_map)?;
         extract_and_store_context(state, &profile.name, &anthropic_resp);
         let response = Response::builder()
             .status(200)

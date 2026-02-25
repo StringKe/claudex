@@ -22,6 +22,7 @@ pub async fn list_profiles(config: &ClaudexConfig) {
         let type_str = match p.provider_type {
             ProviderType::DirectAnthropic => "Anthropic",
             ProviderType::OpenAICompatible => "OpenAI",
+            ProviderType::OpenAIResponses => "Responses",
         };
         let status = if p.enabled { "" } else { " (disabled)" };
         println!(
@@ -92,6 +93,10 @@ pub async fn test_connectivity(profile: &ProfileConfig) -> Result<u128> {
         ProviderType::OpenAICompatible => {
             format!("{}/models", profile.base_url.trim_end_matches('/'))
         }
+        ProviderType::OpenAIResponses => {
+            // Responses API 没有 /models 端点，直接发一个轻量请求验证连通性
+            format!("{}/models", profile.base_url.trim_end_matches('/'))
+        }
     };
 
     let mut req = client.get(&url);
@@ -101,7 +106,7 @@ pub async fn test_connectivity(profile: &ProfileConfig) -> Result<u128> {
                 req = req.header("x-api-key", &profile.api_key);
                 req = req.header("anthropic-version", "2023-06-01");
             }
-            ProviderType::OpenAICompatible => {
+            ProviderType::OpenAICompatible | ProviderType::OpenAIResponses => {
                 req = req.header("Authorization", format!("Bearer {}", profile.api_key));
             }
         }
@@ -155,10 +160,12 @@ pub async fn interactive_add(config: &mut ClaudexConfig) -> Result<()> {
     println!("\nProvider type:");
     println!("  1) DirectAnthropic  (Anthropic, MiniMax, OpenRouter)");
     println!("  2) OpenAICompatible (Grok, OpenAI, DeepSeek, Kimi, GLM, Ollama)");
-    let choice = prompt_input("Select [1/2]")?;
+    println!("  3) OpenAIResponses  (ChatGPT/Codex subscription)");
+    let choice = prompt_input("Select [1/2/3]")?;
     let provider_type = match choice.as_str() {
         "1" => ProviderType::DirectAnthropic,
         "2" => ProviderType::OpenAICompatible,
+        "3" => ProviderType::OpenAIResponses,
         _ => {
             println!("Invalid choice, defaulting to OpenAICompatible");
             ProviderType::OpenAICompatible
@@ -180,6 +187,9 @@ pub async fn interactive_add(config: &mut ClaudexConfig) -> Result<()> {
             ("GLM", "https://open.bigmodel.cn/api/paas/v4"),
             ("Ollama", "http://localhost:11434/v1"),
         ],
+        ProviderType::OpenAIResponses => {
+            vec![("ChatGPT/Codex", "https://chatgpt.com/backend-api/codex")]
+        }
     };
 
     println!("\nBase URL presets:");

@@ -107,6 +107,7 @@ pub struct ProfileModels {
 pub enum ProviderType {
     DirectAnthropic,
     OpenAICompatible,
+    OpenAIResponses,
 }
 
 fn default_claude_binary() -> String {
@@ -590,7 +591,7 @@ mod tests {
     fn test_parse_all_oauth_providers() {
         let providers = [
             ("claude", "DirectAnthropic"),
-            ("openai", "OpenAICompatible"),
+            ("openai", "OpenAIResponses"),
             ("google", "OpenAICompatible"),
             ("qwen", "OpenAICompatible"),
             ("kimi", "OpenAICompatible"),

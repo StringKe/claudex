@@ -18,8 +18,8 @@ fn provider_defaults(provider: &OAuthProvider) -> ProviderDefaults {
             default_model: "claude-sonnet-4-20250514",
         },
         OAuthProvider::Openai => ProviderDefaults {
-            provider_type: ProviderType::OpenAICompatible,
-            base_url: "https://api.openai.com/v1",
+            provider_type: ProviderType::OpenAIResponses,
+            base_url: "https://chatgpt.com/backend-api/codex",
             default_model: "gpt-4o",
         },
         OAuthProvider::Google => ProviderDefaults {
@@ -516,10 +516,10 @@ mod tests {
     #[test]
     fn test_provider_defaults_openai() {
         let defaults = provider_defaults(&OAuthProvider::Openai);
-        assert_eq!(defaults.base_url, "https://api.openai.com/v1");
+        assert_eq!(defaults.base_url, "https://chatgpt.com/backend-api/codex");
         assert!(matches!(
             defaults.provider_type,
-            ProviderType::OpenAICompatible
+            ProviderType::OpenAIResponses
         ));
     }
 
@@ -624,13 +624,16 @@ mod tests {
     // ── provider_defaults: Claude 是 DirectAnthropic ──────────
 
     #[test]
-    fn test_claude_is_direct_anthropic_all_others_openai_compat() {
+    fn test_provider_type_classification() {
         assert!(matches!(
             provider_defaults(&OAuthProvider::Claude).provider_type,
             ProviderType::DirectAnthropic
         ));
+        assert!(matches!(
+            provider_defaults(&OAuthProvider::Openai).provider_type,
+            ProviderType::OpenAIResponses
+        ));
         for provider in &[
-            OAuthProvider::Openai,
             OAuthProvider::Google,
             OAuthProvider::Qwen,
             OAuthProvider::Kimi,

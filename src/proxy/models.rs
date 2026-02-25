@@ -26,6 +26,7 @@ pub async fn list_models(State(state): State<Arc<ProxyState>>) -> impl IntoRespo
             "x-claudex-provider": match profile.provider_type {
                 ProviderType::DirectAnthropic => "anthropic",
                 ProviderType::OpenAICompatible => "openai-compatible",
+                ProviderType::OpenAIResponses => "openai-responses",
             },
         }));
     }

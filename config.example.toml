@@ -120,15 +120,18 @@ auth_type = "oauth"
 oauth_provider = "claude"
 enabled = false
 
-# ChatGPT Plus/Pro (via OpenAI OAuth)
+# ChatGPT Plus/Pro / Codex subscription (via OpenAI OAuth → Responses API)
 [[profiles]]
-name = "chatgpt-sub"
-provider_type = "OpenAICompatible"
-base_url = "https://api.openai.com/v1"
+name = "codex-sub"
+provider_type = "OpenAIResponses"
+base_url = "https://chatgpt.com/backend-api/codex"
 default_model = "gpt-4o"
 auth_type = "oauth"
 oauth_provider = "openai"
 enabled = false
+# ChatGPT-Account-ID is auto-extracted from Codex CLI's auth.json
+# Or set manually: [profiles.custom_headers]
+# ChatGPT-Account-ID = "your-account-id"
 
 # Gemini Pro (via Google OAuth)
 [[profiles]]

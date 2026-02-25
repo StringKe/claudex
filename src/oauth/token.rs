@@ -136,14 +136,55 @@ pub fn read_codex_credentials() -> Result<OAuthToken> {
         .and_then(|v| v.as_str())
         .unwrap_or("api-key");
 
+    // 提取 account_id：优先从 tokens.account_id，其次从 id_token JWT claims
+    let account_id = tokens
+        .and_then(|t| t.get("account_id"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .or_else(|| {
+            // 从 id_token 的 JWT claims 中提取 chatgpt_account_id
+            let id_token = tokens
+                .and_then(|t| t.get("id_token"))
+                .and_then(|v| v.as_str())?;
+            extract_jwt_claim(
+                id_token,
+                "https://api.openai.com/auth",
+                "chatgpt_account_id",
+            )
+        });
+
+    let mut extra = serde_json::json!({ "auth_mode": auth_mode });
+    if let Some(ref aid) = account_id {
+        extra["account_id"] = serde_json::json!(aid);
+    }
+
     Ok(OAuthToken {
         access_token,
         refresh_token,
         expires_at,
         token_type: Some("Bearer".to_string()),
         scopes: None,
-        extra: Some(serde_json::json!({ "auth_mode": auth_mode })),
+        extra: Some(extra),
     })
+}
+
+/// 从 JWT payload 的嵌套 namespace 中提取字段
+/// e.g. extract_jwt_claim(token, "https://api.openai.com/auth", "chatgpt_account_id")
+fn extract_jwt_claim(token: &str, namespace: &str, field: &str) -> Option<String> {
+    use base64::Engine;
+
+    let parts: Vec<&str> = token.split('.').collect();
+    if parts.len() != 3 {
+        return None;
+    }
+    let payload = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(parts[1])
+        .ok()?;
+    let json: serde_json::Value = serde_json::from_slice(&payload).ok()?;
+    json.get(namespace)
+        .and_then(|ns| ns.get(field))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
 }
 
 /// 从 JWT access_token 的 payload 提取 exp 字段（秒 → 毫秒）
