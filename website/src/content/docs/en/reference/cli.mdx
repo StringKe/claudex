@@ -1,0 +1,149 @@
+---
+title: CLI Reference
+description: Complete command reference for the Claudex CLI
+---
+
+## Global Usage
+
+```
+claudex [COMMAND]
+```
+
+When run without a command, Claudex launches the TUI dashboard if profiles are configured, or shows a welcome message if no profiles exist.
+
+## Commands
+
+### `run`
+
+Run Claude Code with a specific provider profile.
+
+```bash
+claudex run <PROFILE> [-m MODEL] [ARGS...]
+```
+
+| Argument | Description |
+|----------|-------------|
+| `PROFILE` | Profile name, or `auto` for smart routing |
+| `-m, --model MODEL` | Override the default model for this session |
+| `ARGS...` | Additional arguments passed to `claude` |
+
+```bash
+# Use Grok
+claudex run grok
+
+# Use Grok with a specific model
+claudex run grok -m grok-3-mini-beta
+
+# Smart routing
+claudex run auto
+
+# Pass extra args to claude
+claudex run grok -- --print
+```
+
+### `profile`
+
+Manage provider profiles.
+
+#### `profile list`
+
+```bash
+claudex profile list
+```
+
+List all configured profiles with their status.
+
+#### `profile add`
+
+```bash
+claudex profile add
+```
+
+Interactive wizard to add a new profile. Guides through provider selection, API key entry (with optional keyring storage), model selection, and connectivity testing.
+
+#### `profile show`
+
+```bash
+claudex profile show <NAME>
+```
+
+Show details for a specific profile.
+
+#### `profile remove`
+
+```bash
+claudex profile remove <NAME>
+```
+
+Remove a profile from the configuration.
+
+#### `profile test`
+
+```bash
+claudex profile test <NAME|all>
+```
+
+Test connectivity for a specific profile or all profiles.
+
+### `proxy`
+
+Manage the translation proxy server.
+
+#### `proxy start`
+
+```bash
+claudex proxy start [-p PORT] [-d]
+```
+
+| Flag | Description |
+|------|-------------|
+| `-p, --port PORT` | Override proxy port (default: from config) |
+| `-d, --daemon` | Run as background daemon |
+
+#### `proxy stop`
+
+```bash
+claudex proxy stop
+```
+
+Stop the proxy daemon (sends SIGTERM).
+
+#### `proxy status`
+
+```bash
+claudex proxy status
+```
+
+Show whether the proxy is running and on which port.
+
+### `dashboard`
+
+```bash
+claudex dashboard
+```
+
+Launch the TUI dashboard for real-time monitoring and quick-launch.
+
+### `config`
+
+```bash
+claudex config [--init]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--init` | Create a new config file in the current directory |
+
+Without `--init`, shows the loaded config file path and search order.
+
+### `update`
+
+```bash
+claudex update [--check]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--check` | Only check for updates, don't install |
+
+Without `--check`, downloads and installs the latest version.

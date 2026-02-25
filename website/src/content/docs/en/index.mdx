@@ -1,0 +1,62 @@
+---
+title: Claudex
+description: Multi-instance Claude Code manager with intelligent translation proxy
+template: splash
+hero:
+  title: Claudex
+  tagline: Use Claude Code with any AI provider — Grok, ChatGPT, DeepSeek, Kimi, GLM, Ollama, and more.
+  actions:
+    - text: Get Started
+      link: /claudex/en/installation/
+      icon: right-arrow
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/StringKe/claudex
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## Features
+
+<CardGrid stagger>
+  <Card title="Translation Proxy" icon="translate">
+    Automatic Anthropic-to-OpenAI protocol translation. Use Claude Code with Grok, ChatGPT, DeepSeek, Kimi, GLM, and any OpenAI-compatible provider.
+  </Card>
+  <Card title="Circuit Breaker" icon="warning">
+    Built-in circuit breaker with automatic failover to backup providers. Configurable thresholds and recovery timeouts keep your workflow uninterrupted.
+  </Card>
+  <Card title="Smart Routing" icon="random">
+    Intent-based auto-routing via local classifier. Automatically maps code, analysis, creative, search, and math tasks to the optimal provider.
+  </Card>
+  <Card title="Context Engine" icon="document">
+    Conversation compression, cross-profile context sharing, and local RAG with embeddings. Enhance your AI interactions with richer context.
+  </Card>
+  <Card title="TUI Dashboard" icon="laptop">
+    Real-time terminal dashboard showing profile health, request metrics, logs, and quick-launch capabilities. Full keyboard navigation.
+  </Card>
+  <Card title="Self-Update" icon="up-caret">
+    One command to check and install the latest version directly from GitHub Releases. Stay up to date effortlessly.
+  </Card>
+</CardGrid>
+
+## Quick Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/StringKe/claudex/main/install.sh | bash
+```
+
+## How It Works
+
+```
+claudex run grok
+    │
+    ├── Start proxy → 127.0.0.1:13456
+    │
+    └── exec claude with:
+        ANTHROPIC_BASE_URL=http://127.0.0.1:13456/proxy/grok
+        ANTHROPIC_MODEL=grok-3-beta
+```
+
+The proxy transparently translates between Anthropic and OpenAI protocols, so Claude Code works seamlessly with any supported provider.

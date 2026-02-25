@@ -1,0 +1,42 @@
+---
+title: Self-Update
+description: Keep Claudex up to date with one command
+---
+
+Claudex can check for and install updates directly from GitHub Releases.
+
+## Check for Updates
+
+```bash
+claudex update --check
+```
+
+This queries the GitHub API for the latest release and compares it with your installed version.
+
+## Install Update
+
+```bash
+claudex update
+```
+
+This downloads the latest release binary for your platform, replaces the current binary, and verifies the installation.
+
+## How It Works
+
+1. Query GitHub API: `https://api.github.com/repos/StringKe/claudex/releases/latest`
+2. Compare current version with latest release tag
+3. Download the platform-specific archive (e.g., `claudex-v0.2.0-aarch64-apple-darwin.tar.gz`)
+4. Extract and replace the running binary
+5. Clean up temporary files
+
+## Supported Platforms
+
+The update mechanism supports the same platforms as the release builds:
+
+| Platform | Target |
+|----------|--------|
+| macOS Intel | `x86_64-apple-darwin` |
+| macOS Apple Silicon | `aarch64-apple-darwin` |
+| Linux x86_64 | `x86_64-unknown-linux-gnu` |
+| Linux ARM64 | `aarch64-unknown-linux-gnu` |
+| Windows x86_64 | `x86_64-pc-windows-msvc` |

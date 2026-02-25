@@ -1,0 +1,131 @@
+---
+title: Configuration
+description: How to configure Claudex profiles and settings
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## Config File Discovery
+
+Claudex searches for config files in this order:
+
+1. `$CLAUDEX_CONFIG` environment variable
+2. `./claudex.toml` (current directory)
+3. `./.claudex/config.toml` (current directory)
+4. Parent directories (up to 10 levels), checking both patterns
+5. `~/.config/claudex/config.toml` (global — created automatically if no config exists)
+
+```bash
+# Show loaded config path and search order
+claudex config
+
+# Create a local config in the current directory
+claudex config --init
+```
+
+<Aside type="tip">
+  Project-level config (`./claudex.toml`) takes priority over global config, so you can customize providers per project.
+</Aside>
+
+## Global Settings
+
+```toml
+# Path to claude binary (default: "claude" from PATH)
+# claude_binary = "/usr/local/bin/claude"
+
+# Proxy settings
+proxy_port = 13456
+proxy_host = "127.0.0.1"
+
+# Log level: trace, debug, info, warn, error
+log_level = "info"
+
+# Model aliases (shorthand → full model name)
+[model_aliases]
+grok3 = "grok-3-beta"
+gpt4o = "gpt-4o"
+ds3 = "deepseek-chat"
+```
+
+## Profiles
+
+Each profile represents an AI provider connection. There are two provider types:
+
+### DirectAnthropic
+
+For providers that natively support the Anthropic Messages API. Requests are forwarded with minimal modification.
+
+```toml
+[[profiles]]
+name = "anthropic"
+provider_type = "DirectAnthropic"
+base_url = "https://api.anthropic.com"
+api_key = "sk-ant-..."
+default_model = "claude-sonnet-4-20250514"
+priority = 100
+enabled = true
+```
+
+Compatible providers: **Anthropic**, **MiniMax**, **OpenRouter**
+
+### OpenAICompatible
+
+For providers using the OpenAI Chat Completions API. Claudex automatically translates between Anthropic and OpenAI protocols.
+
+```toml
+[[profiles]]
+name = "grok"
+provider_type = "OpenAICompatible"
+base_url = "https://api.x.ai/v1"
+api_key = "xai-..."
+default_model = "grok-3-beta"
+backup_providers = ["deepseek"]
+priority = 100
+enabled = true
+```
+
+Compatible providers: **Grok (xAI)**, **OpenAI**, **DeepSeek**, **Kimi/Moonshot**, **GLM (Zhipu)**, **Ollama**, **vLLM**, **LM Studio**
+
+### Profile Fields
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `name` | *required* | Unique profile identifier |
+| `provider_type` | `DirectAnthropic` | `DirectAnthropic` or `OpenAICompatible` |
+| `base_url` | *required* | Provider API endpoint |
+| `api_key` | `""` | API key (plaintext) |
+| `api_key_keyring` | — | Read API key from OS keychain instead |
+| `default_model` | *required* | Default model to use |
+| `backup_providers` | `[]` | Failover profile names |
+| `custom_headers` | `{}` | Extra HTTP headers |
+| `extra_env` | `{}` | Extra environment variables for Claude |
+| `priority` | `100` | Priority for smart routing |
+| `enabled` | `true` | Whether this profile is active |
+
+### Interactive Setup
+
+The easiest way to add a profile is the interactive wizard:
+
+```bash
+claudex profile add
+```
+
+It guides you through provider selection, API key entry (with optional keyring storage), model selection, and connectivity testing.
+
+## Keyring Integration
+
+Store API keys securely in your OS keychain instead of plaintext config:
+
+```toml
+[[profiles]]
+name = "grok"
+api_key_keyring = "grok-api-key"   # reads from OS keychain
+```
+
+Supported backends:
+- **macOS**: Keychain
+- **Linux**: Secret Service (GNOME Keyring / KDE Wallet)
+
+## Full Example
+
+See [`config.example.toml`](https://github.com/StringKe/claudex/blob/main/config.example.toml) for a complete configuration file with all providers and options.

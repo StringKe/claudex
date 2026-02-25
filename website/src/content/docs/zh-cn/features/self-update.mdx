@@ -1,0 +1,42 @@
+---
+title: 自更新
+description: 一条命令保持 Claudex 最新
+---
+
+Claudex 可以直接从 GitHub Releases 检查并安装更新。
+
+## 检查更新
+
+```bash
+claudex update --check
+```
+
+查询 GitHub API 获取最新 release，并与已安装版本比较。
+
+## 安装更新
+
+```bash
+claudex update
+```
+
+下载适合你平台的最新 release 二进制文件，替换当前二进制文件并验证安装。
+
+## 工作原理
+
+1. 查询 GitHub API：`https://api.github.com/repos/StringKe/claudex/releases/latest`
+2. 将当前版本与最新 release tag 比较
+3. 下载平台特定的压缩包（如 `claudex-v0.2.0-aarch64-apple-darwin.tar.gz`）
+4. 解压并替换运行中的二进制文件
+5. 清理临时文件
+
+## 支持的平台
+
+更新机制支持与 release 构建相同的平台：
+
+| 平台 | 目标 |
+|------|------|
+| macOS Intel | `x86_64-apple-darwin` |
+| macOS Apple Silicon | `aarch64-apple-darwin` |
+| Linux x86_64 | `x86_64-unknown-linux-gnu` |
+| Linux ARM64 | `aarch64-unknown-linux-gnu` |
+| Windows x86_64 | `x86_64-pc-windows-msvc` |

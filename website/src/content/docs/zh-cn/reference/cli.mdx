@@ -1,0 +1,149 @@
+---
+title: CLI 命令参考
+description: Claudex CLI 完整命令参考
+---
+
+## 全局用法
+
+```
+claudex [COMMAND]
+```
+
+不带命令运行时，如果已配置 profile 则启动 TUI 仪表盘，否则显示欢迎信息。
+
+## 命令
+
+### `run`
+
+使用指定的提供商 profile 运行 Claude Code。
+
+```bash
+claudex run <PROFILE> [-m MODEL] [ARGS...]
+```
+
+| 参数 | 说明 |
+|------|------|
+| `PROFILE` | Profile 名称，或 `auto` 启用智能路由 |
+| `-m, --model MODEL` | 临时覆盖默认模型 |
+| `ARGS...` | 传递给 `claude` 的额外参数 |
+
+```bash
+# 使用 Grok
+claudex run grok
+
+# 指定模型
+claudex run grok -m grok-3-mini-beta
+
+# 智能路由
+claudex run auto
+
+# 传递额外参数给 claude
+claudex run grok -- --print
+```
+
+### `profile`
+
+管理提供商 profile。
+
+#### `profile list`
+
+```bash
+claudex profile list
+```
+
+列出所有已配置的 profile 及其状态。
+
+#### `profile add`
+
+```bash
+claudex profile add
+```
+
+交互式向导，引导完成提供商选择、API 密钥输入（支持 keyring 存储）、模型选择和连通性测试。
+
+#### `profile show`
+
+```bash
+claudex profile show <NAME>
+```
+
+显示指定 profile 的详细信息。
+
+#### `profile remove`
+
+```bash
+claudex profile remove <NAME>
+```
+
+从配置中移除 profile。
+
+#### `profile test`
+
+```bash
+claudex profile test <NAME|all>
+```
+
+测试指定 profile 或所有 profile 的连通性。
+
+### `proxy`
+
+管理翻译代理服务器。
+
+#### `proxy start`
+
+```bash
+claudex proxy start [-p PORT] [-d]
+```
+
+| 参数 | 说明 |
+|------|------|
+| `-p, --port PORT` | 覆盖代理端口（默认：配置文件中的值） |
+| `-d, --daemon` | 以后台守护进程运行 |
+
+#### `proxy stop`
+
+```bash
+claudex proxy stop
+```
+
+停止代理守护进程（发送 SIGTERM）。
+
+#### `proxy status`
+
+```bash
+claudex proxy status
+```
+
+显示代理是否运行及监听端口。
+
+### `dashboard`
+
+```bash
+claudex dashboard
+```
+
+启动 TUI 仪表盘，实时监控和快速启动。
+
+### `config`
+
+```bash
+claudex config [--init]
+```
+
+| 参数 | 说明 |
+|------|------|
+| `--init` | 在当前目录创建新配置文件 |
+
+不带 `--init` 时，显示已加载的配置文件路径和搜索顺序。
+
+### `update`
+
+```bash
+claudex update [--check]
+```
+
+| 参数 | 说明 |
+|------|------|
+| `--check` | 仅检查更新，不安装 |
+
+不带 `--check` 时，下载并安装最新版本。

@@ -1,11 +1,36 @@
-# Claudex
+<p align="center">
+  <h1 align="center">Claudex</h1>
+  <p align="center">Multi-instance Claude Code manager with intelligent translation proxy</p>
+</p>
 
-[![CI](https://github.com/StringKe/claudex/actions/workflows/ci.yml/badge.svg)](https://github.com/StringKe/claudex/actions/workflows/ci.yml)
-[![Release](https://github.com/StringKe/claudex/actions/workflows/release.yml/badge.svg)](https://github.com/StringKe/claudex/releases)
+<p align="center">
+  <a href="https://github.com/StringKe/claudex/actions/workflows/ci.yml"><img src="https://github.com/StringKe/claudex/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/StringKe/claudex/releases"><img src="https://github.com/StringKe/claudex/actions/workflows/release.yml/badge.svg" alt="Release"></a>
+  <a href="https://github.com/StringKe/claudex/blob/main/LICENSE"><img src="https://img.shields.io/github/license/StringKe/claudex" alt="License"></a>
+  <a href="https://github.com/StringKe/claudex/releases"><img src="https://img.shields.io/github/v/release/StringKe/claudex" alt="Latest Release"></a>
+</p>
 
-Multi-instance Claude Code manager with intelligent translation proxy.
+<p align="center">
+  <a href="https://stringke.github.io/claudex/">Documentation</a> |
+  <a href="./README.zh-CN.md">中文</a>
+</p>
 
-通过统一代理管理多个 AI 模型提供商，让 Claude Code 无缝使用 Grok、ChatGPT、DeepSeek、MiniMax、Kimi、GLM 等模型。
+---
+
+Claudex is a unified proxy that lets [Claude Code](https://docs.anthropic.com/en/docs/claude-code) seamlessly work with multiple AI providers — Grok, ChatGPT, DeepSeek, MiniMax, Kimi, GLM, Ollama, and more — through automatic Anthropic-to-OpenAI protocol translation.
+
+## Features
+
+- **Multi-provider proxy** — DirectAnthropic passthrough (Anthropic, MiniMax, OpenRouter) + automatic Anthropic <-> OpenAI translation (Grok, OpenAI, DeepSeek, Kimi, GLM)
+- **Streaming translation** — Full SSE stream translation with tool call support
+- **Circuit breaker + failover** — Automatic fallback to backup providers with configurable thresholds
+- **Smart routing** — Intent-based auto-routing via local classifier, maps code/analysis/creative/search/math to optimal profiles
+- **Context engine** — Conversation compression, cross-profile sharing, local RAG with embeddings
+- **TUI dashboard** — Real-time profile health, metrics, logs, and quick-launch
+- **Config discovery** — Automatic config file search from current directory up to global config
+- **Self-update** — `claudex update` downloads the latest release from GitHub
+- **Local model support** — Ollama, vLLM, LM Studio, or any OpenAI-compatible service
+- **Keyring integration** — Secure API key storage via OS keychain (macOS Keychain, Linux Secret Service)
 
 ## Installation
 
@@ -13,236 +38,140 @@ Multi-instance Claude Code manager with intelligent translation proxy.
 # One-liner (Linux / macOS)
 curl -fsSL https://raw.githubusercontent.com/StringKe/claudex/main/install.sh | bash
 
-# From GitHub Releases
-# Download the binary for your platform from:
-# https://github.com/StringKe/claudex/releases
-
 # From source
 cargo install --git https://github.com/StringKe/claudex
+
+# Or download from GitHub Releases
+# https://github.com/StringKe/claudex/releases
 ```
 
-## Features
+### System Requirements
 
-- **Multi-provider proxy** — Anthropic-native providers (Anthropic, MiniMax, OpenRouter) direct passthrough; OpenAI-compatible providers (Grok, OpenAI, DeepSeek, Kimi, GLM) automatic Anthropic <-> OpenAI translation
-- **Streaming translation** — Full SSE stream translation with tool call support
-- **Circuit breaker + failover** — Automatic fallback to backup providers on failure with configurable thresholds
-- **Smart routing** — Intent-based auto-routing via local classifier (Ollama), maps code/analysis/creative/search/math to optimal profiles
-- **Context engine** — Conversation compression, cross-profile context sharing, local RAG with embeddings
-- **TUI dashboard** — Real-time profile health, metrics, logs, and quick-launch
-- **Interactive profile add** — Guided CLI wizard with connectivity test and keyring integration
-- **Config discovery** — Automatic config file search from current directory up to global config
-- **Self-update** — `claudex update` downloads latest release from GitHub
-- **Local model support** — Any OpenAI-compatible local service (Ollama, vLLM, LM Studio)
-- **Keyring integration** — Secure API key storage via OS keychain
+- macOS (Intel / Apple Silicon) or Linux (x86_64 / ARM64)
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed
+- Windows: download pre-built binary from [Releases](https://github.com/StringKe/claudex/releases)
 
 ## Quick Start
 
 ```bash
-# Initialize config in current directory (or auto-discover existing config)
+# 1. Initialize config
 claudex config --init
 
-# Or let claudex create a global config on first run
-claudex profile list
-
-# Add a profile interactively
+# 2. Add a provider profile interactively
 claudex profile add
 
-# Test connectivity
+# 3. Test connectivity
 claudex profile test all
 
-# Run Claude Code with a specific provider
+# 4. Run Claude Code with a specific provider
 claudex run grok
-claudex run deepseek
-claudex run chatgpt
 
-# Override model for a session
-claudex run grok -m grok-3-mini-beta
-
-# Smart routing (auto-selects best provider)
+# 5. Or use smart routing to auto-select the best provider
 claudex run auto
-
-# Launch TUI dashboard
-claudex dashboard
-
-# Self-update
-claudex update
-claudex update --check
 ```
 
 ## How It Works
 
 ```
 claudex run grok
-    |
-    +-- Start proxy (if not running) -> 127.0.0.1:13456
-    |
-    +-- exec claude with env vars:
-        CLAUDE_CONFIG_DIR=~/.config/claude-grok
+    │
+    ├── Start proxy (if not running) → 127.0.0.1:13456
+    │
+    └── exec claude with env vars:
         ANTHROPIC_BASE_URL=http://127.0.0.1:13456/proxy/grok
         ANTHROPIC_API_KEY=claudex-passthrough
         ANTHROPIC_MODEL=grok-3-beta
 ```
 
-Proxy receives request -> extracts profile from URL path -> routes:
-- **DirectAnthropic**: Forward with correct headers + base URL
-- **OpenAICompatible**: Translate Anthropic -> OpenAI -> forward -> translate response back
+The proxy intercepts requests and handles protocol translation transparently:
 
-### Request Flow with All Features Enabled
+- **DirectAnthropic** providers (Anthropic, MiniMax, OpenRouter) → forward with correct headers
+- **OpenAICompatible** providers (Grok, OpenAI, DeepSeek, etc.) → translate Anthropic → OpenAI → forward → translate response back
 
-```
-Request -> Smart Router (if profile=auto) -> Profile resolved
-        -> Context Engine:
-            1. RAG: search local code index -> inject relevant snippets
-            2. Sharing: gather context from other profiles -> inject
-            3. Compression: summarize old messages if over threshold
-        -> Circuit Breaker check
-        -> Forward to provider
-        -> On failure: try backup providers (with their own circuit breakers)
-        -> Record metrics + store response context
-```
+## Provider Compatibility
+
+| Provider | Type | Translation | Example Model |
+|----------|------|-------------|---------------|
+| Anthropic | `DirectAnthropic` | None | `claude-sonnet-4-20250514` |
+| MiniMax | `DirectAnthropic` | None | `claude-sonnet-4-20250514` |
+| OpenRouter | `DirectAnthropic` | None | `anthropic/claude-sonnet-4` |
+| Grok (xAI) | `OpenAICompatible` | Anthropic <-> OpenAI | `grok-3-beta` |
+| OpenAI | `OpenAICompatible` | Anthropic <-> OpenAI | `gpt-4o` |
+| DeepSeek | `OpenAICompatible` | Anthropic <-> OpenAI | `deepseek-chat` |
+| Kimi | `OpenAICompatible` | Anthropic <-> OpenAI | `moonshot-v1-128k` |
+| GLM (Zhipu) | `OpenAICompatible` | Anthropic <-> OpenAI | `glm-4-plus` |
+| Ollama | `OpenAICompatible` | Anthropic <-> OpenAI | `qwen2.5:72b` |
 
 ## Configuration
-
-### Config Discovery
 
 Claudex searches for config files in this order:
 
 1. `$CLAUDEX_CONFIG` environment variable
 2. `./claudex.toml` (current directory)
-3. `./.claudex/config.toml` (current directory)
-4. Parent directories (up to 10 levels), checking `claudex.toml` and `.claudex/config.toml`
-5. `~/.config/claudex/config.toml` (global)
-
-If no config is found, a default global config is created from the built-in template.
+3. `./.claudex/config.toml`
+4. Parent directories (up to 10 levels)
+5. `~/.config/claudex/config.toml` (global, created if missing)
 
 ```bash
-# Show which config is loaded and search paths
+# Show loaded config and search paths
 claudex config
 
-# Create a local config in the current directory
+# Create a local config
 claudex config --init
 ```
 
-### Provider Types
+See [`config.example.toml`](./config.example.toml) for the full configuration reference, or visit the [documentation site](https://stringke.github.io/claudex/) for detailed guides.
 
-| Provider | Type | Translation |
-|----------|------|-------------|
-| Anthropic | `DirectAnthropic` | None |
-| MiniMax | `DirectAnthropic` | None |
-| OpenRouter | `DirectAnthropic` | None |
-| Grok (xAI) | `OpenAICompatible` | Anthropic <-> OpenAI |
-| OpenAI | `OpenAICompatible` | Anthropic <-> OpenAI |
-| DeepSeek | `OpenAICompatible` | Anthropic <-> OpenAI |
-| Kimi | `OpenAICompatible` | Anthropic <-> OpenAI |
-| GLM | `OpenAICompatible` | Anthropic <-> OpenAI |
-| Ollama/vLLM | `OpenAICompatible` | Anthropic <-> OpenAI |
+## CLI Reference
 
-### Keyring
-
-Store API keys securely in your OS keychain:
-
-```toml
-[[profiles]]
-name = "grok"
-api_key_keyring = "grok-api-key"  # reads from OS keychain
-```
-
-Or use the interactive wizard which offers keyring storage:
-
-```bash
-claudex profile add
-```
-
-### Smart Router
-
-Route requests to different providers based on intent classification:
-
-```toml
-[router]
-enabled = true
-classifier_url = "http://localhost:11434/v1"
-classifier_model = "qwen2.5:3b"
-
-[router.rules]
-code = "deepseek"
-analysis = "grok"
-creative = "chatgpt"
-search = "kimi"
-math = "deepseek"
-default = "grok"
-```
-
-Use with `claudex run auto`.
-
-### Context Engine
-
-```toml
-[context.compression]
-enabled = true
-threshold_tokens = 50000
-keep_recent = 10
-summarizer_url = "http://localhost:11434/v1"
-summarizer_model = "qwen2.5:3b"
-
-[context.sharing]
-enabled = true
-max_context_size = 2000
-
-[context.rag]
-enabled = true
-index_paths = ["./src", "./docs"]
-embedding_url = "http://localhost:11434/v1"
-embedding_model = "nomic-embed-text"
-```
-
-### Self-Update
-
-```bash
-# Check for updates
-claudex update --check
-
-# Download and install latest version
-claudex update
-```
-
-See [`config.example.toml`](./config.example.toml) for full configuration reference.
+| Command | Description |
+|---------|-------------|
+| `claudex run <profile>` | Run Claude Code with a specific provider |
+| `claudex run auto` | Smart routing — auto-select best provider |
+| `claudex run <profile> -m <model>` | Override model for a session |
+| `claudex profile list` | List all configured profiles |
+| `claudex profile add` | Interactive profile setup wizard |
+| `claudex profile show <name>` | Show profile details |
+| `claudex profile remove <name>` | Remove a profile |
+| `claudex profile test <name\|all>` | Test provider connectivity |
+| `claudex proxy start [-p port] [-d]` | Start proxy server (optionally as daemon) |
+| `claudex proxy stop` | Stop proxy daemon |
+| `claudex proxy status` | Show proxy status |
+| `claudex dashboard` | Launch TUI dashboard |
+| `claudex config [--init]` | Show or initialize config |
+| `claudex update [--check]` | Self-update from GitHub Releases |
 
 ## Architecture
 
 ```
 src/
-+-- main.rs              # Entry point + CLI dispatch
-+-- cli.rs               # clap command definitions
-+-- config.rs            # Config discovery + parsing + keyring
-+-- profile.rs           # Profile CRUD + interactive add + connectivity test
-+-- launch.rs            # Claude process launcher
-+-- daemon.rs            # PID file + process management
-+-- metrics.rs           # Request metrics (atomic counters)
-+-- update.rs            # Self-update via GitHub Releases
-+-- proxy/
-|   +-- mod.rs           # Axum server + state
-|   +-- handler.rs       # Request routing + circuit breaker + failover
-|   +-- middleware.rs     # Context engine (RAG, sharing, compression)
-|   +-- translation.rs   # Anthropic <-> OpenAI protocol translation
-|   +-- streaming.rs     # SSE stream translation (state machine)
-|   +-- fallback.rs      # Circuit breaker implementation
-|   +-- health.rs        # Background health checker
-|   +-- models.rs        # /v1/models endpoint
-+-- router/
-|   +-- mod.rs           # Router config
-|   +-- classifier.rs    # Intent classification via local LLM
-+-- context/
-|   +-- mod.rs           # Context engine config
-|   +-- compression.rs   # Conversation compression
-|   +-- sharing.rs       # Cross-profile context sharing
-|   +-- rag.rs           # Local RAG with embeddings
-+-- tui/
-    +-- mod.rs           # TUI app + event loop
-    +-- dashboard.rs     # Dashboard rendering
-    +-- input.rs         # Keyboard input handling
-    +-- widgets.rs       # Help popup
+├── main.rs              # Entry + CLI dispatch
+├── cli.rs               # clap command definitions
+├── config.rs            # Config discovery + parsing + keyring
+├── profile.rs           # Profile CRUD + connectivity test
+├── launch.rs            # Claude process launcher
+├── daemon.rs            # PID file + process management
+├── metrics.rs           # Request metrics (atomic counters)
+├── update.rs            # Self-update via GitHub Releases
+├── proxy/               # Translation proxy
+│   ├── handler.rs       # Request routing + circuit breaker + failover
+│   ├── translation.rs   # Anthropic <-> OpenAI protocol translation
+│   ├── streaming.rs     # SSE stream translation (state machine)
+│   ├── fallback.rs      # Circuit breaker implementation
+│   ├── health.rs        # Background health checker
+│   └── models.rs        # /v1/models aggregation
+├── router/              # Smart routing
+│   └── classifier.rs    # Intent classification via local LLM
+├── context/             # Context engine
+│   ├── compression.rs   # Conversation compression
+│   ├── sharing.rs       # Cross-profile context sharing
+│   └── rag.rs           # Local RAG with embeddings
+└── tui/                 # TUI dashboard
+    ├── dashboard.rs     # Dashboard rendering
+    ├── input.rs         # Keyboard input
+    └── widgets.rs       # UI components
 ```
 
 ## License
 
-MIT
+[MIT](./LICENSE)

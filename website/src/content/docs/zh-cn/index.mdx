@@ -1,0 +1,62 @@
+---
+title: Claudex
+description: 多实例 Claude Code 管理器，内置智能翻译代理
+template: splash
+hero:
+  title: Claudex
+  tagline: 让 Claude Code 无缝使用任何 AI 提供商 — Grok、ChatGPT、DeepSeek、Kimi、GLM、Ollama 等。
+  actions:
+    - text: 快速开始
+      link: /claudex/zh-cn/installation/
+      icon: right-arrow
+      variant: primary
+    - text: GitHub 仓库
+      link: https://github.com/StringKe/claudex
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## 功能特性
+
+<CardGrid stagger>
+  <Card title="翻译代理" icon="translate">
+    自动 Anthropic-to-OpenAI 协议翻译。让 Claude Code 无缝使用 Grok、ChatGPT、DeepSeek、Kimi、GLM 等任何 OpenAI 兼容提供商。
+  </Card>
+  <Card title="断路器" icon="warning">
+    内置断路器，自动故障转移到备用提供商。可配置阈值和恢复超时，确保工作流不中断。
+  </Card>
+  <Card title="智能路由" icon="random">
+    基于意图的自动路由，通过本地分类器将 code、analysis、creative、search、math 任务自动分配到最优提供商。
+  </Card>
+  <Card title="上下文引擎" icon="document">
+    对话压缩、跨 profile 上下文共享、本地 RAG 向量检索。用更丰富的上下文增强 AI 交互体验。
+  </Card>
+  <Card title="TUI 仪表盘" icon="laptop">
+    实时终端仪表盘，显示 profile 健康状态、请求指标、日志和快速启动。完整键盘导航支持。
+  </Card>
+  <Card title="自更新" icon="up-caret">
+    一条命令检查并安装最新版本，直接从 GitHub Releases 下载。轻松保持最新。
+  </Card>
+</CardGrid>
+
+## 快速安装
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/StringKe/claudex/main/install.sh | bash
+```
+
+## 工作原理
+
+```
+claudex run grok
+    │
+    ├── 启动代理 → 127.0.0.1:13456
+    │
+    └── 执行 claude，设置：
+        ANTHROPIC_BASE_URL=http://127.0.0.1:13456/proxy/grok
+        ANTHROPIC_MODEL=grok-3-beta
+```
+
+代理透明地在 Anthropic 和 OpenAI 协议之间进行翻译，让 Claude Code 与任何支持的提供商无缝协作。

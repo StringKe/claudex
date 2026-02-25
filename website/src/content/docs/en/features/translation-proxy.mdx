@@ -1,0 +1,96 @@
+---
+title: Translation Proxy
+description: Automatic Anthropic-to-OpenAI protocol translation
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The translation proxy is the core of Claudex. It sits between Claude Code and your AI providers, transparently converting between the Anthropic Messages API and the OpenAI Chat Completions API.
+
+## How It Works
+
+```
+Claude Code → Anthropic Messages API request
+    │
+    └── Claudex Proxy (127.0.0.1:13456)
+        │
+        ├── DirectAnthropic provider → forward with headers
+        │
+        └── OpenAICompatible provider
+            ├── Translate request: Anthropic → OpenAI
+            ├── Forward to provider
+            └── Translate response: OpenAI → Anthropic
+```
+
+## What Gets Translated
+
+### Request Translation (Anthropic → OpenAI)
+
+| Anthropic | OpenAI |
+|-----------|--------|
+| `system` field | System message in `messages` array |
+| `messages[].content` blocks (text, image, tool_use) | `messages[].content` + `tool_calls` |
+| `tools` array (JSON Schema) | `tools` array (function format) |
+| `tool_choice` | `tool_choice` |
+| `max_tokens` | `max_tokens` |
+| `temperature`, `top_p`, `stop_sequences` | Direct mapping |
+
+### Response Translation (OpenAI → Anthropic)
+
+| OpenAI | Anthropic |
+|--------|-----------|
+| `choices[0].message.content` | `content` blocks |
+| `choices[0].message.tool_calls` | `tool_use` content blocks |
+| `finish_reason: stop` | `stop_reason: end_turn` |
+| `finish_reason: tool_calls` | `stop_reason: tool_use` |
+| `usage.prompt_tokens` / `completion_tokens` | `usage.input_tokens` / `output_tokens` |
+
+## Streaming Translation
+
+Claudex fully supports SSE (Server-Sent Events) streaming, translating OpenAI stream chunks into Anthropic stream events in real time:
+
+| OpenAI SSE | Anthropic SSE |
+|------------|---------------|
+| First chunk | `message_start` + `content_block_start` |
+| `choices[0].delta.content` | `content_block_delta` (text_delta) |
+| `choices[0].delta.tool_calls` | `content_block_delta` (input_json_delta) |
+| `finish_reason` present | `content_block_stop` + `message_delta` + `message_stop` |
+
+The streaming translator maintains a state machine to properly handle tool call accumulation and content block boundaries.
+
+## Supported Providers
+
+| Provider | Type | Base URL |
+|----------|------|----------|
+| Anthropic | DirectAnthropic | `https://api.anthropic.com` |
+| MiniMax | DirectAnthropic | `https://api.minimax.io/anthropic` |
+| OpenRouter | DirectAnthropic | `https://openrouter.ai/api` |
+| Grok (xAI) | OpenAICompatible | `https://api.x.ai/v1` |
+| OpenAI | OpenAICompatible | `https://api.openai.com/v1` |
+| DeepSeek | OpenAICompatible | `https://api.deepseek.com` |
+| Kimi/Moonshot | OpenAICompatible | `https://api.moonshot.cn/v1` |
+| GLM (Zhipu) | OpenAICompatible | `https://open.bigmodel.cn/api/paas/v4` |
+| Ollama | OpenAICompatible | `http://localhost:11434/v1` |
+| vLLM | OpenAICompatible | `http://localhost:8000/v1` |
+
+<Aside type="tip">
+  DirectAnthropic providers require no translation — requests are forwarded directly with updated headers and base URL.
+</Aside>
+
+## Proxy Management
+
+```bash
+# Start proxy as a daemon
+claudex proxy start -d
+
+# Check proxy status
+claudex proxy status
+
+# Stop proxy daemon
+claudex proxy stop
+
+# Start on a custom port
+claudex proxy start -p 8080
+```
+
+When you run `claudex run <profile>`, the proxy is automatically started in the background if not already running.

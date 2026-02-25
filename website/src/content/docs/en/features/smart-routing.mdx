@@ -1,0 +1,59 @@
+---
+title: Smart Routing
+description: Intent-based automatic provider routing
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Smart routing automatically selects the best provider for each request based on intent classification. Use `claudex run auto` to activate it.
+
+## How It Works
+
+1. User runs `claudex run auto`
+2. Claude Code sends a request to the proxy
+3. The proxy extracts the user's message and sends it to a local classifier (e.g., Ollama)
+4. The classifier returns an intent category (code, analysis, creative, search, math)
+5. The routing rules map the intent to the optimal provider profile
+6. The request is forwarded to the selected provider
+
+## Configuration
+
+```toml
+[router]
+enabled = true
+classifier_url = "http://localhost:11434/v1"    # Ollama endpoint
+classifier_model = "qwen2.5:3b"                 # lightweight model for classification
+classifier_api_key = ""                          # not needed for Ollama
+
+[router.rules]
+code = "deepseek"       # coding tasks → DeepSeek
+analysis = "grok"       # analytical tasks → Grok
+creative = "chatgpt"    # creative writing → ChatGPT
+search = "kimi"         # search/research → Kimi
+math = "deepseek"       # math/logic → DeepSeek
+default = "grok"        # fallback for unclassified
+```
+
+## Intent Categories
+
+| Intent | Description | Example Tasks |
+|--------|-------------|---------------|
+| `code` | Programming and code generation | Write a function, fix a bug, refactor code |
+| `analysis` | Data analysis and reasoning | Analyze logs, compare approaches, explain concepts |
+| `creative` | Creative writing and ideation | Write documentation, brainstorm names, draft emails |
+| `search` | Information retrieval | Find API docs, look up error codes |
+| `math` | Mathematical and logical tasks | Calculate complexity, prove correctness |
+
+<Aside type="note">
+  Smart routing requires a local LLM service (like Ollama) for intent classification. The classifier model should be small and fast — `qwen2.5:3b` works well.
+</Aside>
+
+## Usage
+
+```bash
+# Run with smart routing
+claudex run auto
+
+# Override model even with auto-routing
+claudex run auto -m grok-3-mini-beta
+```

@@ -1,6 +1,11 @@
 # Build
 /target
 
+# Website build artifacts
+/website/dist/
+/website/node_modules/
+/website/.astro/
+
 # Editor
 *.swp
 *.swo

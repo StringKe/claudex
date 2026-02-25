@@ -1,0 +1,69 @@
+---
+title: 上下文引擎
+description: 对话压缩、跨 profile 共享和本地 RAG
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+上下文引擎通过三种机制增强 AI 交互：对话压缩、跨 profile 上下文共享和本地 RAG（检索增强生成）。
+
+<Aside type="caution">
+  上下文引擎功能需要本地 LLM 服务（如 Ollama）来生成摘要和 embedding。
+</Aside>
+
+## 对话压缩
+
+当对话超过 token 阈值时，Claudex 使用本地 LLM 压缩旧消息，保留最近的消息不变。
+
+```toml
+[context.compression]
+enabled = true
+threshold_tokens = 50000    # token 总数超过此值时压缩
+keep_recent = 10            # 始终保留最近 N 条消息
+summarizer_url = "http://localhost:11434/v1"
+summarizer_model = "qwen2.5:3b"
+```
+
+### 工作流程
+
+1. 转发请求前，Claudex 估算总 token 数
+2. 若超过 `threshold_tokens`，`keep_recent` 之前的旧消息被替换为摘要
+3. 摘要由配置的本地 LLM 生成
+4. 压缩后的对话转发到提供商
+
+## 跨 Profile 共享
+
+在同一会话中跨不同提供商 profile 共享上下文。
+
+```toml
+[context.sharing]
+enabled = true
+max_context_size = 2000    # 从其他 profile 注入的最大 token 数
+```
+
+在任务中切换提供商时很有用 — 之前交互的相关上下文会自动包含。
+
+## 本地 RAG
+
+索引本地代码和文档，用于检索增强生成。相关代码片段自动注入请求。
+
+```toml
+[context.rag]
+enabled = true
+index_paths = ["./src", "./docs"]     # 要索引的目录
+embedding_url = "http://localhost:11434/v1"
+embedding_model = "nomic-embed-text"  # embedding 模型
+chunk_size = 512                       # 文本块大小
+top_k = 5                             # 注入的结果数量
+```
+
+### 工作流程
+
+1. 启动时，Claudex 使用 embedding 模型索引 `index_paths` 中的文件
+2. 对每个请求，用户消息被嵌入并与索引进行比较
+3. 最相关的 top-k 个片段作为额外上下文注入请求
+4. 提供商获得关于你代码库的更丰富上下文
+
+<Aside type="tip">
+  为获得最佳本地 RAG 效果，建议通过 Ollama 使用专用 embedding 模型，如 `nomic-embed-text`。
+</Aside>

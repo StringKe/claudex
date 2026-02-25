@@ -1,0 +1,59 @@
+---
+title: 智能路由
+description: 基于意图的自动提供商路由
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+智能路由根据意图分类自动为每个请求选择最佳提供商。使用 `claudex run auto` 激活。
+
+## 工作原理
+
+1. 用户运行 `claudex run auto`
+2. Claude Code 向代理发送请求
+3. 代理提取用户消息，发送给本地分类器（如 Ollama）
+4. 分类器返回意图类别（code、analysis、creative、search、math）
+5. 路由规则将意图映射到对应的 profile
+6. 请求转发到选定的提供商
+
+## 配置
+
+```toml
+[router]
+enabled = true
+classifier_url = "http://localhost:11434/v1"    # Ollama 端点
+classifier_model = "qwen2.5:3b"                 # 用于分类的轻量模型
+classifier_api_key = ""                          # Ollama 不需要
+
+[router.rules]
+code = "deepseek"       # 编程任务 → DeepSeek
+analysis = "grok"       # 分析任务 → Grok
+creative = "chatgpt"    # 创意写作 → ChatGPT
+search = "kimi"         # 搜索研究 → Kimi
+math = "deepseek"       # 数学逻辑 → DeepSeek
+default = "grok"        # 未分类的默认路由
+```
+
+## 意图类别
+
+| 意图 | 说明 | 示例任务 |
+|------|------|----------|
+| `code` | 编程和代码生成 | 写函数、修 bug、重构代码 |
+| `analysis` | 数据分析和推理 | 分析日志、比较方案、解释概念 |
+| `creative` | 创意写作和构思 | 写文档、头脑风暴、起草邮件 |
+| `search` | 信息检索 | 查 API 文档、查错误代码 |
+| `math` | 数学和逻辑任务 | 计算复杂度、证明正确性 |
+
+<Aside type="note">
+  智能路由需要本地 LLM 服务（如 Ollama）进行意图分类。分类器模型应选择小而快的 — `qwen2.5:3b` 效果很好。
+</Aside>
+
+## 使用
+
+```bash
+# 使用智能路由
+claudex run auto
+
+# 即使使用自动路由也可以覆盖模型
+claudex run auto -m grok-3-mini-beta
+```

@@ -1,0 +1,49 @@
+---
+title: TUI Dashboard
+description: Real-time terminal dashboard for monitoring and managing profiles
+---
+
+The TUI dashboard provides a real-time terminal interface for monitoring profile health, viewing metrics, and quickly launching Claude Code sessions.
+
+## Launch
+
+```bash
+# Explicit launch
+claudex dashboard
+
+# Auto-launch (when profiles exist and no subcommand given)
+claudex
+```
+
+## Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `j` / `↓` | Move selection down |
+| `k` / `↑` | Move selection up |
+| `l` / `Enter` | Launch Claude Code with selected profile |
+| `t` | Test connectivity for selected profile |
+| `/` | Enter search mode |
+| `Esc` | Exit search mode / close help |
+| `?` | Show help popup |
+| `q` | Quit dashboard |
+
+## Dashboard Layout
+
+The dashboard displays:
+
+- **Profile list** — All configured profiles with name, model, provider type, and health status
+- **Health indicators** — Color-coded status (green = healthy, yellow = degraded, red = circuit breaker open)
+- **Metrics panel** — Per-profile request count, success rate, average latency
+- **Log panel** — Real-time scrolling log output
+
+## Health Status
+
+The dashboard runs a background health checker that pings all enabled profiles every ~30 seconds. Health status is reflected in real time:
+
+| Color | Meaning |
+|-------|---------|
+| Green | Provider is responding normally |
+| Yellow | Recent failures detected |
+| Red | Circuit breaker is open |
+| Gray | Profile is disabled |

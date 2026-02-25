@@ -1,0 +1,264 @@
+---
+title: Configuration Reference
+description: Complete reference for all Claudex configuration options
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## Config File Location
+
+See [Configuration](/claudex/en/configuration/) for config file discovery order.
+
+## Global Settings
+
+```toml
+# Path to claude binary (default: "claude" from PATH)
+claude_binary = "claude"
+
+# Proxy server bind port
+proxy_port = 13456
+
+# Proxy server bind address
+proxy_host = "127.0.0.1"
+
+# Log level: trace, debug, info, warn, error
+log_level = "info"
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `claude_binary` | string | `"claude"` | Path to the Claude Code CLI binary |
+| `proxy_port` | integer | `13456` | Port the translation proxy listens on |
+| `proxy_host` | string | `"127.0.0.1"` | Address the proxy binds to |
+| `log_level` | string | `"info"` | Minimum log level |
+
+## Model Aliases
+
+Define shorthand names for model identifiers:
+
+```toml
+[model_aliases]
+grok3 = "grok-3-beta"
+gpt4o = "gpt-4o"
+ds3 = "deepseek-chat"
+claude = "claude-sonnet-4-20250514"
+```
+
+Use aliases with `-m`:
+
+```bash
+claudex run grok -m grok3
+```
+
+## Profile Configuration
+
+```toml
+[[profiles]]
+name = "grok"
+provider_type = "OpenAICompatible"
+base_url = "https://api.x.ai/v1"
+api_key = "xai-..."
+# api_key_keyring = "grok-api-key"
+default_model = "grok-3-beta"
+backup_providers = ["deepseek"]
+custom_headers = {}
+extra_env = {}
+priority = 100
+enabled = true
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `name` | string | *required* | Unique profile identifier |
+| `provider_type` | string | `"DirectAnthropic"` | `"DirectAnthropic"` or `"OpenAICompatible"` |
+| `base_url` | string | *required* | Provider API endpoint URL |
+| `api_key` | string | `""` | API key in plaintext |
+| `api_key_keyring` | string | — | OS keychain entry name (overrides `api_key`) |
+| `default_model` | string | *required* | Model identifier to use by default |
+| `backup_providers` | string[] | `[]` | Profile names for failover, tried in order |
+| `custom_headers` | map | `{}` | Additional HTTP headers sent with every request |
+| `extra_env` | map | `{}` | Environment variables set when launching Claude |
+| `priority` | integer | `100` | Priority weight for smart routing (higher = preferred) |
+| `enabled` | boolean | `true` | Whether this profile is active |
+
+### Provider Examples
+
+```toml
+# Anthropic (DirectAnthropic — no translation)
+[[profiles]]
+name = "anthropic"
+provider_type = "DirectAnthropic"
+base_url = "https://api.anthropic.com"
+api_key = "sk-ant-..."
+default_model = "claude-sonnet-4-20250514"
+
+# MiniMax (DirectAnthropic — no translation)
+[[profiles]]
+name = "minimax"
+provider_type = "DirectAnthropic"
+base_url = "https://api.minimax.io/anthropic"
+api_key = "..."
+default_model = "claude-sonnet-4-20250514"
+backup_providers = ["anthropic"]
+
+# OpenRouter (DirectAnthropic — no translation)
+[[profiles]]
+name = "openrouter"
+provider_type = "DirectAnthropic"
+base_url = "https://openrouter.ai/api"
+api_key = "..."
+default_model = "anthropic/claude-sonnet-4"
+
+# Grok (OpenAICompatible — needs translation)
+[[profiles]]
+name = "grok"
+provider_type = "OpenAICompatible"
+base_url = "https://api.x.ai/v1"
+api_key = "xai-..."
+default_model = "grok-3-beta"
+backup_providers = ["deepseek"]
+
+# OpenAI (OpenAICompatible — needs translation)
+[[profiles]]
+name = "chatgpt"
+provider_type = "OpenAICompatible"
+base_url = "https://api.openai.com/v1"
+api_key = "sk-..."
+default_model = "gpt-4o"
+
+# DeepSeek (OpenAICompatible — needs translation)
+[[profiles]]
+name = "deepseek"
+provider_type = "OpenAICompatible"
+base_url = "https://api.deepseek.com"
+api_key = "..."
+default_model = "deepseek-chat"
+backup_providers = ["grok"]
+
+# Kimi / Moonshot (OpenAICompatible — needs translation)
+[[profiles]]
+name = "kimi"
+provider_type = "OpenAICompatible"
+base_url = "https://api.moonshot.cn/v1"
+api_key = "..."
+default_model = "moonshot-v1-128k"
+
+# GLM / 智谱 (OpenAICompatible — needs translation)
+[[profiles]]
+name = "glm"
+provider_type = "OpenAICompatible"
+base_url = "https://open.bigmodel.cn/api/paas/v4"
+api_key = "..."
+default_model = "glm-4-plus"
+
+# Ollama (local, no API key needed)
+[[profiles]]
+name = "local-qwen"
+provider_type = "OpenAICompatible"
+base_url = "http://localhost:11434/v1"
+api_key = ""
+default_model = "qwen2.5:72b"
+enabled = false
+
+# vLLM / LM Studio (local)
+[[profiles]]
+name = "local-llama"
+provider_type = "OpenAICompatible"
+base_url = "http://localhost:8000/v1"
+api_key = ""
+default_model = "llama-3.3-70b"
+enabled = false
+```
+
+## Smart Router
+
+```toml
+[router]
+enabled = false
+classifier_url = "http://localhost:11434/v1"
+classifier_model = "qwen2.5:3b"
+classifier_api_key = ""
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | boolean | `false` | Enable smart routing |
+| `classifier_url` | string | — | OpenAI-compatible endpoint for intent classification |
+| `classifier_model` | string | — | Model to use for classification |
+| `classifier_api_key` | string | `""` | API key for classifier (empty for local services) |
+
+### Routing Rules
+
+```toml
+[router.rules]
+code = "deepseek"
+analysis = "grok"
+creative = "chatgpt"
+search = "kimi"
+math = "deepseek"
+default = "grok"
+```
+
+| Key | Description |
+|-----|-------------|
+| `code` | Profile for coding tasks |
+| `analysis` | Profile for analysis and reasoning |
+| `creative` | Profile for creative writing |
+| `search` | Profile for search and research |
+| `math` | Profile for math and logic |
+| `default` | Fallback when intent is unclassified |
+
+## Context Engine
+
+### Compression
+
+```toml
+[context.compression]
+enabled = false
+threshold_tokens = 50000
+keep_recent = 10
+summarizer_url = "http://localhost:11434/v1"
+summarizer_model = "qwen2.5:3b"
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | boolean | `false` | Enable conversation compression |
+| `threshold_tokens` | integer | `50000` | Compress when token count exceeds this |
+| `keep_recent` | integer | `10` | Always keep the last N messages uncompressed |
+| `summarizer_url` | string | — | LLM endpoint for generating summaries |
+| `summarizer_model` | string | — | Model to use for summarization |
+
+### Cross-Profile Sharing
+
+```toml
+[context.sharing]
+enabled = false
+max_context_size = 2000
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | boolean | `false` | Enable cross-profile context sharing |
+| `max_context_size` | integer | `2000` | Max tokens to inject from other profiles |
+
+### Local RAG
+
+```toml
+[context.rag]
+enabled = false
+index_paths = ["./src", "./docs"]
+embedding_url = "http://localhost:11434/v1"
+embedding_model = "nomic-embed-text"
+chunk_size = 512
+top_k = 5
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | boolean | `false` | Enable local RAG |
+| `index_paths` | string[] | `[]` | Directories to index |
+| `embedding_url` | string | — | Endpoint for embedding generation |
+| `embedding_model` | string | — | Embedding model name |
+| `chunk_size` | integer | `512` | Text chunk size in tokens |
+| `top_k` | integer | `5` | Number of results to inject |

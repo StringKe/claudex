@@ -1,0 +1,65 @@
+---
+title: Installation
+description: How to install Claudex on your system
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+## Install Methods
+
+<Tabs>
+  <TabItem label="One-liner" icon="terminal">
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/StringKe/claudex/main/install.sh | bash
+    ```
+    The install script auto-detects your OS and architecture, downloads the latest release from GitHub, and installs to `~/.local/bin/claudex`.
+
+    Override the install directory:
+    ```bash
+    CLAUDEX_INSTALL_DIR=/usr/local/bin curl -fsSL https://raw.githubusercontent.com/StringKe/claudex/main/install.sh | bash
+    ```
+  </TabItem>
+  <TabItem label="Cargo" icon="seti:rust">
+    ```bash
+    cargo install --git https://github.com/StringKe/claudex
+    ```
+    Requires the Rust toolchain. The binary will be installed to `~/.cargo/bin/claudex`.
+  </TabItem>
+  <TabItem label="GitHub Releases" icon="github">
+    Download the pre-built binary for your platform from [GitHub Releases](https://github.com/StringKe/claudex/releases).
+
+    Available targets:
+    - `x86_64-unknown-linux-gnu`
+    - `x86_64-unknown-linux-musl`
+    - `aarch64-unknown-linux-gnu`
+    - `aarch64-unknown-linux-musl`
+    - `x86_64-apple-darwin`
+    - `aarch64-apple-darwin`
+    - `x86_64-pc-windows-msvc`
+
+    Extract and place the binary in your `PATH`:
+    ```bash
+    tar xzf claudex-v*.tar.gz
+    chmod +x claudex
+    mv claudex ~/.local/bin/
+    ```
+  </TabItem>
+</Tabs>
+
+## System Requirements
+
+| Requirement | Details |
+|-------------|---------|
+| **OS** | macOS (Intel / Apple Silicon), Linux (x86_64 / ARM64), Windows (x86_64) |
+| **Claude Code** | Must be installed and accessible as `claude` in your PATH |
+| **Optional** | [Ollama](https://ollama.com) for smart routing and context engine features |
+
+## Verify Installation
+
+```bash
+claudex --version
+```
+
+## Next Steps
+
+After installation, [configure your first provider profile](/claudex/en/configuration/).

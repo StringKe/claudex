@@ -1,0 +1,63 @@
+---
+title: Circuit Breaker & Failover
+description: Automatic failure detection and provider failover
+---
+
+Claudex includes a built-in circuit breaker for each provider profile, with automatic failover to backup providers when failures are detected.
+
+## Circuit Breaker States
+
+```
+         success
+    ┌──────────────┐
+    │              │
+    ▼    failure   │
+ Closed ────────► Open
+    ▲              │
+    │   timeout    │
+    │   expired    ▼
+    └─────────── HalfOpen
+                   │
+                failure → back to Open
+```
+
+| State | Behavior |
+|-------|----------|
+| **Closed** | Normal operation. Requests pass through. Failures are counted. |
+| **Open** | Requests are blocked. Triggers failover to backup providers. |
+| **HalfOpen** | After recovery timeout, one probe request is allowed through. Success → Closed; Failure → back to Open. |
+
+## Default Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| Failure threshold | 3 consecutive failures |
+| Recovery timeout | 30 seconds |
+
+## Failover Configuration
+
+Define backup providers in your profile to enable automatic failover:
+
+```toml
+[[profiles]]
+name = "grok"
+provider_type = "OpenAICompatible"
+base_url = "https://api.x.ai/v1"
+api_key = "xai-..."
+default_model = "grok-3-beta"
+backup_providers = ["deepseek", "chatgpt"]   # failover chain
+```
+
+When `grok` fails 3 times consecutively:
+1. Circuit breaker opens for `grok`
+2. Request is retried with `deepseek`
+3. If `deepseek` also fails, try `chatgpt`
+4. Each backup provider has its own independent circuit breaker
+
+## Health Checking
+
+A background health checker runs every ~30 seconds, sending lightweight probe requests to all enabled profiles. Health status is displayed in the TUI dashboard with color coding:
+
+- Green: healthy
+- Yellow: degraded (recent failures)
+- Red: circuit breaker open

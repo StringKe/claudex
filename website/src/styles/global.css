@@ -1,0 +1,16 @@
+@layer base, starlight, theme, components, utilities;
+
+@import '@astrojs/starlight-tailwind';
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+@theme {
+  --font-sans: 'Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto',
+    'Noto Sans', 'Noto Sans SC', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', ui-monospace,
+    monospace;
+  --color-accent-200: #b4c7ff;
+  --color-accent-600: #364bab;
+  --color-accent-900: #172554;
+  --color-accent-950: #0f1729;
+}
