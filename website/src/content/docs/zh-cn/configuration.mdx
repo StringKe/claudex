@@ -13,7 +13,12 @@ Claudex 按以下顺序搜索配置文件：
 2. `./claudex.toml`（当前目录）
 3. `./.claudex/config.toml`（当前目录）
 4. 父目录（最多向上 10 级），检查上述两种模式
-5. `~/.config/claudex/config.toml`（全局 — 不存在时自动创建）
+5. `~/.config/claudex/config.toml`（XDG — **优先于**平台特定路径）
+6. 平台特定路径（macOS 为 `~/Library/Application Support/claudex/config.toml` 等）
+
+<Aside type="note">
+  XDG 路径（`~/.config/claudex/config.toml`）现在优先于平台特定路径。如果所有位置都不存在配置文件，创建默认配置时使用 XDG 路径。
+</Aside>
 
 ```bash
 # 查看加载的配置路径和搜索顺序
@@ -96,11 +101,14 @@ enabled = true
 | `api_key` | `""` | API 密钥（明文） |
 | `api_key_keyring` | — | 从 OS 钥匙链读取 API 密钥 |
 | `default_model` | *必填* | 默认使用的模型 |
+| `auth_type` | `"api-key"` | `"api-key"` 或 `"oauth"` |
+| `oauth_provider` | — | OAuth 提供商（`claude`、`openai`、`google`、`qwen`、`kimi`、`github`）。`auth_type = "oauth"` 时必填 |
 | `backup_providers` | `[]` | 故障转移 profile 名列表 |
 | `custom_headers` | `{}` | 额外 HTTP 请求头 |
 | `extra_env` | `{}` | 启动 Claude 时的额外环境变量 |
 | `priority` | `100` | 智能路由优先级 |
 | `enabled` | `true` | 是否启用 |
+| `[profiles.models]` | — | 模型 slot 映射表（`haiku`、`sonnet`、`opus` 字段） |
 
 ### 交互式设置
 
@@ -125,6 +133,149 @@ api_key_keyring = "grok-api-key"   # 从 OS 钥匙链读取
 支持的后端：
 - **macOS**：Keychain
 - **Linux**：Secret Service（GNOME Keyring / KDE Wallet）
+
+## OAuth 订阅认证
+
+除了 API 密钥，你还可以通过 OAuth 使用现有的提供商订阅进行认证。适用于 Claude Pro/Team、ChatGPT Plus 或其他订阅方案。
+
+### 设置
+
+1. 将 profile 的 `auth_type` 设为 `"oauth"` 并指定 `oauth_provider`：
+
+```toml
+[[profiles]]
+name = "chatgpt-oauth"
+provider_type = "OpenAICompatible"
+base_url = "https://api.openai.com/v1"
+default_model = "gpt-4o"
+auth_type = "oauth"
+oauth_provider = "openai"
+```
+
+2. 使用 `auth` 命令登录：
+
+```bash
+claudex auth login openai
+```
+
+3. 检查认证状态：
+
+```bash
+claudex auth status
+```
+
+### 支持的提供商
+
+| 提供商 | `oauth_provider` | Token 来源 |
+|--------|-----------------|------------|
+| Claude | `claude` | 从 `~/.claude` 读取（Claude Code 原生配置） |
+| OpenAI | `openai` | 从 `~/.codex/auth.json` 读取（Codex CLI） |
+| Google | `google` | OAuth 设备码流程 |
+| Qwen | `qwen` | OAuth 设备码流程 |
+| Kimi | `kimi` | OAuth 设备码流程 |
+| GitHub | `github` | OAuth 设备码流程 |
+
+<Aside type="tip">
+  对于 **OpenAI**，请确保已安装 Codex CLI 并已登录（`codex auth login`）。Claudex 自动从 `~/.codex/auth.json` 读取 token。
+</Aside>
+
+<Aside type="tip">
+  对于 **Claude**，Claudex 读取已有的 Claude Code OAuth 会话（`~/.claude`）。如果你已登录 Claude Code，无需额外登录步骤。
+</Aside>
+
+### Gateway 认证模式
+
+使用 OAuth profile 时，Claudex 启动 Claude Code 时设置 `ANTHROPIC_AUTH_TOKEN`（而非 `ANTHROPIC_API_KEY`）。这可以避免与 Claude Code 自身订阅登录机制冲突，因为 Claude Code 内部使用 `ANTHROPIC_API_KEY`。
+
+代理会在 OAuth token 过期前自动刷新。你也可以手动刷新：
+
+```bash
+claudex auth refresh openai
+```
+
+## 模型 Slot 映射
+
+Claude Code 内置 `/model` 切换器，包含三个 slot：**haiku**、**sonnet** 和 **opus**。默认映射到 Anthropic 模型，但通过 Claudex 可以将它们映射到任意提供商的模型。
+
+### 配置
+
+在任意 profile 中添加 `[profiles.models]` 表：
+
+```toml
+[[profiles]]
+name = "grok"
+provider_type = "OpenAICompatible"
+base_url = "https://api.x.ai/v1"
+api_key = "xai-..."
+default_model = "grok-3-beta"
+
+[profiles.models]
+haiku = "grok-3-mini-beta"
+sonnet = "grok-3-beta"
+opus = "grok-3-beta"
+```
+
+在 Claude Code 中输入 `/model sonnet` 时，Claudex 会将请求翻译为使用 `grok-3-beta`。`/model opus` 命令映射到 `grok-3-beta`，以此类推。
+
+### 常见提供商示例
+
+```toml
+# OpenAI 模型映射
+[profiles.models]
+haiku = "gpt-4o-mini"
+sonnet = "gpt-4o"
+opus = "o1"
+
+# DeepSeek 模型映射
+[profiles.models]
+haiku = "deepseek-chat"
+sonnet = "deepseek-chat"
+opus = "deepseek-reasoner"
+
+# Google Gemini 模型映射
+[profiles.models]
+haiku = "gemini-2.0-flash"
+sonnet = "gemini-2.5-pro"
+opus = "gemini-2.5-pro"
+```
+
+<Aside type="note">
+  未配置的模型 slot 将回退到 profile 的 `default_model`。
+</Aside>
+
+## 工具名兼容
+
+部分提供商（尤其是 OpenAI）对工具（函数）名称有 64 字符长度限制。Claude Code 生成的工具名可能超过此限制。
+
+Claudex 在向 OpenAI 兼容提供商发送请求时，自动截断超过 64 字符的工具名，并在处理响应时透明还原原始名称。整个往返过程完全透明，无需额外配置。
+
+## 非交互模式
+
+Claudex 支持一次性（非交互）执行，适用于 CI/CD 流水线、脚本和自动化：
+
+```bash
+# 输出响应后退出
+claudex run grok "Explain this codebase" --print
+
+# 跳过所有权限提示（用于全自动流水线）
+claudex run grok "Fix lint errors" --print --dangerously-skip-permissions
+```
+
+<Aside type="caution">
+  `--dangerously-skip-permissions` 会禁用所有安全提示。仅在受信任的自动化环境中使用。
+</Aside>
+
+非交互模式下，日志写入每实例日志文件 `~/Library/Caches/claudex/proxy-{timestamp}-{pid}.log`（而非 stderr），保持 stdout 输出干净，便于管道和自动化处理。
+
+## 每实例日志文件
+
+每个 Claudex 代理实例将日志写入独立文件：
+
+```
+~/Library/Caches/claudex/proxy-{timestamp}-{pid}.log
+```
+
+这避免了多实例运行时的日志交错，并在 `claudex run` 期间（尤其是非交互模式下）保持 stderr 干净。日志内容包括代理启动、请求翻译、OAuth token 刷新事件和断路器状态变化。
 
 ## 完整示例
 

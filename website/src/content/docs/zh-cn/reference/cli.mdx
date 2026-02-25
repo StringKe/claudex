@@ -18,17 +18,20 @@ claudex [COMMAND]
 使用指定的提供商 profile 运行 Claude Code。
 
 ```bash
-claudex run <PROFILE> [-m MODEL] [ARGS...]
+claudex run <PROFILE> [PROMPT] [-m MODEL] [--print] [--dangerously-skip-permissions] [ARGS...]
 ```
 
 | 参数 | 说明 |
 |------|------|
 | `PROFILE` | Profile 名称，或 `auto` 启用智能路由 |
+| `PROMPT` | 可选的 prompt，用于非交互（一次性）执行 |
 | `-m, --model MODEL` | 临时覆盖默认模型 |
+| `--print` | 输出响应后退出（非交互模式） |
+| `--dangerously-skip-permissions` | 跳过所有权限提示（配合 `--print` 用于 CI/CD） |
 | `ARGS...` | 传递给 `claude` 的额外参数 |
 
 ```bash
-# 使用 Grok
+# 使用 Grok（交互模式）
 claudex run grok
 
 # 指定模型
@@ -37,8 +40,14 @@ claudex run grok -m grok-3-mini-beta
 # 智能路由
 claudex run auto
 
+# 非交互一次性执行
+claudex run grok "Explain this codebase" --print
+
+# CI/CD 流水线用法（无提示、无权限确认）
+claudex run grok "Fix lint errors" --print --dangerously-skip-permissions
+
 # 传递额外参数给 claude
-claudex run grok -- --print
+claudex run grok -- --verbose
 ```
 
 ### `profile`
@@ -84,6 +93,63 @@ claudex profile test <NAME|all>
 ```
 
 测试指定 profile 或所有 profile 的连通性。
+
+### `auth`
+
+管理提供商 OAuth 订阅认证。
+
+#### `auth login`
+
+```bash
+claudex auth login <PROVIDER>
+```
+
+使用 OAuth 登录指定提供商。支持的提供商：`claude`、`openai`、`google`、`qwen`、`kimi`、`github`。
+
+**OpenAI** 从 Codex CLI 配置（`~/.codex/auth.json`）读取 token。**Claude** 从 `~/.claude` 读取。其他提供商使用本地回调服务器或设备码流程。
+
+```bash
+# 登录 OpenAI（从 Codex CLI 读取）
+claudex auth login openai
+
+# 登录 Claude（从 ~/.claude 读取）
+claudex auth login claude
+
+# 登录 Google
+claudex auth login google
+```
+
+#### `auth status`
+
+```bash
+claudex auth status [PROVIDER]
+```
+
+显示当前认证状态。不指定提供商时，显示所有已配置 OAuth profile 的状态。
+
+```bash
+# 检查所有 OAuth profile
+claudex auth status
+
+# 检查特定提供商
+claudex auth status openai
+```
+
+#### `auth refresh`
+
+```bash
+claudex auth refresh <PROVIDER>
+```
+
+手动刷新指定提供商的 OAuth token。token 过期时代理也会自动刷新。
+
+#### `auth logout`
+
+```bash
+claudex auth logout <PROVIDER>
+```
+
+移除指定提供商的已存储 OAuth token。
 
 ### `proxy`
 

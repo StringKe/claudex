@@ -7,7 +7,16 @@ import { Aside } from '@astrojs/starlight/components';
 
 ## 配置文件位置
 
-参见[配置](/claudex/zh-cn/configuration/)了解配置文件发现顺序。
+Claudex 按以下顺序搜索配置文件：
+
+1. `$CLAUDEX_CONFIG` 环境变量
+2. `./claudex.toml`（当前目录）
+3. `./.claudex/config.toml`（当前目录）
+4. 父目录（最多向上 10 级），检查上述两种模式
+5. `~/.config/claudex/config.toml`（XDG — **优先于**平台特定路径）
+6. 平台特定路径（macOS 为 `~/Library/Application Support/claudex/config.toml` 等）
+
+参见[配置](/claudex/zh-cn/configuration/)了解完整详情。
 
 ## 全局设置
 
@@ -60,11 +69,19 @@ base_url = "https://api.x.ai/v1"
 api_key = "xai-..."
 # api_key_keyring = "grok-api-key"
 default_model = "grok-3-beta"
+auth_type = "api-key"              # "api-key"（默认）或 "oauth"
+# oauth_provider = "openai"        # auth_type = "oauth" 时必填
 backup_providers = ["deepseek"]
 custom_headers = {}
 extra_env = {}
 priority = 100
 enabled = true
+
+# 模型 slot 映射（可选）
+[profiles.models]
+haiku = "grok-3-mini-beta"
+sonnet = "grok-3-beta"
+opus = "grok-3-beta"
 ```
 
 | 字段 | 类型 | 默认值 | 说明 |
@@ -75,11 +92,34 @@ enabled = true
 | `api_key` | string | `""` | 明文 API 密钥 |
 | `api_key_keyring` | string | — | OS 钥匙链条目名（覆盖 `api_key`） |
 | `default_model` | string | *必填* | 默认模型标识 |
+| `auth_type` | string | `"api-key"` | 认证方式：`"api-key"` 或 `"oauth"` |
+| `oauth_provider` | string | — | OAuth 提供商名称（`auth_type = "oauth"` 时必填）。可选：`claude`、`openai`、`google`、`qwen`、`kimi`、`github` |
 | `backup_providers` | string[] | `[]` | 故障转移 profile 名，按顺序尝试 |
 | `custom_headers` | map | `{}` | 每个请求附带的额外 HTTP 头 |
 | `extra_env` | map | `{}` | 启动 Claude 时设置的环境变量 |
 | `priority` | integer | `100` | 智能路由优先级权重（越高越优先） |
 | `enabled` | boolean | `true` | 是否激活此 profile |
+
+### 模型 Slot 映射
+
+可选的 `[profiles.models]` 表将 Claude Code 的 `/model` 切换器 slot 映射到提供商特定的模型名。当你在 Claude Code 中切换模型（例如 `/model opus`）时，Claudex 会将请求翻译为映射的模型。
+
+```toml
+[profiles.models]
+haiku = "grok-3-mini-beta"    # 映射 /model haiku
+sonnet = "grok-3-beta"        # 映射 /model sonnet
+opus = "grok-3-beta"          # 映射 /model opus
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `haiku` | string | Claude Code 选择 `haiku` 时使用的模型 |
+| `sonnet` | string | Claude Code 选择 `sonnet` 时使用的模型 |
+| `opus` | string | Claude Code 选择 `opus` 时使用的模型 |
+
+<Aside type="tip">
+  未定义的 slot 将回退到 profile 的 `default_model`。
+</Aside>
 
 ### 提供商示例
 
@@ -169,6 +209,60 @@ api_key = ""
 default_model = "llama-3.3-70b"
 enabled = false
 ```
+
+### OAuth Profile 示例
+
+```toml
+# OpenAI OAuth（从 Codex CLI ~/.codex/auth.json 读取 token）
+[[profiles]]
+name = "chatgpt-oauth"
+provider_type = "OpenAICompatible"
+base_url = "https://api.openai.com/v1"
+default_model = "gpt-4o"
+auth_type = "oauth"
+oauth_provider = "openai"
+
+[profiles.models]
+haiku = "gpt-4o-mini"
+sonnet = "gpt-4o"
+opus = "o1"
+
+# Claude 订阅（跳过代理，使用 Claude 原生 OAuth，从 ~/.claude 读取）
+[[profiles]]
+name = "claude-sub"
+provider_type = "DirectAnthropic"
+base_url = "https://api.anthropic.com"
+default_model = "claude-sonnet-4-20250514"
+auth_type = "oauth"
+oauth_provider = "claude"
+
+[profiles.models]
+haiku = "claude-haiku-4-20250514"
+sonnet = "claude-sonnet-4-20250514"
+opus = "claude-opus-4-20250514"
+
+# Google Gemini OAuth
+[[profiles]]
+name = "gemini"
+provider_type = "OpenAICompatible"
+base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+default_model = "gemini-2.5-pro"
+auth_type = "oauth"
+oauth_provider = "google"
+
+# Kimi OAuth
+[[profiles]]
+name = "kimi-oauth"
+provider_type = "OpenAICompatible"
+base_url = "https://api.moonshot.cn/v1"
+default_model = "moonshot-v1-128k"
+auth_type = "oauth"
+oauth_provider = "kimi"
+```
+
+<Aside type="caution">
+  对于 `claude` OAuth 提供商，Claudex 使用 Gateway 认证模式：设置 `ANTHROPIC_AUTH_TOKEN`（而非 `ANTHROPIC_API_KEY`）以避免与 Claude Code 自身订阅登录流程冲突。
+</Aside>
 
 ## 智能路由
 

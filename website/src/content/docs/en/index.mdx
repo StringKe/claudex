@@ -39,6 +39,18 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
   <Card title="Self-Update" icon="up-caret">
     One command to check and install the latest version directly from GitHub Releases. Stay up to date effortlessly.
   </Card>
+  <Card title="OAuth Subscription Auth" icon="approve-check">
+    Use your existing Claude, OpenAI, Google, Qwen, Kimi, or GitHub subscription — no API keys needed. `claudex auth login` reads tokens from each provider's native CLI config.
+  </Card>
+  <Card title="Non-Interactive Mode" icon="rocket">
+    One-shot execution with `claudex run <profile> "prompt" --print`. Ideal for CI/CD pipelines and scripted automation.
+  </Card>
+  <Card title="Model Slot Mapping" icon="setting">
+    Map Claude Code's `/model` switcher (haiku, sonnet, opus) to any provider model via `[profiles.models]` config.
+  </Card>
+  <Card title="Tool Name Compatibility" icon="puzzle">
+    Auto-truncates tool names longer than 64 characters for OpenAI compatibility, with transparent roundtrip restoration on responses.
+  </Card>
 </CardGrid>
 
 ## Quick Install
@@ -56,7 +68,8 @@ claudex run grok
     │
     └── exec claude with:
         ANTHROPIC_BASE_URL=http://127.0.0.1:13456/proxy/grok
+        ANTHROPIC_AUTH_TOKEN=<session-token>
         ANTHROPIC_MODEL=grok-3-beta
 ```
 
-The proxy transparently translates between Anthropic and OpenAI protocols, so Claude Code works seamlessly with any supported provider.
+The proxy transparently translates between Anthropic and OpenAI protocols, so Claude Code works seamlessly with any supported provider. When using OAuth profiles, `ANTHROPIC_AUTH_TOKEN` (not `ANTHROPIC_API_KEY`) is set to avoid conflicts with Claude's own subscription login.

@@ -13,7 +13,12 @@ Claudex searches for config files in this order:
 2. `./claudex.toml` (current directory)
 3. `./.claudex/config.toml` (current directory)
 4. Parent directories (up to 10 levels), checking both patterns
-5. `~/.config/claudex/config.toml` (global — created automatically if no config exists)
+5. `~/.config/claudex/config.toml` (XDG — checked **before** platform-specific paths)
+6. Platform-specific paths (e.g., `~/Library/Application Support/claudex/config.toml` on macOS)
+
+<Aside type="note">
+  The XDG path (`~/.config/claudex/config.toml`) is now checked before platform-specific paths. If no config file exists anywhere, the XDG path is used when creating the default config.
+</Aside>
 
 ```bash
 # Show loaded config path and search order
@@ -96,11 +101,14 @@ Compatible providers: **Grok (xAI)**, **OpenAI**, **DeepSeek**, **Kimi/Moonshot*
 | `api_key` | `""` | API key (plaintext) |
 | `api_key_keyring` | — | Read API key from OS keychain instead |
 | `default_model` | *required* | Default model to use |
+| `auth_type` | `"api-key"` | `"api-key"` or `"oauth"` |
+| `oauth_provider` | — | OAuth provider (`claude`, `openai`, `google`, `qwen`, `kimi`, `github`). Required when `auth_type = "oauth"` |
 | `backup_providers` | `[]` | Failover profile names |
 | `custom_headers` | `{}` | Extra HTTP headers |
 | `extra_env` | `{}` | Extra environment variables for Claude |
 | `priority` | `100` | Priority for smart routing |
 | `enabled` | `true` | Whether this profile is active |
+| `[profiles.models]` | — | Model slot mapping table (`haiku`, `sonnet`, `opus` fields) |
 
 ### Interactive Setup
 
@@ -125,6 +133,149 @@ api_key_keyring = "grok-api-key"   # reads from OS keychain
 Supported backends:
 - **macOS**: Keychain
 - **Linux**: Secret Service (GNOME Keyring / KDE Wallet)
+
+## OAuth Subscription Auth
+
+Instead of API keys, you can authenticate with your existing provider subscription via OAuth. This is useful if you have a Claude Pro/Team, ChatGPT Plus, or other subscription plan.
+
+### Setup
+
+1. Set the profile's `auth_type` to `"oauth"` and specify the `oauth_provider`:
+
+```toml
+[[profiles]]
+name = "chatgpt-oauth"
+provider_type = "OpenAICompatible"
+base_url = "https://api.openai.com/v1"
+default_model = "gpt-4o"
+auth_type = "oauth"
+oauth_provider = "openai"
+```
+
+2. Log in with the `auth` command:
+
+```bash
+claudex auth login openai
+```
+
+3. Check your auth status:
+
+```bash
+claudex auth status
+```
+
+### Supported Providers
+
+| Provider | `oauth_provider` | Token Source |
+|----------|-----------------|-------------|
+| Claude | `claude` | Reads from `~/.claude` (Claude Code's native config) |
+| OpenAI | `openai` | Reads from `~/.codex/auth.json` (Codex CLI) |
+| Google | `google` | OAuth device code flow |
+| Qwen | `qwen` | OAuth device code flow |
+| Kimi | `kimi` | OAuth device code flow |
+| GitHub | `github` | OAuth device code flow |
+
+<Aside type="tip">
+  For **OpenAI**, make sure you have the Codex CLI installed and logged in (`codex auth login`). Claudex reads the token from `~/.codex/auth.json` automatically.
+</Aside>
+
+<Aside type="tip">
+  For **Claude**, Claudex reads the existing Claude Code OAuth session from `~/.claude`. No separate login step is needed if you are already logged in to Claude Code.
+</Aside>
+
+### Gateway Auth Mode
+
+When using OAuth profiles, Claudex sets `ANTHROPIC_AUTH_TOKEN` (not `ANTHROPIC_API_KEY`) when launching Claude Code. This prevents conflicts with Claude Code's own subscription login mechanism, which uses `ANTHROPIC_API_KEY` internally.
+
+The proxy automatically refreshes OAuth tokens before they expire. You can also manually refresh with:
+
+```bash
+claudex auth refresh openai
+```
+
+## Model Slot Mapping
+
+Claude Code has a built-in `/model` switcher with three slots: **haiku**, **sonnet**, and **opus**. By default, these map to Anthropic models, but with Claudex you can map them to any provider's models.
+
+### Configuration
+
+Add a `[profiles.models]` table to any profile:
+
+```toml
+[[profiles]]
+name = "grok"
+provider_type = "OpenAICompatible"
+base_url = "https://api.x.ai/v1"
+api_key = "xai-..."
+default_model = "grok-3-beta"
+
+[profiles.models]
+haiku = "grok-3-mini-beta"
+sonnet = "grok-3-beta"
+opus = "grok-3-beta"
+```
+
+When you type `/model sonnet` inside Claude Code, Claudex translates the request to use `grok-3-beta`. The `/model opus` command maps to `grok-3-beta`, and so on.
+
+### Examples for Common Providers
+
+```toml
+# OpenAI model mapping
+[profiles.models]
+haiku = "gpt-4o-mini"
+sonnet = "gpt-4o"
+opus = "o1"
+
+# DeepSeek model mapping
+[profiles.models]
+haiku = "deepseek-chat"
+sonnet = "deepseek-chat"
+opus = "deepseek-reasoner"
+
+# Google Gemini model mapping
+[profiles.models]
+haiku = "gemini-2.0-flash"
+sonnet = "gemini-2.5-pro"
+opus = "gemini-2.5-pro"
+```
+
+<Aside type="note">
+  If a model slot is not configured, the profile's `default_model` is used as fallback.
+</Aside>
+
+## Tool Name Compatibility
+
+Some providers (notably OpenAI) enforce a 64-character limit on tool (function) names. Claude Code can generate tool names that exceed this limit.
+
+Claudex automatically truncates tool names longer than 64 characters when sending requests to OpenAI-compatible providers and transparently restores the original names when processing responses. This roundtrip is fully transparent — no configuration needed.
+
+## Non-Interactive Mode
+
+Claudex supports one-shot (non-interactive) execution for use in CI/CD pipelines, scripts, and automation:
+
+```bash
+# Print response and exit
+claudex run grok "Explain this codebase" --print
+
+# Skip all permission prompts (for fully automated pipelines)
+claudex run grok "Fix lint errors" --print --dangerously-skip-permissions
+```
+
+<Aside type="caution">
+  `--dangerously-skip-permissions` disables all safety prompts. Only use this in trusted, automated environments.
+</Aside>
+
+In non-interactive mode, logs are written to per-instance log files at `~/Library/Caches/claudex/proxy-{timestamp}-{pid}.log` instead of stderr, keeping the stdout output clean for piping and automation.
+
+## Per-Instance Log Files
+
+Each Claudex proxy instance writes logs to its own file:
+
+```
+~/Library/Caches/claudex/proxy-{timestamp}-{pid}.log
+```
+
+This avoids log interleaving when running multiple instances and keeps stderr clean during `claudex run` (especially in non-interactive mode). Logs include proxy startup, request translation, OAuth token refresh events, and circuit breaker state changes.
 
 ## Full Example
 

@@ -39,6 +39,18 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
   <Card title="自更新" icon="up-caret">
     一条命令检查并安装最新版本，直接从 GitHub Releases 下载。轻松保持最新。
   </Card>
+  <Card title="OAuth 订阅认证" icon="approve-check">
+    直接使用现有的 Claude、OpenAI、Google、Qwen、Kimi 或 GitHub 订阅，无需 API 密钥。`claudex auth login` 从各提供商原生 CLI 配置中读取 token。
+  </Card>
+  <Card title="非交互模式" icon="rocket">
+    通过 `claudex run <profile> "prompt" --print` 一次性执行。适用于 CI/CD 流水线和脚本自动化。
+  </Card>
+  <Card title="模型 Slot 映射" icon="setting">
+    通过 `[profiles.models]` 配置，将 Claude Code 的 `/model` 切换器（haiku、sonnet、opus）映射到任意提供商模型。
+  </Card>
+  <Card title="工具名兼容" icon="puzzle">
+    自动截断超过 64 字符的工具名以兼容 OpenAI，响应时透明还原原始名称。
+  </Card>
 </CardGrid>
 
 ## 快速安装
@@ -56,7 +68,8 @@ claudex run grok
     │
     └── 执行 claude，设置：
         ANTHROPIC_BASE_URL=http://127.0.0.1:13456/proxy/grok
+        ANTHROPIC_AUTH_TOKEN=<session-token>
         ANTHROPIC_MODEL=grok-3-beta
 ```
 
-代理透明地在 Anthropic 和 OpenAI 协议之间进行翻译，让 Claude Code 与任何支持的提供商无缝协作。
+代理透明地在 Anthropic 和 OpenAI 协议之间进行翻译，让 Claude Code 与任何支持的提供商无缝协作。使用 OAuth profile 时，设置 `ANTHROPIC_AUTH_TOKEN`（而非 `ANTHROPIC_API_KEY`）以避免与 Claude 自身订阅登录冲突。

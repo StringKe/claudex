@@ -18,17 +18,20 @@ When run without a command, Claudex launches the TUI dashboard if profiles are c
 Run Claude Code with a specific provider profile.
 
 ```bash
-claudex run <PROFILE> [-m MODEL] [ARGS...]
+claudex run <PROFILE> [PROMPT] [-m MODEL] [--print] [--dangerously-skip-permissions] [ARGS...]
 ```
 
 | Argument | Description |
 |----------|-------------|
 | `PROFILE` | Profile name, or `auto` for smart routing |
+| `PROMPT` | Optional prompt for non-interactive (one-shot) execution |
 | `-m, --model MODEL` | Override the default model for this session |
+| `--print` | Print the response and exit (non-interactive mode) |
+| `--dangerously-skip-permissions` | Skip all permission prompts (use with `--print` for CI/CD) |
 | `ARGS...` | Additional arguments passed to `claude` |
 
 ```bash
-# Use Grok
+# Use Grok (interactive)
 claudex run grok
 
 # Use Grok with a specific model
@@ -37,8 +40,14 @@ claudex run grok -m grok-3-mini-beta
 # Smart routing
 claudex run auto
 
+# Non-interactive one-shot execution
+claudex run grok "Explain this codebase" --print
+
+# CI/CD pipeline usage (no prompts, no permissions)
+claudex run grok "Fix lint errors" --print --dangerously-skip-permissions
+
 # Pass extra args to claude
-claudex run grok -- --print
+claudex run grok -- --verbose
 ```
 
 ### `profile`
@@ -84,6 +93,63 @@ claudex profile test <NAME|all>
 ```
 
 Test connectivity for a specific profile or all profiles.
+
+### `auth`
+
+Manage OAuth subscription authentication for provider profiles.
+
+#### `auth login`
+
+```bash
+claudex auth login <PROVIDER>
+```
+
+Log in to a provider using OAuth. Supported providers: `claude`, `openai`, `google`, `qwen`, `kimi`, `github`.
+
+For **OpenAI**, Claudex reads tokens from the Codex CLI config (`~/.codex/auth.json`). For **Claude**, it reads from `~/.claude`. Other providers use a local callback server or device code flow.
+
+```bash
+# Log in to OpenAI (reads from Codex CLI)
+claudex auth login openai
+
+# Log in to Claude (reads from ~/.claude)
+claudex auth login claude
+
+# Log in to Google
+claudex auth login google
+```
+
+#### `auth status`
+
+```bash
+claudex auth status [PROVIDER]
+```
+
+Show the current authentication status. Without a provider argument, shows status for all configured OAuth profiles.
+
+```bash
+# Check all OAuth profiles
+claudex auth status
+
+# Check a specific provider
+claudex auth status openai
+```
+
+#### `auth refresh`
+
+```bash
+claudex auth refresh <PROVIDER>
+```
+
+Manually refresh the OAuth token for a provider. Tokens are also refreshed automatically by the proxy when they expire.
+
+#### `auth logout`
+
+```bash
+claudex auth logout <PROVIDER>
+```
+
+Remove stored OAuth tokens for a provider.
 
 ### `proxy`
 

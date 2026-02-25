@@ -7,7 +7,16 @@ import { Aside } from '@astrojs/starlight/components';
 
 ## Config File Location
 
-See [Configuration](/claudex/en/configuration/) for config file discovery order.
+Claudex searches for config files in this order:
+
+1. `$CLAUDEX_CONFIG` environment variable
+2. `./claudex.toml` (current directory)
+3. `./.claudex/config.toml` (current directory)
+4. Parent directories (up to 10 levels), checking both patterns
+5. `~/.config/claudex/config.toml` (XDG — checked **before** platform-specific paths)
+6. Platform-specific paths (`~/Library/Application Support/claudex/config.toml` on macOS, etc.)
+
+See [Configuration](/claudex/en/configuration/) for full details.
 
 ## Global Settings
 
@@ -60,11 +69,19 @@ base_url = "https://api.x.ai/v1"
 api_key = "xai-..."
 # api_key_keyring = "grok-api-key"
 default_model = "grok-3-beta"
+auth_type = "api-key"              # "api-key" (default) or "oauth"
+# oauth_provider = "openai"        # required when auth_type = "oauth"
 backup_providers = ["deepseek"]
 custom_headers = {}
 extra_env = {}
 priority = 100
 enabled = true
+
+# Model slot mapping (optional)
+[profiles.models]
+haiku = "grok-3-mini-beta"
+sonnet = "grok-3-beta"
+opus = "grok-3-beta"
 ```
 
 | Field | Type | Default | Description |
@@ -75,11 +92,34 @@ enabled = true
 | `api_key` | string | `""` | API key in plaintext |
 | `api_key_keyring` | string | — | OS keychain entry name (overrides `api_key`) |
 | `default_model` | string | *required* | Model identifier to use by default |
+| `auth_type` | string | `"api-key"` | Authentication method: `"api-key"` or `"oauth"` |
+| `oauth_provider` | string | — | OAuth provider name (required when `auth_type = "oauth"`). One of: `claude`, `openai`, `google`, `qwen`, `kimi`, `github` |
 | `backup_providers` | string[] | `[]` | Profile names for failover, tried in order |
 | `custom_headers` | map | `{}` | Additional HTTP headers sent with every request |
 | `extra_env` | map | `{}` | Environment variables set when launching Claude |
 | `priority` | integer | `100` | Priority weight for smart routing (higher = preferred) |
 | `enabled` | boolean | `true` | Whether this profile is active |
+
+### Model Slot Mapping
+
+The optional `[profiles.models]` table maps Claude Code's `/model` switcher slots to provider-specific model names. When you switch models inside Claude Code (e.g., `/model opus`), Claudex translates the request to the mapped model.
+
+```toml
+[profiles.models]
+haiku = "grok-3-mini-beta"    # maps /model haiku
+sonnet = "grok-3-beta"        # maps /model sonnet
+opus = "grok-3-beta"          # maps /model opus
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `haiku` | string | Model to use when Claude Code selects `haiku` |
+| `sonnet` | string | Model to use when Claude Code selects `sonnet` |
+| `opus` | string | Model to use when Claude Code selects `opus` |
+
+<Aside type="tip">
+  If a slot is not defined, the profile's `default_model` is used as fallback.
+</Aside>
 
 ### Provider Examples
 
@@ -169,6 +209,60 @@ api_key = ""
 default_model = "llama-3.3-70b"
 enabled = false
 ```
+
+### OAuth Profile Examples
+
+```toml
+# OpenAI via OAuth (reads token from Codex CLI ~/.codex/auth.json)
+[[profiles]]
+name = "chatgpt-oauth"
+provider_type = "OpenAICompatible"
+base_url = "https://api.openai.com/v1"
+default_model = "gpt-4o"
+auth_type = "oauth"
+oauth_provider = "openai"
+
+[profiles.models]
+haiku = "gpt-4o-mini"
+sonnet = "gpt-4o"
+opus = "o1"
+
+# Claude subscription (skips proxy, uses Claude's native OAuth from ~/.claude)
+[[profiles]]
+name = "claude-sub"
+provider_type = "DirectAnthropic"
+base_url = "https://api.anthropic.com"
+default_model = "claude-sonnet-4-20250514"
+auth_type = "oauth"
+oauth_provider = "claude"
+
+[profiles.models]
+haiku = "claude-haiku-4-20250514"
+sonnet = "claude-sonnet-4-20250514"
+opus = "claude-opus-4-20250514"
+
+# Google Gemini via OAuth
+[[profiles]]
+name = "gemini"
+provider_type = "OpenAICompatible"
+base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+default_model = "gemini-2.5-pro"
+auth_type = "oauth"
+oauth_provider = "google"
+
+# Kimi via OAuth
+[[profiles]]
+name = "kimi-oauth"
+provider_type = "OpenAICompatible"
+base_url = "https://api.moonshot.cn/v1"
+default_model = "moonshot-v1-128k"
+auth_type = "oauth"
+oauth_provider = "kimi"
+```
+
+<Aside type="caution">
+  For the `claude` OAuth provider, Claudex uses a special gateway auth mode: it sets `ANTHROPIC_AUTH_TOKEN` (not `ANTHROPIC_API_KEY`) to avoid conflicting with Claude Code's own subscription login flow.
+</Aside>
 
 ## Smart Router
 
