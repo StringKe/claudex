@@ -488,6 +488,41 @@ async fn forward_translated(
 
     if !status.is_success() {
         let err_body = resp.text().await.unwrap_or_default();
+
+        if status.is_client_error() {
+            // 4xx 是客户端错误（认证失败、参数错误等），不可恢复，不触发断路器。
+            // 转换为 Anthropic 错误格式，透传原始状态码。
+            tracing::warn!(
+                profile = %profile.name,
+                status = %status,
+                body = %err_body,
+                "forward_translated: client error (non-retryable)"
+            );
+            let error_type = match status.as_u16() {
+                401 => "authentication_error",
+                403 => "permission_error",
+                404 => "not_found_error",
+                429 => "rate_limit_error",
+                _ => "invalid_request_error",
+            };
+            let anthropic_err = serde_json::json!({
+                "type": "error",
+                "error": {
+                    "type": error_type,
+                    "message": err_body,
+                }
+            });
+            let response = Response::builder()
+                .status(status.as_u16())
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::to_vec(&anthropic_err).unwrap_or_default(),
+                ))
+                .map_err(|e| anyhow::anyhow!("failed to build error response: {e}"))?;
+            return Ok(response);
+        }
+
+        // 5xx 服务端错误：可重试，走断路器 + 备用
         tracing::error!(
             profile = %profile.name,
             status = %status,
