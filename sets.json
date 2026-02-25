@@ -1,0 +1,20 @@
+{
+  "$schema": "https://claudex.space/schemas/registry/v1.json",
+  "sets": [
+    {
+      "name": "ai-agents",
+      "description": "Claude Code 全局配置集合：CLAUDE.md、Rules、Skills、MCP",
+      "author": "StringKe",
+      "source": "https://github.com/StringKe/ai-agents.git",
+      "homepage": "https://github.com/StringKe/ai-agents",
+      "tags": ["claude-code", "rules", "skills", "mcp", "sdlc"],
+      "version": "1.0.0",
+      "components": {
+        "claude_md": true,
+        "rules": 1,
+        "skills": 2,
+        "mcp_servers": 4
+      }
+    }
+  ]
+}

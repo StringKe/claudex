@@ -35,7 +35,9 @@ pub fn resolve_source(input: &str, git_ref: Option<&str>) -> Result<SetSource> {
     // 本地路径：以 / 或 ./ 或 ~ 开头，或者是存在的目录
     let expanded = if input.starts_with('~') {
         let home = dirs::home_dir().context("cannot determine home directory")?;
-        home.join(input.trim_start_matches("~/")).to_string_lossy().to_string()
+        home.join(input.trim_start_matches("~/"))
+            .to_string_lossy()
+            .to_string()
     } else {
         input.to_string()
     };
@@ -75,10 +77,7 @@ pub fn resolve_source(input: &str, git_ref: Option<&str>) -> Result<SetSource> {
 }
 
 /// 获取配置集到本地目录，返回 (source_dir, manifest)
-pub async fn fetch_source(
-    source: &SetSource,
-    cache_dir: &Path,
-) -> Result<(PathBuf, SetManifest)> {
+pub async fn fetch_source(source: &SetSource, cache_dir: &Path) -> Result<(PathBuf, SetManifest)> {
     match source {
         SetSource::Local { path } => {
             let (_manifest_path, manifest) = SetManifest::find_in_dir(path)?;

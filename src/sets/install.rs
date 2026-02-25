@@ -31,10 +31,7 @@ pub fn collect_env_values(manifest: &SetManifest) -> Result<HashMap<String, Stri
             continue;
         }
 
-        let desc = var
-            .description
-            .as_deref()
-            .unwrap_or("(no description)");
+        let desc = var.description.as_deref().unwrap_or("(no description)");
 
         if var.required {
             println!("\n[Required] {} - {}", var.name, desc);
@@ -105,7 +102,11 @@ pub async fn install_set(ctx: &InstallContext) -> Result<InstallResult> {
             let target = rules_dir.join(format!("{}.md", rule.name));
 
             if !source.exists() {
-                println!("Warning: rule '{}' source not found: {}", rule.name, source.display());
+                println!(
+                    "Warning: rule '{}' source not found: {}",
+                    rule.name,
+                    source.display()
+                );
                 continue;
             }
 

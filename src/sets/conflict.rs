@@ -22,7 +22,11 @@ pub fn resolve_file_conflict(
     target: &Path,
     component_label: &str,
 ) -> Result<ConflictResolution> {
-    println!("\n[Conflict] {} already exists: {}", component_label, target.display());
+    println!(
+        "\n[Conflict] {} already exists: {}",
+        component_label,
+        target.display()
+    );
     println!("  1) Replace (overwrite with set version)");
     println!("  2) Append (add set content to end)");
     println!("  3) Prepend (add set content to beginning)");

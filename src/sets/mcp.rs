@@ -82,7 +82,10 @@ fn build_server_json(
             if !server.headers.is_empty() {
                 let mut headers = serde_json::Map::new();
                 for (k, v) in &server.headers {
-                    headers.insert(k.clone(), serde_json::Value::String(interpolate(v, env_values)));
+                    headers.insert(
+                        k.clone(),
+                        serde_json::Value::String(interpolate(v, env_values)),
+                    );
                 }
                 obj.insert("headers".to_string(), serde_json::Value::Object(headers));
             }
@@ -109,7 +112,10 @@ fn build_server_json(
             if !server.env.is_empty() {
                 let mut env = serde_json::Map::new();
                 for (k, v) in &server.env {
-                    env.insert(k.clone(), serde_json::Value::String(interpolate(v, env_values)));
+                    env.insert(
+                        k.clone(),
+                        serde_json::Value::String(interpolate(v, env_values)),
+                    );
                 }
                 obj.insert("env".to_string(), serde_json::Value::Object(env));
             }

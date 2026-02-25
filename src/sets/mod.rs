@@ -10,7 +10,11 @@ use anyhow::Result;
 use lock::{Scope, SetsLockFile};
 
 pub async fn add(input: &str, global: bool, git_ref: Option<&str>) -> Result<()> {
-    let scope = if global { Scope::Global } else { Scope::Project };
+    let scope = if global {
+        Scope::Global
+    } else {
+        Scope::Project
+    };
     let source = source::resolve_source(input, git_ref)?;
 
     println!("Resolving source...");
@@ -28,7 +32,10 @@ pub async fn add(input: &str, global: bool, git_ref: Option<&str>) -> Result<()>
     let mut lock = SetsLockFile::load(scope)?;
     if let Some(existing) = lock.find(&manifest.name) {
         if existing.version == manifest.version {
-            println!("Set '{}' v{} is already installed.", manifest.name, manifest.version);
+            println!(
+                "Set '{}' v{} is already installed.",
+                manifest.name, manifest.version
+            );
             return Ok(());
         }
         println!(
@@ -69,12 +76,19 @@ pub async fn add(input: &str, global: bool, git_ref: Option<&str>) -> Result<()>
     lock.upsert(locked);
     lock.save(scope)?;
 
-    println!("\nInstalled '{}' v{} ({})", manifest.name, manifest.version, scope);
+    println!(
+        "\nInstalled '{}' v{} ({})",
+        manifest.name, manifest.version, scope
+    );
     Ok(())
 }
 
 pub async fn remove(name: &str, global: bool) -> Result<()> {
-    let scope = if global { Scope::Global } else { Scope::Project };
+    let scope = if global {
+        Scope::Global
+    } else {
+        Scope::Project
+    };
     let mut lock = SetsLockFile::load(scope)?;
 
     let entry = lock
@@ -98,7 +112,11 @@ pub async fn remove(name: &str, global: bool) -> Result<()> {
 }
 
 pub fn list(global: bool) -> Result<()> {
-    let scope = if global { Scope::Global } else { Scope::Project };
+    let scope = if global {
+        Scope::Global
+    } else {
+        Scope::Project
+    };
     let lock = SetsLockFile::load(scope)?;
 
     if lock.sets.is_empty() {
@@ -127,7 +145,11 @@ pub fn list(global: bool) -> Result<()> {
 }
 
 pub async fn update(name: Option<&str>, global: bool) -> Result<()> {
-    let scope = if global { Scope::Global } else { Scope::Project };
+    let scope = if global {
+        Scope::Global
+    } else {
+        Scope::Project
+    };
     let lock = SetsLockFile::load(scope)?;
 
     let targets: Vec<_> = if let Some(name) = name {
@@ -160,7 +182,11 @@ pub async fn update(name: Option<&str>, global: bool) -> Result<()> {
 }
 
 pub fn show(name: &str, global: bool) -> Result<()> {
-    let scope = if global { Scope::Global } else { Scope::Project };
+    let scope = if global {
+        Scope::Global
+    } else {
+        Scope::Project
+    };
     let lock = SetsLockFile::load(scope)?;
 
     let entry = lock

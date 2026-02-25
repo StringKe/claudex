@@ -41,6 +41,11 @@ export default defineConfig({
       customCss: ['./src/styles/global.css'],
       sidebar: [
         {
+          label: 'Marketplace',
+          translations: { 'zh-CN': '配置集市场' },
+          link: '/marketplace',
+        },
+        {
           label: 'Getting Started',
           translations: { 'zh-CN': '快速入门' },
           items: [
