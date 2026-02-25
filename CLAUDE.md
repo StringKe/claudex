@@ -79,8 +79,8 @@ cargo run -- proxy start
 
 ### Provider Types
 
-- `DirectAnthropic`: 原生 Anthropic API，直接转发（Anthropic、MiniMax、OpenRouter）
-- `OpenAICompatible`: OpenAI 兼容 API，需要协议翻译（Grok、OpenAI、DeepSeek、Kimi、GLM、Ollama）
+- `DirectAnthropic`: 原生 Anthropic API，直接转发（Anthropic、MiniMax）
+- `OpenAICompatible`: OpenAI 兼容 API，需要协议翻译（OpenRouter、Grok、OpenAI、DeepSeek、Kimi、GLM、Ollama）
 
 ### 翻译层
 

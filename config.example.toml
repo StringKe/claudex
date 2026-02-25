@@ -45,11 +45,11 @@ backup_providers = ["anthropic"]
 enabled = true
 priority = 90
 
-# OpenRouter (Anthropic-compatible)
+# OpenRouter (needs translation — NOT Anthropic-compatible for passthrough)
 [[profiles]]
 name = "openrouter"
-provider_type = "DirectAnthropic"
-base_url = "https://openrouter.ai/api"
+provider_type = "OpenAICompatible"
+base_url = "https://openrouter.ai/api/v1"
 api_key = "YOUR_OPENROUTER_KEY"
 default_model = "anthropic/claude-sonnet-4"
 enabled = true

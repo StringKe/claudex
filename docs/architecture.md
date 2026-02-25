@@ -22,7 +22,7 @@ Claude Code → HTTP POST /proxy/{profile}/v1/messages
     ├─ 从 URL path 提取 profile 名
     ├─ 查找 profile 配置
     │
-    ├─ DirectAnthropic（Anthropic/MiniMax/OpenRouter）
+    ├─ DirectAnthropic（Anthropic/MiniMax）
     │   └─ 直接转发（替换 header + base_url）
     │
     └─ OpenAICompatible（Grok/OpenAI/DeepSeek/Kimi/GLM/Ollama）

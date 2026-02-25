@@ -54,7 +54,7 @@ ds3 = "deepseek-chat"
 
 ## Profiles
 
-Each profile represents an AI provider connection. There are two provider types:
+Each profile represents an AI provider connection. There are three provider types:
 
 ### DirectAnthropic
 
@@ -71,7 +71,7 @@ priority = 100
 enabled = true
 ```
 
-Compatible providers: **Anthropic**, **MiniMax**, **OpenRouter**
+Compatible providers: **Anthropic**, **MiniMax**
 
 ### OpenAICompatible
 
@@ -89,14 +89,34 @@ priority = 100
 enabled = true
 ```
 
-Compatible providers: **Grok (xAI)**, **OpenAI**, **DeepSeek**, **Kimi/Moonshot**, **GLM (Zhipu)**, **Ollama**, **vLLM**, **LM Studio**
+Compatible providers: **Grok (xAI)**, **OpenAI**, **DeepSeek**, **Kimi/Moonshot**, **GLM (Zhipu)**, **OpenRouter**, **Ollama**, **vLLM**, **LM Studio**
+
+### OpenAIResponses
+
+For providers using the OpenAI Responses API (e.g., ChatGPT/Codex subscriptions). Claudex translates between Anthropic Messages API and the OpenAI Responses API.
+
+```toml
+[[profiles]]
+name = "codex-sub"
+provider_type = "OpenAIResponses"
+base_url = "https://chatgpt.com/backend-api/codex"
+default_model = "gpt-4o"
+auth_type = "oauth"
+oauth_provider = "openai"
+```
+
+Compatible providers: **ChatGPT/Codex subscriptions** (via Codex CLI)
+
+<Aside type="tip">
+  This provider type is primarily used with OAuth subscriptions. See the [Provider Setup Guide](/claudex/en/guides/provider-setup/) for detailed instructions on setting up Codex CLI.
+</Aside>
 
 ### Profile Fields
 
 | Field | Default | Description |
 |-------|---------|-------------|
 | `name` | *required* | Unique profile identifier |
-| `provider_type` | `DirectAnthropic` | `DirectAnthropic` or `OpenAICompatible` |
+| `provider_type` | `DirectAnthropic` | `DirectAnthropic`, `OpenAICompatible`, or `OpenAIResponses` |
 | `base_url` | *required* | Provider API endpoint |
 | `api_key` | `""` | API key (plaintext) |
 | `api_key_keyring` | — | Read API key from OS keychain instead |
@@ -176,7 +196,7 @@ claudex auth status
 | GitHub | `github` | OAuth device code flow |
 
 <Aside type="tip">
-  For **OpenAI**, make sure you have the Codex CLI installed and logged in (`codex auth login`). Claudex reads the token from `~/.codex/auth.json` automatically.
+  For **OpenAI**, make sure you have the [Codex CLI](https://github.com/openai/codex) installed and logged in (`codex auth`). Claudex reads the token from `~/.codex/auth.json` automatically. The profile should use `provider_type = "OpenAIResponses"` to communicate via the Responses API.
 </Aside>
 
 <Aside type="tip">
@@ -280,3 +300,5 @@ This avoids log interleaving when running multiple instances and keeps stderr cl
 ## Full Example
 
 See [`config.example.toml`](https://github.com/StringKe/claudex/blob/main/config.example.toml) for a complete configuration file with all providers and options.
+
+For step-by-step setup instructions for each provider (including API key links and OAuth flows), see the [Provider Setup Guide](/claudex/en/guides/provider-setup/).

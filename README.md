@@ -21,7 +21,7 @@ Claudex is a unified proxy that lets [Claude Code](https://docs.anthropic.com/en
 
 ## Features
 
-- **Multi-provider proxy** — DirectAnthropic passthrough (Anthropic, MiniMax, OpenRouter) + automatic Anthropic <-> OpenAI translation (Grok, OpenAI, DeepSeek, Kimi, GLM)
+- **Multi-provider proxy** — DirectAnthropic passthrough (Anthropic, MiniMax) + automatic Anthropic <-> OpenAI translation (Grok, OpenAI, DeepSeek, Kimi, GLM) + Anthropic <-> Responses API translation (ChatGPT/Codex subscriptions)
 - **Streaming translation** — Full SSE stream translation with tool call support
 - **Circuit breaker + failover** — Automatic fallback to backup providers with configurable thresholds
 - **Smart routing** — Intent-based auto-routing via local classifier, maps code/analysis/creative/search/math to optimal profiles
@@ -91,8 +91,9 @@ claudex run openrouter-claude
 
 The proxy intercepts requests and handles protocol translation transparently:
 
-- **DirectAnthropic** providers (Anthropic, MiniMax, OpenRouter) → forward with correct headers
-- **OpenAICompatible** providers (Grok, OpenAI, DeepSeek, etc.) → translate Anthropic → OpenAI → forward → translate response back
+- **DirectAnthropic** providers (Anthropic, MiniMax) → forward with correct headers
+- **OpenAICompatible** providers (Grok, OpenAI, DeepSeek, etc.) → translate Anthropic → OpenAI Chat Completions → forward → translate response back
+- **OpenAIResponses** providers (ChatGPT/Codex subscriptions) → translate Anthropic → OpenAI Responses API → forward → translate response back
 
 ## Provider Compatibility
 
@@ -100,13 +101,14 @@ The proxy intercepts requests and handles protocol translation transparently:
 |----------|------|-------------|---------------|
 | Anthropic | `DirectAnthropic` | None | `claude-sonnet-4-20250514` |
 | MiniMax | `DirectAnthropic` | None | `claude-sonnet-4-20250514` |
-| OpenRouter | `DirectAnthropic` | None | `anthropic/claude-sonnet-4` |
+| OpenRouter | `OpenAICompatible` | Anthropic <-> OpenAI | `anthropic/claude-sonnet-4` |
 | Grok (xAI) | `OpenAICompatible` | Anthropic <-> OpenAI | `grok-3-beta` |
 | OpenAI | `OpenAICompatible` | Anthropic <-> OpenAI | `gpt-4o` |
 | DeepSeek | `OpenAICompatible` | Anthropic <-> OpenAI | `deepseek-chat` |
 | Kimi | `OpenAICompatible` | Anthropic <-> OpenAI | `moonshot-v1-128k` |
 | GLM (Zhipu) | `OpenAICompatible` | Anthropic <-> OpenAI | `glm-4-plus` |
 | Ollama | `OpenAICompatible` | Anthropic <-> OpenAI | `qwen2.5:72b` |
+| ChatGPT/Codex sub | `OpenAIResponses` | Anthropic <-> Responses | `gpt-4o` |
 
 ## Configuration
 
@@ -175,7 +177,9 @@ claudex auth status
 claudex run codex-sub
 ```
 
-Supported providers: `claude` (reads `~/.claude`), `openai` (reads `~/.codex`), `google`, `kimi`
+Supported providers: `claude` (reads `~/.claude`), `openai` (reads `~/.codex`), `google`, `qwen`, `kimi`, `github`
+
+> **Note**: For the `openai` provider, you need [Codex CLI](https://github.com/openai/codex) installed and authenticated (`codex auth`) first. Claudex reads the token from `~/.codex/auth.json` and uses the `OpenAIResponses` provider type to communicate via the Responses API.
 
 ## Model Slot Mapping
 

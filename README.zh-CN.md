@@ -21,7 +21,7 @@ Claudex 是一个统一代理，让 [Claude Code](https://docs.anthropic.com/en/
 
 ## 功能特性
 
-- **多提供商代理** — DirectAnthropic 直通（Anthropic、MiniMax、OpenRouter）+ 自动 Anthropic <-> OpenAI 翻译（Grok、OpenAI、DeepSeek、Kimi、GLM）
+- **多提供商代理** — DirectAnthropic 直通（Anthropic、MiniMax）+ 自动 Anthropic <-> OpenAI 翻译（Grok、OpenAI、DeepSeek、Kimi、GLM）+ Anthropic <-> Responses API 翻译（ChatGPT/Codex 订阅）
 - **流式翻译** — 完整 SSE 流翻译，支持 tool call
 - **断路器 + 故障转移** — 失败时自动切换到备用提供商，可配置阈值
 - **智能路由** — 基于意图的自动路由，通过本地分类器将 code/analysis/creative/search/math 映射到最优 profile
@@ -88,8 +88,9 @@ claudex run openrouter-claude
 
 代理拦截请求并透明处理协议翻译：
 
-- **DirectAnthropic** 提供商（Anthropic、MiniMax、OpenRouter）→ 替换 header 直接转发
-- **OpenAICompatible** 提供商（Grok、OpenAI、DeepSeek 等）→ Anthropic → OpenAI 翻译 → 转发 → 翻译响应
+- **DirectAnthropic** 提供商（Anthropic、MiniMax）→ 替换 header 直接转发
+- **OpenAICompatible** 提供商（Grok、OpenAI、DeepSeek 等）→ Anthropic → OpenAI Chat Completions 翻译 → 转发 → 翻译响应
+- **OpenAIResponses** 提供商（ChatGPT/Codex 订阅）→ Anthropic → OpenAI Responses API 翻译 → 转发 → 翻译响应
 
 ## 提供商兼容性
 
@@ -97,13 +98,14 @@ claudex run openrouter-claude
 |--------|------|------|----------|
 | Anthropic | `DirectAnthropic` | 无 | `claude-sonnet-4-20250514` |
 | MiniMax | `DirectAnthropic` | 无 | `claude-sonnet-4-20250514` |
-| OpenRouter | `DirectAnthropic` | 无 | `anthropic/claude-sonnet-4` |
+| OpenRouter | `OpenAICompatible` | Anthropic <-> OpenAI | `anthropic/claude-sonnet-4` |
 | Grok (xAI) | `OpenAICompatible` | Anthropic <-> OpenAI | `grok-3-beta` |
 | OpenAI | `OpenAICompatible` | Anthropic <-> OpenAI | `gpt-4o` |
 | DeepSeek | `OpenAICompatible` | Anthropic <-> OpenAI | `deepseek-chat` |
 | Kimi | `OpenAICompatible` | Anthropic <-> OpenAI | `moonshot-v1-128k` |
 | GLM（智谱） | `OpenAICompatible` | Anthropic <-> OpenAI | `glm-4-plus` |
 | Ollama | `OpenAICompatible` | Anthropic <-> OpenAI | `qwen2.5:72b` |
+| ChatGPT/Codex 订阅 | `OpenAIResponses` | Anthropic <-> Responses | `gpt-4o` |
 
 ## 配置
 
@@ -172,7 +174,9 @@ claudex auth status
 claudex run codex-sub
 ```
 
-支持的提供商：`claude`（读 `~/.claude`）、`openai`（读 `~/.codex`）、`google`、`kimi`
+支持的提供商：`claude`（读 `~/.claude`）、`openai`（读 `~/.codex`）、`google`、`qwen`、`kimi`、`github`
+
+> **注意**：`openai` 提供商需要先安装 [Codex CLI](https://github.com/openai/codex) 并完成认证（`codex auth`）。Claudex 从 `~/.codex/auth.json` 读取 token，使用 `OpenAIResponses` 类型通过 Responses API 通信。
 
 ## 模型 Slot 映射
 

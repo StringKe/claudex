@@ -123,7 +123,7 @@ fn default_proxy_host() -> String {
 }
 
 fn default_log_level() -> String {
-    "info".to_string()
+    "debug".to_string()
 }
 
 fn default_provider_type() -> ProviderType {
@@ -366,7 +366,7 @@ mod tests {
         assert_eq!(config.claude_binary, "claude");
         assert_eq!(config.proxy_port, 13456);
         assert_eq!(config.proxy_host, "127.0.0.1");
-        assert_eq!(config.log_level, "info");
+        assert_eq!(config.log_level, "debug");
         assert!(config.profiles.is_empty());
         assert!(config.model_aliases.is_empty());
     }
@@ -437,7 +437,7 @@ mod tests {
         assert_eq!(config.profiles[0].default_model, "gpt-4");
         // Check defaults are applied
         assert_eq!(config.proxy_host, "127.0.0.1");
-        assert_eq!(config.log_level, "info");
+        assert_eq!(config.log_level, "debug");
         assert!(config.profiles[0].enabled);
     }
 

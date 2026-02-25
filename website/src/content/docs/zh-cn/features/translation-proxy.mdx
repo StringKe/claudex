@@ -16,10 +16,15 @@ Claude Code → Anthropic Messages API 请求
         │
         ├── DirectAnthropic 提供商 → 替换 header 直接转发
         │
-        └── OpenAICompatible 提供商
-            ├── 翻译请求：Anthropic → OpenAI
+        ├── OpenAICompatible 提供商
+        │   ├── 翻译请求：Anthropic → OpenAI Chat Completions
+        │   ├── 转发到提供商
+        │   └── 翻译响应：OpenAI → Anthropic
+        │
+        └── OpenAIResponses 提供商
+            ├── 翻译请求：Anthropic → OpenAI Responses API
             ├── 转发到提供商
-            └── 翻译响应：OpenAI → Anthropic
+            └── 翻译响应：Responses → Anthropic
 ```
 
 ## 翻译内容
@@ -64,7 +69,7 @@ Claudex 完全支持 SSE（Server-Sent Events）流式传输，将 OpenAI 流块
 |--------|------|----------|
 | Anthropic | DirectAnthropic | `https://api.anthropic.com` |
 | MiniMax | DirectAnthropic | `https://api.minimax.io/anthropic` |
-| OpenRouter | DirectAnthropic | `https://openrouter.ai/api` |
+| OpenRouter | OpenAICompatible | `https://openrouter.ai/api/v1` |
 | Grok (xAI) | OpenAICompatible | `https://api.x.ai/v1` |
 | OpenAI | OpenAICompatible | `https://api.openai.com/v1` |
 | DeepSeek | OpenAICompatible | `https://api.deepseek.com` |
@@ -72,9 +77,10 @@ Claudex 完全支持 SSE（Server-Sent Events）流式传输，将 OpenAI 流块
 | GLM（智谱） | OpenAICompatible | `https://open.bigmodel.cn/api/paas/v4` |
 | Ollama | OpenAICompatible | `http://localhost:11434/v1` |
 | vLLM | OpenAICompatible | `http://localhost:8000/v1` |
+| ChatGPT/Codex 订阅 | OpenAIResponses | `https://chatgpt.com/backend-api/codex` |
 
 <Aside type="tip">
-  DirectAnthropic 提供商无需翻译 — 请求直接转发，仅更新 header 和 base URL。
+  DirectAnthropic 提供商无需翻译。OpenAIResponses 提供商使用 Responses API（`/responses` 端点），区别于 Chat Completions（`/chat/completions`）。
 </Aside>
 
 ## 代理管理

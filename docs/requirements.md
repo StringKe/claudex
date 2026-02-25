@@ -23,7 +23,7 @@ Claude Code 支持以下环境变量，使得代理架构可行：
 |--------|----------|----------|----------------|----------|
 | Anthropic | Anthropic | `https://api.anthropic.com` | 是 | 否 |
 | MiniMax | 双模式 | `https://api.minimax.io/anthropic` | 是 | 否 |
-| OpenRouter | 双模式 | `https://openrouter.ai/api` | 是 | 否 |
+| OpenRouter | OpenAI | `https://openrouter.ai/api/v1` | 否 | 是 |
 | Grok (xAI) | OpenAI | `https://api.x.ai/v1` | 否 | 是 |
 | OpenAI | OpenAI | `https://api.openai.com/v1` | 否 | 是 |
 | DeepSeek | OpenAI | `https://api.deepseek.com` | 否 | 是 |

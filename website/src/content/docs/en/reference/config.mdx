@@ -87,7 +87,7 @@ opus = "grok-3-beta"
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `name` | string | *required* | Unique profile identifier |
-| `provider_type` | string | `"DirectAnthropic"` | `"DirectAnthropic"` or `"OpenAICompatible"` |
+| `provider_type` | string | `"DirectAnthropic"` | `"DirectAnthropic"`, `"OpenAICompatible"`, or `"OpenAIResponses"` |
 | `base_url` | string | *required* | Provider API endpoint URL |
 | `api_key` | string | `""` | API key in plaintext |
 | `api_key_keyring` | string | — | OS keychain entry name (overrides `api_key`) |
@@ -141,11 +141,11 @@ api_key = "..."
 default_model = "claude-sonnet-4-20250514"
 backup_providers = ["anthropic"]
 
-# OpenRouter (DirectAnthropic — no translation)
+# OpenRouter (OpenAICompatible — needs translation)
 [[profiles]]
 name = "openrouter"
-provider_type = "DirectAnthropic"
-base_url = "https://openrouter.ai/api"
+provider_type = "OpenAICompatible"
+base_url = "https://openrouter.ai/api/v1"
 api_key = "..."
 default_model = "anthropic/claude-sonnet-4"
 
@@ -208,6 +208,15 @@ base_url = "http://localhost:8000/v1"
 api_key = ""
 default_model = "llama-3.3-70b"
 enabled = false
+
+# ChatGPT/Codex subscription (OpenAIResponses — Responses API translation)
+[[profiles]]
+name = "codex-sub"
+provider_type = "OpenAIResponses"
+base_url = "https://chatgpt.com/backend-api/codex"
+default_model = "gpt-4o"
+auth_type = "oauth"
+oauth_provider = "openai"
 ```
 
 ### OAuth Profile Examples
@@ -258,6 +267,38 @@ base_url = "https://api.moonshot.cn/v1"
 default_model = "moonshot-v1-128k"
 auth_type = "oauth"
 oauth_provider = "kimi"
+
+# Qwen via OAuth
+[[profiles]]
+name = "qwen-oauth"
+provider_type = "OpenAICompatible"
+base_url = "https://chat.qwenlm.ai/api/chat/v1"
+default_model = "qwen-max"
+auth_type = "oauth"
+oauth_provider = "qwen"
+
+# GitHub Copilot via OAuth
+[[profiles]]
+name = "github-copilot"
+provider_type = "OpenAICompatible"
+base_url = "https://api.githubcopilot.com"
+default_model = "gpt-4o"
+auth_type = "oauth"
+oauth_provider = "github"
+
+# ChatGPT/Codex subscription via OAuth (OpenAIResponses)
+[[profiles]]
+name = "codex-sub"
+provider_type = "OpenAIResponses"
+base_url = "https://chatgpt.com/backend-api/codex"
+default_model = "gpt-4o"
+auth_type = "oauth"
+oauth_provider = "openai"
+
+[profiles.models]
+haiku = "gpt-4o-mini"
+sonnet = "gpt-4o"
+opus = "o1-pro"
 ```
 
 <Aside type="caution">

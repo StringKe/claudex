@@ -16,10 +16,15 @@ Claude Code → Anthropic Messages API request
         │
         ├── DirectAnthropic provider → forward with headers
         │
-        └── OpenAICompatible provider
-            ├── Translate request: Anthropic → OpenAI
+        ├── OpenAICompatible provider
+        │   ├── Translate request: Anthropic → OpenAI Chat Completions
+        │   ├── Forward to provider
+        │   └── Translate response: OpenAI → Anthropic
+        │
+        └── OpenAIResponses provider
+            ├── Translate request: Anthropic → OpenAI Responses API
             ├── Forward to provider
-            └── Translate response: OpenAI → Anthropic
+            └── Translate response: Responses → Anthropic
 ```
 
 ## What Gets Translated
@@ -64,7 +69,7 @@ The streaming translator maintains a state machine to properly handle tool call 
 |----------|------|----------|
 | Anthropic | DirectAnthropic | `https://api.anthropic.com` |
 | MiniMax | DirectAnthropic | `https://api.minimax.io/anthropic` |
-| OpenRouter | DirectAnthropic | `https://openrouter.ai/api` |
+| OpenRouter | OpenAICompatible | `https://openrouter.ai/api/v1` |
 | Grok (xAI) | OpenAICompatible | `https://api.x.ai/v1` |
 | OpenAI | OpenAICompatible | `https://api.openai.com/v1` |
 | DeepSeek | OpenAICompatible | `https://api.deepseek.com` |
@@ -72,9 +77,10 @@ The streaming translator maintains a state machine to properly handle tool call 
 | GLM (Zhipu) | OpenAICompatible | `https://open.bigmodel.cn/api/paas/v4` |
 | Ollama | OpenAICompatible | `http://localhost:11434/v1` |
 | vLLM | OpenAICompatible | `http://localhost:8000/v1` |
+| ChatGPT/Codex sub | OpenAIResponses | `https://chatgpt.com/backend-api/codex` |
 
 <Aside type="tip">
-  DirectAnthropic providers require no translation — requests are forwarded directly with updated headers and base URL.
+  DirectAnthropic providers require no translation. OpenAIResponses providers use the Responses API (`/responses` endpoint) instead of Chat Completions (`/chat/completions`).
 </Aside>
 
 ## Proxy Management

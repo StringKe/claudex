@@ -54,7 +54,7 @@ ds3 = "deepseek-chat"
 
 ## Profile 配置
 
-每个 profile 代表一个 AI 提供商连接。有两种提供商类型：
+每个 profile 代表一个 AI 提供商连接。有三种提供商类型：
 
 ### DirectAnthropic
 
@@ -71,7 +71,7 @@ priority = 100
 enabled = true
 ```
 
-兼容提供商：**Anthropic**、**MiniMax**、**OpenRouter**
+兼容提供商：**Anthropic**、**MiniMax**
 
 ### OpenAICompatible
 
@@ -89,14 +89,34 @@ priority = 100
 enabled = true
 ```
 
-兼容提供商：**Grok (xAI)**、**OpenAI**、**DeepSeek**、**Kimi/Moonshot**、**GLM（智谱）**、**Ollama**、**vLLM**、**LM Studio**
+兼容提供商：**Grok (xAI)**、**OpenAI**、**DeepSeek**、**Kimi/Moonshot**、**GLM（智谱）**、**OpenRouter**、**Ollama**、**vLLM**、**LM Studio**
+
+### OpenAIResponses
+
+用于使用 OpenAI Responses API 的提供商（如 ChatGPT/Codex 订阅）。Claudex 自动在 Anthropic Messages API 和 OpenAI Responses API 之间翻译。
+
+```toml
+[[profiles]]
+name = "codex-sub"
+provider_type = "OpenAIResponses"
+base_url = "https://chatgpt.com/backend-api/codex"
+default_model = "gpt-4o"
+auth_type = "oauth"
+oauth_provider = "openai"
+```
+
+兼容提供商：**ChatGPT/Codex 订阅**（通过 Codex CLI）
+
+<Aside type="tip">
+  此类型主要用于 OAuth 订阅。详细的 Codex CLI 配置步骤请参见 [Provider 配置指南](/claudex/zh-cn/guides/provider-setup/)。
+</Aside>
 
 ### Profile 字段
 
 | 字段 | 默认值 | 说明 |
 |------|--------|------|
 | `name` | *必填* | 唯一标识名 |
-| `provider_type` | `DirectAnthropic` | `DirectAnthropic` 或 `OpenAICompatible` |
+| `provider_type` | `DirectAnthropic` | `DirectAnthropic`、`OpenAICompatible` 或 `OpenAIResponses` |
 | `base_url` | *必填* | 提供商 API 端点 |
 | `api_key` | `""` | API 密钥（明文） |
 | `api_key_keyring` | — | 从 OS 钥匙链读取 API 密钥 |
@@ -176,7 +196,7 @@ claudex auth status
 | GitHub | `github` | OAuth 设备码流程 |
 
 <Aside type="tip">
-  对于 **OpenAI**，请确保已安装 Codex CLI 并已登录（`codex auth login`）。Claudex 自动从 `~/.codex/auth.json` 读取 token。
+  对于 **OpenAI**，请确保已安装 [Codex CLI](https://github.com/openai/codex) 并已登录（`codex auth`）。Claudex 自动从 `~/.codex/auth.json` 读取 token。Profile 应使用 `provider_type = "OpenAIResponses"` 以通过 Responses API 通信。
 </Aside>
 
 <Aside type="tip">
@@ -280,3 +300,5 @@ claudex run grok "Fix lint errors" --print --dangerously-skip-permissions
 ## 完整示例
 
 参见 [`config.example.toml`](https://github.com/StringKe/claudex/blob/main/config.example.toml) 获取包含所有提供商和选项的完整配置文件。
+
+每个提供商的详细配置步骤（包括 API 密钥获取链接和 OAuth 流程），请参见 [Provider 配置指南](/claudex/zh-cn/guides/provider-setup/)。

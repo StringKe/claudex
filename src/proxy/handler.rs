@@ -322,6 +322,21 @@ async fn try_forward(
         "forwarding request"
     );
 
+    // Debug: log translated request body (truncated)
+    if tracing::enabled!(tracing::Level::DEBUG) {
+        let body_str = serde_json::to_string(&translated.body).unwrap_or_default();
+        let preview = if body_str.len() > 2000 {
+            format!("{}...(truncated, total {} bytes)", truncate_at_char_boundary(&body_str, 2000), body_str.len())
+        } else {
+            body_str
+        };
+        tracing::debug!(
+            profile = %profile.name,
+            body = %preview,
+            "translated request body"
+        );
+    }
+
     let mut req = state
         .http_client
         .post(&url)
@@ -347,6 +362,15 @@ async fn try_forward(
 
     if adapter.passthrough() {
         // Direct passthrough (e.g., DirectAnthropic): no error/response translation
+        tracing::debug!(
+            profile = %profile.name,
+            content_type = ?resp.headers().get("content-type"),
+            transfer_encoding = ?resp.headers().get("transfer-encoding"),
+            content_length = ?resp.headers().get("content-length"),
+            streaming = is_streaming,
+            "passthrough: upstream response headers"
+        );
+
         if is_streaming {
             let stream = resp.bytes_stream();
             let response = Response::builder()
@@ -358,6 +382,11 @@ async fn try_forward(
             Ok(response)
         } else {
             let resp_bytes = resp.bytes().await?;
+            tracing::debug!(
+                profile = %profile.name,
+                len = resp_bytes.len(),
+                "passthrough: non-streaming response received"
+            );
             if let Ok(resp_json) = serde_json::from_slice::<Value>(&resp_bytes) {
                 extract_and_store_context(state, &profile.name, &resp_json);
             }
@@ -450,7 +479,7 @@ fn extract_and_store_context(state: &ProxyState, profile_name: &str, resp_body: 
 
     if text.len() >= 100 {
         let truncated = if text.len() > 500 {
-            format!("{}...", &text[..500])
+            format!("{}...", truncate_at_char_boundary(&text, 500))
         } else {
             text
         };
@@ -460,4 +489,16 @@ fn extract_and_store_context(state: &ProxyState, profile_name: &str, resp_body: 
             shared_context.store(&name, truncated).await;
         });
     }
+}
+
+/// Truncate a string at the given byte limit, ensuring we don't split a multi-byte UTF-8 character.
+fn truncate_at_char_boundary(s: &str, max_bytes: usize) -> &str {
+    if s.len() <= max_bytes {
+        return s;
+    }
+    let mut end = max_bytes;
+    while !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    &s[..end]
 }

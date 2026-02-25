@@ -87,7 +87,7 @@ opus = "grok-3-beta"
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `name` | string | *必填* | 唯一标识名 |
-| `provider_type` | string | `"DirectAnthropic"` | `"DirectAnthropic"` 或 `"OpenAICompatible"` |
+| `provider_type` | string | `"DirectAnthropic"` | `"DirectAnthropic"`、`"OpenAICompatible"` 或 `"OpenAIResponses"` |
 | `base_url` | string | *必填* | 提供商 API 端点 URL |
 | `api_key` | string | `""` | 明文 API 密钥 |
 | `api_key_keyring` | string | — | OS 钥匙链条目名（覆盖 `api_key`） |
@@ -141,11 +141,11 @@ api_key = "..."
 default_model = "claude-sonnet-4-20250514"
 backup_providers = ["anthropic"]
 
-# OpenRouter（DirectAnthropic — 无需翻译）
+# OpenRouter（OpenAICompatible — 需要翻译）
 [[profiles]]
 name = "openrouter"
-provider_type = "DirectAnthropic"
-base_url = "https://openrouter.ai/api"
+provider_type = "OpenAICompatible"
+base_url = "https://openrouter.ai/api/v1"
 api_key = "..."
 default_model = "anthropic/claude-sonnet-4"
 
@@ -208,6 +208,15 @@ base_url = "http://localhost:8000/v1"
 api_key = ""
 default_model = "llama-3.3-70b"
 enabled = false
+
+# ChatGPT/Codex 订阅（OpenAIResponses — Responses API 翻译）
+[[profiles]]
+name = "codex-sub"
+provider_type = "OpenAIResponses"
+base_url = "https://chatgpt.com/backend-api/codex"
+default_model = "gpt-4o"
+auth_type = "oauth"
+oauth_provider = "openai"
 ```
 
 ### OAuth Profile 示例
@@ -258,6 +267,38 @@ base_url = "https://api.moonshot.cn/v1"
 default_model = "moonshot-v1-128k"
 auth_type = "oauth"
 oauth_provider = "kimi"
+
+# Qwen OAuth（通义千问）
+[[profiles]]
+name = "qwen-oauth"
+provider_type = "OpenAICompatible"
+base_url = "https://chat.qwenlm.ai/api/chat/v1"
+default_model = "qwen-max"
+auth_type = "oauth"
+oauth_provider = "qwen"
+
+# GitHub Copilot OAuth
+[[profiles]]
+name = "github-copilot"
+provider_type = "OpenAICompatible"
+base_url = "https://api.githubcopilot.com"
+default_model = "gpt-4o"
+auth_type = "oauth"
+oauth_provider = "github"
+
+# ChatGPT/Codex 订阅 OAuth（OpenAIResponses）
+[[profiles]]
+name = "codex-sub"
+provider_type = "OpenAIResponses"
+base_url = "https://chatgpt.com/backend-api/codex"
+default_model = "gpt-4o"
+auth_type = "oauth"
+oauth_provider = "openai"
+
+[profiles.models]
+haiku = "gpt-4o-mini"
+sonnet = "gpt-4o"
+opus = "o1-pro"
 ```
 
 <Aside type="caution">
