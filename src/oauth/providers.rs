@@ -77,6 +77,7 @@ fn ensure_oauth_profile(
         auth_type: AuthType::OAuth,
         oauth_provider: Some(provider.clone()),
         models: ProfileModels::default(),
+        max_tokens: None,
     };
 
     config.profiles.push(profile);

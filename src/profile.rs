@@ -278,6 +278,7 @@ pub async fn interactive_add(config: &mut ClaudexConfig) -> Result<()> {
         auth_type: AuthType::ApiKey,
         oauth_provider: None,
         models: ProfileModels::default(),
+        max_tokens: None,
     };
 
     // Test connectivity

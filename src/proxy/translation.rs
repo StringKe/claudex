@@ -7,7 +7,11 @@ use super::util::{truncate_tool_name, ToolNameMap};
 
 /// Convert Anthropic Messages API request → OpenAI Chat Completions request
 /// 返回 (openai_body, tool_name_map)，tool_name_map 用于在响应中还原被截断的工具名
-pub fn anthropic_to_openai(anthropic: &Value, default_model: &str) -> Result<(Value, ToolNameMap)> {
+pub fn anthropic_to_openai(
+    anthropic: &Value,
+    default_model: &str,
+    max_tokens_limit: Option<u64>,
+) -> Result<(Value, ToolNameMap)> {
     let mut tool_name_map: ToolNameMap = HashMap::new();
     let mut messages = Vec::new();
 
@@ -115,9 +119,13 @@ pub fn anthropic_to_openai(anthropic: &Value, default_model: &str) -> Result<(Va
         "messages": messages,
     });
 
-    // Forward simple parameters
+    // Forward simple parameters（max_tokens 受 profile 上限约束）
     if let Some(max_tokens) = anthropic.get("max_tokens") {
-        openai_req["max_tokens"] = max_tokens.clone();
+        let capped = match (max_tokens.as_u64(), max_tokens_limit) {
+            (Some(req_val), Some(limit)) => json!(req_val.min(limit)),
+            _ => max_tokens.clone(),
+        };
+        openai_req["max_tokens"] = capped;
     }
     if let Some(temperature) = anthropic.get("temperature") {
         openai_req["temperature"] = temperature.clone();
@@ -353,7 +361,7 @@ mod tests {
 
     /// 辅助：调用 anthropic_to_openai 只取 body
     fn a2o(req: &Value, model: &str) -> Value {
-        anthropic_to_openai(req, model).unwrap().0
+        anthropic_to_openai(req, model, None).unwrap().0
     }
 
     /// 空映射
@@ -608,7 +616,7 @@ mod tests {
                 "input_schema": {}
             }]
         });
-        let (body, map) = anthropic_to_openai(&req, "m").unwrap();
+        let (body, map) = anthropic_to_openai(&req, "m", None).unwrap();
         let truncated = body["tools"][0]["function"]["name"].as_str().unwrap();
         assert!(truncated.len() <= 64);
 

@@ -93,6 +93,9 @@ pub struct ProfileConfig {
     /// 模型 slot 映射（对应 Claude Code 的 /model 切换）
     #[serde(default)]
     pub models: ProfileModels,
+    /// 最大输出 token 数上限（可选，用于限制转发给 provider 的 max_tokens）
+    #[serde(default)]
+    pub max_tokens: Option<u64>,
 }
 
 /// Claude Code 模型 slot 映射
@@ -357,6 +360,7 @@ mod tests {
             auth_type: AuthType::default(),
             oauth_provider: None,
             models: ProfileModels::default(),
+            max_tokens: None,
         }
     }
 

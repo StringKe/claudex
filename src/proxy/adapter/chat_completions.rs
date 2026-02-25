@@ -18,8 +18,11 @@ impl ProviderAdapter for ChatCompletionsAdapter {
         body: &Value,
         profile: &ProfileConfig,
     ) -> Result<TranslatedRequest> {
-        let (openai_body, tool_name_map) =
-            crate::proxy::translation::anthropic_to_openai(body, &profile.default_model)?;
+        let (openai_body, tool_name_map) = crate::proxy::translation::anthropic_to_openai(
+            body,
+            &profile.default_model,
+            profile.max_tokens,
+        )?;
         Ok(TranslatedRequest {
             body: openai_body,
             tool_name_map,
