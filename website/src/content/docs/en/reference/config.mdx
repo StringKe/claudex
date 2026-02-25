@@ -183,8 +183,8 @@ classifier_api_key = ""
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `enabled` | boolean | `false` | Enable smart routing |
-| `classifier_url` | string | — | OpenAI-compatible endpoint for intent classification |
-| `classifier_model` | string | — | Model to use for classification |
+| `classifier_url` | string | `"http://localhost:11434/v1"` | OpenAI-compatible endpoint for intent classification |
+| `classifier_model` | string | `"qwen2.5:3b"` | Model to use for classification |
 | `classifier_api_key` | string | `""` | API key for classifier (empty for local services) |
 
 ### Routing Rules

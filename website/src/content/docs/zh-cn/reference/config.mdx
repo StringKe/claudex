@@ -183,8 +183,8 @@ classifier_api_key = ""
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `enabled` | boolean | `false` | 启用智能路由 |
-| `classifier_url` | string | — | 意图分类的 OpenAI 兼容端点 |
-| `classifier_model` | string | — | 分类用的模型 |
+| `classifier_url` | string | `"http://localhost:11434/v1"` | 意图分类的 OpenAI 兼容端点 |
+| `classifier_model` | string | `"qwen2.5:3b"` | 分类用的模型 |
 | `classifier_api_key` | string | `""` | 分类器 API 密钥（本地服务留空） |
 
 ### 路由规则
