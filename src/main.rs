@@ -10,6 +10,7 @@ mod oauth;
 mod profile;
 mod proxy;
 mod router;
+mod sets;
 mod terminal;
 mod tui;
 mod update;
@@ -20,7 +21,7 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
 
-use cli::{AuthAction, Cli, Commands, ProfileAction, ProxyAction};
+use cli::{AuthAction, Cli, Commands, ProfileAction, ProxyAction, SetsAction};
 use config::ClaudexConfig;
 
 #[tokio::main]
@@ -198,6 +199,28 @@ async fn main() -> Result<()> {
                 update::self_update().await?;
             }
         }
+
+        Some(Commands::Sets { action }) => match action {
+            SetsAction::Add {
+                source,
+                global,
+                r#ref,
+            } => {
+                sets::add(&source, global, r#ref.as_deref()).await?;
+            }
+            SetsAction::Remove { name, global } => {
+                sets::remove(&name, global).await?;
+            }
+            SetsAction::List { global } => {
+                sets::list(global)?;
+            }
+            SetsAction::Update { name, global } => {
+                sets::update(name.as_deref(), global).await?;
+            }
+            SetsAction::Show { name, global } => {
+                sets::show(&name, global)?;
+            }
+        },
 
         Some(Commands::Auth { action }) => match action {
             AuthAction::Login { provider, profile } => {

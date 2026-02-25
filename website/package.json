@@ -3,8 +3,9 @@
   "type": "module",
   "version": "0.0.1",
   "scripts": {
-    "dev": "astro dev",
-    "build": "astro build",
+    "sync-schemas": "rm -rf public/schemas && cp -r ../schemas public/schemas",
+    "dev": "pnpm sync-schemas && astro dev",
+    "build": "pnpm sync-schemas && astro build",
     "preview": "astro preview",
     "astro": "astro"
   },

@@ -5,6 +5,7 @@
 /website/dist/
 /website/node_modules/
 /website/.astro/
+/website/public/schemas/
 
 # Editor
 *.swp

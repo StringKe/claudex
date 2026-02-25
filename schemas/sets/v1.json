@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://claudex.space/schemas/sets/v1.json",
+  "title": "Claudex Configuration Set",
+  "description": "Claudex 配置集清单文件，声明一个可安装的 Claude Code 配置包",
+  "type": "object",
+  "required": ["name", "version", "components"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema 引用"
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "maxLength": 64,
+      "description": "配置集唯一标识符，小写字母、数字、连字符、点号、下划线"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+",
+      "description": "语义化版本号 (semver)"
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 256,
+      "description": "配置集简短描述"
+    },
+    "author": {
+      "type": "string",
+      "description": "作者名称或 'name <email>' 格式"
+    },
+    "homepage": {
+      "type": "string",
+      "format": "uri",
+      "description": "项目主页 URL"
+    },
+    "license": {
+      "type": "string",
+      "description": "SPDX 许可证标识符"
+    },
+    "components": {
+      "type": "object",
+      "description": "配置集包含的组件声明",
+      "additionalProperties": false,
+      "properties": {
+        "claude_md": {
+          "type": "object",
+          "description": "CLAUDE.md 全局指令文件",
+          "required": ["path"],
+          "additionalProperties": false,
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "相对于配置集根目录的文件路径"
+            }
+          }
+        },
+        "rules": {
+          "type": "array",
+          "description": "始终生效的规则文件列表",
+          "items": {
+            "type": "object",
+            "required": ["name", "path"],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "规则名称，用作安装后的文件名"
+              },
+              "path": {
+                "type": "string",
+                "description": "相对于配置集根目录的 .md 文件路径"
+              },
+              "description": {
+                "type": "string",
+                "description": "规则用途说明"
+              }
+            }
+          }
+        },
+        "skills": {
+          "type": "array",
+          "description": "技能（斜杠命令）列表",
+          "items": {
+            "type": "object",
+            "required": ["name", "path"],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "技能名称，安装后作为 /name 触发"
+              },
+              "path": {
+                "type": "string",
+                "description": "相对于配置集根目录的技能目录路径（内含 SKILL.md）"
+              },
+              "description": {
+                "type": "string",
+                "description": "技能用途说明"
+              }
+            }
+          }
+        },
+        "mcp_servers": {
+          "type": "array",
+          "description": "MCP 服务器配置列表",
+          "items": {
+            "type": "object",
+            "required": ["name", "type"],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "MCP 服务器名称"
+              },
+              "type": {
+                "type": "string",
+                "enum": ["http", "stdio"],
+                "description": "连接类型"
+              },
+              "url": {
+                "type": "string",
+                "format": "uri",
+                "description": "HTTP 类型的服务器 URL"
+              },
+              "command": {
+                "type": "string",
+                "description": "stdio 类型的启动命令"
+              },
+              "args": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "stdio 类型的命令参数"
+              },
+              "headers": {
+                "type": "object",
+                "additionalProperties": { "type": "string" },
+                "description": "HTTP 请求头，值支持 ${ENV_VAR} 占位符"
+              },
+              "env": {
+                "type": "object",
+                "additionalProperties": { "type": "string" },
+                "description": "进程环境变量，值支持 ${ENV_VAR} 占位符"
+              },
+              "description": {
+                "type": "string",
+                "description": "服务器用途说明"
+              }
+            },
+            "if": {
+              "properties": { "type": { "const": "http" } }
+            },
+            "then": { "required": ["url"] },
+            "else": { "required": ["command"] }
+          }
+        }
+      }
+    },
+    "env": {
+      "type": "array",
+      "description": "配置集依赖的环境变量声明，安装时提示用户提供",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "环境变量名"
+          },
+          "description": {
+            "type": "string",
+            "description": "用途说明，展示给用户"
+          },
+          "required": {
+            "type": "boolean",
+            "default": false,
+            "description": "是否必须提供"
+          },
+          "default": {
+            "type": "string",
+            "description": "默认值"
+          }
+        }
+      }
+    }
+  }
+}

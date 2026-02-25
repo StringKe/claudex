@@ -62,6 +62,12 @@ pub enum Commands {
         #[command(subcommand)]
         action: AuthAction,
     },
+
+    /// Manage Claude Code configuration sets
+    Sets {
+        #[command(subcommand)]
+        action: SetsAction,
+    },
 }
 
 #[derive(Subcommand)]
@@ -112,6 +118,51 @@ pub enum AuthAction {
     Refresh {
         /// Profile name
         profile: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum SetsAction {
+    /// Install a configuration set from git repo, local path, or URL
+    Add {
+        /// Source: git URL, local path, or HTTP URL
+        source: String,
+        /// Install globally (~/.claude/)
+        #[arg(long)]
+        global: bool,
+        /// Pin to a specific git ref (tag/branch/commit)
+        #[arg(long)]
+        r#ref: Option<String>,
+    },
+    /// Remove an installed configuration set
+    Remove {
+        /// Set name
+        name: String,
+        /// Remove from global scope
+        #[arg(long)]
+        global: bool,
+    },
+    /// List installed configuration sets
+    List {
+        /// List global sets
+        #[arg(long)]
+        global: bool,
+    },
+    /// Update configuration sets to latest version
+    Update {
+        /// Set name (omit to update all)
+        name: Option<String>,
+        /// Update global sets
+        #[arg(long)]
+        global: bool,
+    },
+    /// Show details of an installed configuration set
+    Show {
+        /// Set name
+        name: String,
+        /// Show global set
+        #[arg(long)]
+        global: bool,
     },
 }
 

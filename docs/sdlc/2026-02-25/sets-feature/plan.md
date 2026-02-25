@@ -524,37 +524,37 @@ claudex sets remove [--global] <name>
 ## Todo List
 
 ### Phase 1: Schema 与基础类型
-- [ ] 创建 `schemas/claudex-sets.schema.json`
-- [ ] 创建 `src/sets/mod.rs` 模块入口
-- [ ] 创建 `src/sets/schema.rs` 定义 SetManifest 等 serde 类型
-- [ ] 创建 `src/sets/lock.rs` 定义 SetsLockFile 等 serde 类型
+- [x] 创建 `schemas/claudex-sets.schema.json`
+- [x] 创建 `src/sets/mod.rs` 模块入口
+- [x] 创建 `src/sets/schema.rs` 定义 SetManifest 等 serde 类型
+- [x] 创建 `src/sets/lock.rs` 定义 SetsLockFile 等 serde 类型
 
 ### Phase 2: CLI 定义与分发
-- [ ] 修改 `src/cli.rs` 新增 `Sets` command 和 `SetsAction` enum
-- [ ] 修改 `src/main.rs` 新增 `mod sets` 和分发逻辑
+- [x] 修改 `src/cli.rs` 新增 `Sets` command 和 `SetsAction` enum
+- [x] 修改 `src/main.rs` 新增 `mod sets` 和分发逻辑
 
 ### Phase 3: 来源解析
-- [ ] 创建 `src/sets/source.rs` 实现 `resolve_source()` 和 `fetch_source()`
-- [ ] 实现 Git clone 逻辑（支持 --ref）
-- [ ] 实现本地路径验证
-- [ ] 实现 URL 下载逻辑
+- [x] 创建 `src/sets/source.rs` 实现 `resolve_source()` 和 `fetch_source()`
+- [x] 实现 Git clone 逻辑（支持 --ref）
+- [x] 实现本地路径验证
+- [x] 实现 URL 下载逻辑
 
 ### Phase 4: 安装引擎
-- [ ] 创建 `src/sets/conflict.rs` 冲突检测与交互
-- [ ] 创建 `src/sets/mcp.rs` MCP 服务器安装/卸载
-- [ ] 创建 `src/sets/install.rs` 完整安装/卸载逻辑
+- [x] 创建 `src/sets/conflict.rs` 冲突检测与交互
+- [x] 创建 `src/sets/mcp.rs` MCP 服务器安装/卸载
+- [x] 创建 `src/sets/install.rs` 完整安装/卸载逻辑
 
 ### Phase 5: 命令实现
-- [ ] 实现 `sets add` 命令
-- [ ] 实现 `sets remove` 命令
-- [ ] 实现 `sets list` 命令
-- [ ] 实现 `sets update` 命令
-- [ ] 实现 `sets show` 命令
+- [x] 实现 `sets add` 命令
+- [x] 实现 `sets remove` 命令
+- [x] 实现 `sets list` 命令
+- [x] 实现 `sets update` 命令
+- [x] 实现 `sets show` 命令
 
 ### Phase 6: 验证
-- [ ] cargo check 通过
-- [ ] cargo clippy 通过
+- [x] cargo check 通过
+- [x] cargo clippy 通过
 - [ ] 用 ai-agents 仓库手动测试完整流程
 
 ### Phase 7: ai-agents 仓库适配
-- [ ] 为 `/Users/chen/Code/ai-agents` 生成 `.claudex-sets.json`
+- [x] 为 `/Users/chen/Code/ai-agents` 生成 `.claudex-sets.json`
