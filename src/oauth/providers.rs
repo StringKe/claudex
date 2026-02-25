@@ -394,13 +394,13 @@ pub async fn refresh(config: &ClaudexConfig, profile_name: &str) -> Result<()> {
             // OpenAI: 用 refresh_token 刷新，回写 auth.json
             let token = super::token::read_external_token(provider)
                 .context("cannot read Codex credentials")?;
-            let refresh_tok = token
-                .refresh_token
-                .as_ref()
-                .ok_or_else(|| anyhow::anyhow!("no refresh_token in Codex credentials, please re-login with `codex --login`"))?;
+            let refresh_tok = token.refresh_token.as_ref().ok_or_else(|| {
+                anyhow::anyhow!(
+                    "no refresh_token in Codex credentials, please re-login with `codex --login`"
+                )
+            })?;
 
-            let new_token =
-                refresh_openai_token(refresh_tok, token.refresh_token.clone()).await?;
+            let new_token = refresh_openai_token(refresh_tok, token.refresh_token.clone()).await?;
             super::token::store_token(profile_name, &new_token)?;
             println!("Token refreshed for profile '{profile_name}'.");
         }
