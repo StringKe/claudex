@@ -210,3 +210,12 @@ profile = "local-qwen"              # reuse a profile's base_url + api_key for e
 model = "nomic-embed-text"           # embedding model
 chunk_size = 512
 top_k = 5
+
+[[profiles]]
+name = "Mistral"
+provider_type = "OpenAICompatible"
+base_url = "https://api.mistral.ai/v1"
+api_key = "your-api-key"
+default_model = "mistral-7b-v0.1"
+priority = 70
+enabled = true
