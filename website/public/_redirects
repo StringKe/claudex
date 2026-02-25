@@ -1,0 +1,5 @@
+# Root redirect to English docs
+/ /en/ 302
+
+# www redirect (handled by CF DNS, but as fallback)
+https://www.claudex.space/* https://claudex.space/:splat 301
