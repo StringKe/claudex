@@ -13,9 +13,6 @@ pub fn launch_claude(
     extra_args: &[String],
     hyperlinks_override: bool,
 ) -> Result<()> {
-    // 启动前自动更新 claude（每日一次）
-    maybe_auto_update(&config.claude_binary);
-
     let proxy_base = format!(
         "http://{}:{}/proxy/{}",
         config.proxy_host, config.proxy_port, profile.name
@@ -172,47 +169,6 @@ fn build_resume_hint(profile_name: &str, session_id: &str, extra_args: &[String]
     };
 
     format!("claudex run {profile_name} --resume {session_id}{args_str}")
-}
-
-/// 启动前自动检查 Claude 更新（每 24 小时一次）
-fn maybe_auto_update(claude_binary: &str) {
-    let state_dir = dirs::config_dir()
-        .unwrap_or_else(|| std::path::PathBuf::from("/tmp"))
-        .join("claudex");
-
-    let marker = state_dir.join("last_update_check");
-
-    // 24 小时内已检查过则跳过
-    if let Ok(metadata) = std::fs::metadata(&marker) {
-        if let Ok(modified) = metadata.modified() {
-            if modified.elapsed().unwrap_or_default() < std::time::Duration::from_secs(86400) {
-                return;
-            }
-        }
-    }
-
-    tracing::info!("checking for Claude updates...");
-    let result = Command::new(claude_binary)
-        .arg("update")
-        .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::inherit())
-        .status();
-
-    // 更新标记文件（无论成功与否，避免反复重试）
-    std::fs::create_dir_all(&state_dir).ok();
-    std::fs::write(&marker, "").ok();
-
-    match result {
-        Ok(status) if status.success() => {
-            tracing::info!("Claude update check complete");
-        }
-        Ok(status) => {
-            tracing::warn!("Claude update check exited with: {}", status);
-        }
-        Err(e) => {
-            tracing::warn!("Claude update check failed: {}", e);
-        }
-    }
 }
 
 /// Decide whether to use PTY mode based on config + CLI flag.
