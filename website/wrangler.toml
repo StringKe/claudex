@@ -1,5 +1,20 @@
 name = "claudex"
-compatibility_date = "2025-04-01"
+compatibility_date = "2026-02-25"
+workers_dev = false
+preview_urls = false
 
 [assets]
 directory = "./dist"
+
+[placement]
+mode = "smart"
+
+[[routes]]
+pattern = "claudex.space"
+zone_name = "claudex.space"
+custom_domain = true
+
+[[routes]]
+pattern = "www.claudex.space"
+zone_name = "claudex.space"
+custom_domain = true
