@@ -39,9 +39,16 @@ pub fn remove_pid() -> Result<()> {
 pub fn is_proxy_running() -> Result<bool> {
     match read_pid()? {
         Some(pid) => {
-            // Check if process exists via kill(pid, 0)
-            let result = unsafe { libc::kill(pid as i32, 0) };
-            Ok(result == 0)
+            #[cfg(unix)]
+            {
+                let result = unsafe { libc::kill(pid as i32, 0) };
+                Ok(result == 0)
+            }
+            #[cfg(not(unix))]
+            {
+                let _ = pid;
+                Ok(false)
+            }
         }
         None => Ok(false),
     }
@@ -51,6 +58,7 @@ pub fn stop_proxy() -> Result<()> {
     match read_pid()? {
         Some(pid) => {
             if is_proxy_running()? {
+                #[cfg(unix)]
                 unsafe {
                     libc::kill(pid as i32, libc::SIGTERM);
                 }

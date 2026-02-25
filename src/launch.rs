@@ -83,32 +83,36 @@ pub fn launch_claude(
         "launching claude"
     );
 
-    // 非交互模式跳过 PTY
+    // PTY mode (Unix only): 非交互模式跳过 PTY
+    #[cfg(unix)]
     let use_pty = !is_noninteractive && should_use_pty(&config.hyperlinks, hyperlinks_override);
+    #[cfg(not(unix))]
+    let use_pty = false;
 
     if use_pty {
-        tracing::info!("hyperlinks enabled, using PTY proxy mode");
-        let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("/"));
-        terminal::pty::spawn_with_pty(cmd, cwd)?;
+        #[cfg(unix)]
+        {
+            tracing::info!("hyperlinks enabled, using PTY proxy mode");
+            let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("/"));
+            terminal::pty::spawn_with_pty(cmd, cwd)?;
+        }
     } else {
         let mut child = cmd.spawn().context("failed to execute claude binary")?;
 
         // 转发 SIGINT/SIGTERM 到子进程
-        let _child_pid = child.id() as i32;
+        #[cfg(unix)]
         unsafe {
-            // 忽略父进程的 SIGINT，让子进程处理
             libc::signal(libc::SIGINT, libc::SIG_IGN);
         }
 
         let status = child.wait().context("failed to wait for claude")?;
 
-        // 恢复 SIGINT 处理
+        #[cfg(unix)]
         unsafe {
             libc::signal(libc::SIGINT, libc::SIG_DFL);
         }
 
         if !status.success() {
-            // 被信号终止时（如 Ctrl+C）静默退出，不报错
             #[cfg(unix)]
             {
                 use std::os::unix::process::ExitStatusExt;
@@ -124,6 +128,7 @@ pub fn launch_claude(
 }
 
 /// Decide whether to use PTY mode based on config + CLI flag.
+#[cfg(unix)]
 fn should_use_pty(config_hyperlinks: &HyperlinksConfig, cli_override: bool) -> bool {
     if cli_override {
         return true;
