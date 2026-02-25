@@ -1,0 +1,295 @@
+---
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import registry from '../../../../sets.json';
+
+const sets = registry.sets;
+---
+
+<StarlightPage frontmatter={{ title: '配置集市场', description: '浏览并安装社区 Claude Code 配置集' }}>
+  <p class="sl-text-body" style="margin-bottom: 2rem; color: var(--sl-color-gray-3);">
+    社区贡献的 Claude Code 配置集。每个配置集将 CLAUDE.md、rules、skills 和 MCP 服务器配置打包为一个可安装的包。
+  </p>
+
+  <div class="sets-grid">
+    {sets.map((set) => (
+      <div class="set-card">
+        <div class="set-header">
+          <h3 class="set-name">{set.name}</h3>
+          <span class="set-version">v{set.version}</span>
+        </div>
+        <p class="set-description">{set.description}</p>
+        <div class="set-meta">
+          <span class="set-author">by {set.author}</span>
+          <a href={set.homepage} class="set-link" target="_blank" rel="noopener">Source</a>
+        </div>
+        <div class="set-components">
+          {set.components.claude_md && <span class="badge">CLAUDE.md</span>}
+          {set.components.rules > 0 && <span class="badge">{set.components.rules} rules</span>}
+          {set.components.skills > 0 && <span class="badge">{set.components.skills} skills</span>}
+          {set.components.mcp_servers > 0 && <span class="badge">{set.components.mcp_servers} MCP</span>}
+        </div>
+        {set.tags && set.tags.length > 0 && (
+          <div class="set-tags">
+            {set.tags.map((tag: string) => (
+              <span class="tag">{tag}</span>
+            ))}
+          </div>
+        )}
+        <div class="install-section">
+          <div class="install-group">
+            <span class="install-label">Global</span>
+            <div class="install-row">
+              <code class="install-cmd">claudex sets add --global {set.source}</code>
+              <button class="copy-btn" data-cmd={`claudex sets add --global ${set.source}`} title="Copy">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"/><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="install-group">
+            <span class="install-label">Project</span>
+            <div class="install-row">
+              <code class="install-cmd">claudex sets add {set.source}</code>
+              <button class="copy-btn" data-cmd={`claudex sets add ${set.source}`} title="Copy">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"/><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    ))}
+  </div>
+
+  <div class="contribute-section">
+    <h2>提交你的配置集</h2>
+    <p>
+      在你的仓库根目录创建 <code>.claudex-sets.json</code>（<a href="https://claudex.space/schemas/sets/v1.json" target="_blank" rel="noopener">schema</a>），
+      然后向 <a href="https://github.com/StringKe/claudex" target="_blank" rel="noopener">claudex</a> 提交 PR，将你的条目添加到 <code>sets.json</code>。
+    </p>
+  </div>
+</StarlightPage>
+
+<style>
+  .sets-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 3rem;
+  }
+
+  .set-card {
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    background: var(--sl-color-bg-nav);
+    transition: border-color 0.2s;
+  }
+
+  .set-card:hover {
+    border-color: var(--sl-color-accent);
+  }
+
+  .set-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .set-name {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--sl-color-white);
+  }
+
+  .set-version {
+    font-size: 0.8rem;
+    color: var(--sl-color-gray-3);
+    background: var(--sl-color-gray-6);
+    padding: 0.1rem 0.5rem;
+    border-radius: 0.25rem;
+    font-family: var(--sl-font-mono);
+  }
+
+  .set-description {
+    color: var(--sl-color-gray-2);
+    font-size: 0.95rem;
+    margin: 0.5rem 0;
+    line-height: 1.5;
+  }
+
+  .set-meta {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-size: 0.85rem;
+    color: var(--sl-color-gray-3);
+    margin-bottom: 0.75rem;
+  }
+
+  .set-link {
+    color: var(--sl-color-accent);
+    text-decoration: none;
+  }
+
+  .set-link:hover {
+    text-decoration: underline;
+  }
+
+  .set-components {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .badge {
+    font-size: 0.75rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 0.25rem;
+    background: var(--sl-color-accent-low);
+    color: var(--sl-color-accent-high);
+    font-weight: 500;
+  }
+
+  .set-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .tag {
+    font-size: 0.7rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 0.2rem;
+    background: var(--sl-color-gray-6);
+    color: var(--sl-color-gray-3);
+  }
+
+  .install-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--sl-color-gray-6);
+  }
+
+  .install-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .install-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--sl-color-gray-3);
+  }
+
+  .install-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .install-cmd {
+    flex: 1;
+    font-size: 0.8rem;
+    padding: 0.4rem 0.6rem;
+    border-radius: 0.375rem;
+    background: var(--sl-color-gray-6);
+    color: var(--sl-color-gray-2);
+    font-family: var(--sl-font-mono);
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .copy-btn {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.375rem;
+    background: var(--sl-color-gray-6);
+    color: var(--sl-color-gray-3);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .copy-btn:hover {
+    border-color: var(--sl-color-accent);
+    color: var(--sl-color-accent);
+  }
+
+  .copy-btn.copied {
+    border-color: #22c55e;
+    color: #22c55e;
+  }
+
+  .contribute-section {
+    margin-top: 2rem;
+    padding: 1.5rem;
+    border: 1px dashed var(--sl-color-gray-5);
+    border-radius: 0.75rem;
+    text-align: center;
+  }
+
+  .contribute-section h2 {
+    margin-top: 0;
+    font-size: 1.1rem;
+  }
+
+  .contribute-section p {
+    color: var(--sl-color-gray-3);
+    font-size: 0.9rem;
+    margin-bottom: 0;
+  }
+
+  .contribute-section code {
+    font-size: 0.85rem;
+    padding: 0.1rem 0.3rem;
+    border-radius: 0.2rem;
+    background: var(--sl-color-gray-6);
+  }
+
+  .contribute-section a {
+    color: var(--sl-color-accent);
+    text-decoration: none;
+  }
+
+  .contribute-section a:hover {
+    text-decoration: underline;
+  }
+</style>
+
+<script>
+  document.querySelectorAll('.copy-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const cmd = btn.getAttribute('data-cmd');
+      if (!cmd) return;
+      try {
+        await navigator.clipboard.writeText(cmd);
+        btn.classList.add('copied');
+        setTimeout(() => btn.classList.remove('copied'), 1500);
+      } catch {
+        const code = btn.previousElementSibling;
+        if (code) {
+          const range = document.createRange();
+          range.selectNodeContents(code);
+          const sel = window.getSelection();
+          if (sel) {
+            sel.removeAllRanges();
+            sel.addRange(range);
+          }
+        }
+      }
+    });
+  });
+</script>
