@@ -3,24 +3,7 @@ use std::collections::HashMap;
 use anyhow::Result;
 use serde_json::{json, Value};
 
-/// OpenAI 工具名最大长度
-const MAX_TOOL_NAME_LEN: usize = 64;
-
-/// 工具名映射（截断名 → 原始名）
-pub type ToolNameMap = HashMap<String, String>;
-
-/// 截断过长的工具名，保持可辨识性
-fn truncate_tool_name(name: &str) -> String {
-    if name.len() <= MAX_TOOL_NAME_LEN {
-        return name.to_string();
-    }
-    // 取前 55 字符 + "_" + 8 字符 hash
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    name.hash(&mut hasher);
-    let hash = format!("{:08x}", hasher.finish());
-    format!("{}_{}", &name[..MAX_TOOL_NAME_LEN - 9], &hash[..8])
-}
+use super::util::{truncate_tool_name, ToolNameMap};
 
 /// Convert Anthropic Messages API request → OpenAI Chat Completions request
 /// 返回 (openai_body, tool_name_map)，tool_name_map 用于在响应中还原被截断的工具名
@@ -612,37 +595,6 @@ mod tests {
         let result = openai_to_anthropic(&resp, &empty_map()).unwrap();
         assert_eq!(result["type"], "message");
         assert!(result["content"].as_array().unwrap().is_empty());
-    }
-
-    // --- tool name truncation ---
-
-    #[test]
-    fn test_truncate_short_name_unchanged() {
-        assert_eq!(truncate_tool_name("get_weather"), "get_weather");
-    }
-
-    #[test]
-    fn test_truncate_exactly_64_unchanged() {
-        let name = "a".repeat(64);
-        assert_eq!(truncate_tool_name(&name), name);
-    }
-
-    #[test]
-    fn test_truncate_65_chars() {
-        let name = "a".repeat(65);
-        let result = truncate_tool_name(&name);
-        assert_eq!(result.len(), 64);
-        assert!(result.starts_with("aaaa"));
-        assert!(result.contains('_'));
-    }
-
-    #[test]
-    fn test_truncate_preserves_determinism() {
-        let name = "mcp__very_long_server_name__extremely_long_tool_function_name_here_v2";
-        let r1 = truncate_tool_name(name);
-        let r2 = truncate_tool_name(name);
-        assert_eq!(r1, r2); // 确定性
-        assert_eq!(r1.len(), 64);
     }
 
     #[test]

@@ -1,3 +1,4 @@
+pub mod adapter;
 pub mod fallback;
 pub mod handler;
 pub mod health;
@@ -7,6 +8,7 @@ pub mod responses;
 pub mod responses_streaming;
 pub mod streaming;
 pub mod translation;
+pub mod util;
 
 use std::sync::Arc;
 

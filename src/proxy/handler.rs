@@ -7,7 +7,7 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use serde_json::Value;
 
-use crate::config::{ProfileConfig, ProviderType};
+use crate::config::ProfileConfig;
 use crate::oauth::AuthType;
 use crate::proxy::ProxyState;
 use crate::router::classifier;
@@ -295,7 +295,7 @@ async fn try_with_circuit_breaker(
 }
 
 /// Forward request to a single provider (used for both primary and backup).
-/// For non-streaming responses, also extracts and stores context for sharing.
+/// Uses ProviderAdapter trait to handle provider-specific translation.
 async fn try_forward(
     state: &ProxyState,
     profile: &ProfileConfig,
@@ -303,21 +303,133 @@ async fn try_forward(
     body: &Value,
     is_streaming: bool,
 ) -> anyhow::Result<Response> {
-    match profile.provider_type {
-        ProviderType::DirectAnthropic => forward_direct(state, profile, body, is_streaming).await,
-        ProviderType::OpenAICompatible => {
-            forward_translated(state, profile, body, is_streaming).await
+    let adapter = super::adapter::for_provider(&profile.provider_type);
+    let translated = adapter.translate_request(body, profile)?;
+
+    let url = format!(
+        "{}{}",
+        profile.base_url.trim_end_matches('/'),
+        adapter.endpoint_path()
+    );
+    let key_preview = super::util::format_key_preview(&profile.api_key);
+
+    tracing::info!(
+        profile = %profile.name,
+        url = %url,
+        api_key = %key_preview,
+        streaming = %is_streaming,
+        model = %translated.body.get("model").and_then(|v| v.as_str()).unwrap_or("-"),
+        "forwarding request"
+    );
+
+    let mut req = state
+        .http_client
+        .post(&url)
+        .header("content-type", "application/json");
+
+    req = adapter.apply_auth(req, profile);
+    req = adapter.apply_extra_headers(req, profile);
+
+    for (k, v) in &profile.custom_headers {
+        req = req.header(k.as_str(), v.as_str());
+    }
+
+    req = req.json(&translated.body);
+
+    let resp = req.send().await?;
+    let status = resp.status();
+
+    tracing::info!(
+        profile = %profile.name,
+        status = %status,
+        "upstream response"
+    );
+
+    if adapter.passthrough() {
+        // Direct passthrough (e.g., DirectAnthropic): no error/response translation
+        if is_streaming {
+            let stream = resp.bytes_stream();
+            let response = Response::builder()
+                .status(status.as_u16())
+                .header("content-type", "text/event-stream")
+                .header("cache-control", "no-cache")
+                .body(Body::from_stream(stream))
+                .map_err(|e| anyhow::anyhow!("failed to build response: {e}"))?;
+            Ok(response)
+        } else {
+            let resp_bytes = resp.bytes().await?;
+            if let Ok(resp_json) = serde_json::from_slice::<Value>(&resp_bytes) {
+                extract_and_store_context(state, &profile.name, &resp_json);
+            }
+            let response = Response::builder()
+                .status(status.as_u16())
+                .header("content-type", "application/json")
+                .body(Body::from(resp_bytes))
+                .map_err(|e| anyhow::anyhow!("failed to build response: {e}"))?;
+            Ok(response)
         }
-        ProviderType::OpenAIResponses => {
-            forward_responses(state, profile, body, is_streaming).await
+    } else {
+        // Translated path: handle errors, then translate response
+        if !status.is_success() {
+            let err_body = resp.text().await.unwrap_or_default();
+
+            if status.is_client_error() {
+                // 4xx: non-retryable, translate to Anthropic error format
+                tracing::warn!(
+                    profile = %profile.name,
+                    status = %status,
+                    body = %err_body,
+                    "client error (non-retryable)"
+                );
+                let anthropic_err = super::util::to_anthropic_error(status.as_u16(), &err_body);
+                let response = Response::builder()
+                    .status(status.as_u16())
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        serde_json::to_vec(&anthropic_err).unwrap_or_default(),
+                    ))
+                    .map_err(|e| anyhow::anyhow!("failed to build error response: {e}"))?;
+                return Ok(response);
+            }
+
+            // 5xx: retryable, bail for circuit breaker + failover
+            tracing::error!(
+                profile = %profile.name,
+                status = %status,
+                body = %err_body,
+                "upstream error"
+            );
+            anyhow::bail!("upstream returned HTTP {status}: {err_body}");
+        }
+
+        if is_streaming {
+            let stream = resp.bytes_stream();
+            let translated_stream =
+                adapter.translate_stream(Box::pin(stream), translated.tool_name_map);
+            let response = Response::builder()
+                .status(200)
+                .header("content-type", "text/event-stream")
+                .header("cache-control", "no-cache")
+                .body(Body::from_stream(translated_stream))
+                .map_err(|e| anyhow::anyhow!("failed to build response: {e}"))?;
+            Ok(response)
+        } else {
+            let resp_json: Value = resp.json().await?;
+            let anthropic_resp =
+                adapter.translate_response(&resp_json, &translated.tool_name_map)?;
+            extract_and_store_context(state, &profile.name, &anthropic_resp);
+            let response = Response::builder()
+                .status(200)
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&anthropic_resp)?))
+                .map_err(|e| anyhow::anyhow!("failed to build response: {e}"))?;
+            Ok(response)
         }
     }
 }
 
 /// Extract assistant text from an Anthropic-format response and store for sharing.
-/// Only works for non-streaming responses where the body is available.
 fn extract_and_store_context(state: &ProxyState, profile_name: &str, resp_body: &Value) {
-    // Anthropic format: {"content": [{"type": "text", "text": "..."}]}
     let text = resp_body
         .get("content")
         .and_then(|c| c.as_array())
@@ -347,344 +459,5 @@ fn extract_and_store_context(state: &ProxyState, profile_name: &str, resp_body: 
         tokio::spawn(async move {
             shared_context.store(&name, truncated).await;
         });
-    }
-}
-
-async fn forward_direct(
-    state: &ProxyState,
-    profile: &ProfileConfig,
-    body: &Value,
-    is_streaming: bool,
-) -> anyhow::Result<Response> {
-    let url = format!("{}/v1/messages", profile.base_url.trim_end_matches('/'));
-
-    let has_key = !profile.api_key.is_empty();
-    let key_preview = if has_key {
-        let k = &profile.api_key;
-        if k.len() > 8 {
-            format!("{}...{}", &k[..4], &k[k.len() - 4..])
-        } else {
-            "***".to_string()
-        }
-    } else {
-        "(empty)".to_string()
-    };
-
-    tracing::info!(
-        profile = %profile.name,
-        url = %url,
-        api_key = %key_preview,
-        streaming = %is_streaming,
-        model = %body.get("model").and_then(|v| v.as_str()).unwrap_or("-"),
-        "forward_direct: sending request"
-    );
-
-    let mut req = state
-        .http_client
-        .post(&url)
-        .header("content-type", "application/json")
-        .header("anthropic-version", "2023-06-01");
-
-    if has_key {
-        req = req.header("x-api-key", &profile.api_key);
-    }
-
-    for (k, v) in &profile.custom_headers {
-        req = req.header(k.as_str(), v.as_str());
-    }
-
-    req = req.json(body);
-
-    let resp = req.send().await?;
-    let status = resp.status();
-
-    tracing::info!(
-        profile = %profile.name,
-        status = %status,
-        "forward_direct: upstream response"
-    );
-
-    if is_streaming {
-        let stream = resp.bytes_stream();
-        let response = Response::builder()
-            .status(status.as_u16())
-            .header("content-type", "text/event-stream")
-            .header("cache-control", "no-cache")
-            .body(Body::from_stream(stream))
-            .map_err(|e| anyhow::anyhow!("failed to build response: {e}"))?;
-        Ok(response)
-    } else {
-        let resp_bytes = resp.bytes().await?;
-        // Store context from non-streaming Anthropic-format response
-        if let Ok(resp_json) = serde_json::from_slice::<Value>(&resp_bytes) {
-            extract_and_store_context(state, &profile.name, &resp_json);
-        }
-        let response = Response::builder()
-            .status(status.as_u16())
-            .header("content-type", "application/json")
-            .body(Body::from(resp_bytes))
-            .map_err(|e| anyhow::anyhow!("failed to build response: {e}"))?;
-        Ok(response)
-    }
-}
-
-async fn forward_translated(
-    state: &ProxyState,
-    profile: &ProfileConfig,
-    body: &Value,
-    is_streaming: bool,
-) -> anyhow::Result<Response> {
-    use super::translation;
-
-    let (openai_body, tool_name_map) =
-        translation::anthropic_to_openai(body, &profile.default_model)?;
-
-    let url = format!(
-        "{}/chat/completions",
-        profile.base_url.trim_end_matches('/')
-    );
-
-    let has_key = !profile.api_key.is_empty();
-    let key_preview = if has_key {
-        let k = &profile.api_key;
-        if k.len() > 8 {
-            format!("{}...{}", &k[..4], &k[k.len() - 4..])
-        } else {
-            "***".to_string()
-        }
-    } else {
-        "(empty)".to_string()
-    };
-
-    tracing::info!(
-        profile = %profile.name,
-        url = %url,
-        api_key = %key_preview,
-        streaming = %is_streaming,
-        model = %openai_body.get("model").and_then(|v| v.as_str()).unwrap_or("-"),
-        "forward_translated: sending request"
-    );
-
-    let mut req = state
-        .http_client
-        .post(&url)
-        .header("content-type", "application/json");
-
-    if has_key {
-        req = req.header("Authorization", format!("Bearer {}", profile.api_key));
-    }
-
-    for (k, v) in &profile.custom_headers {
-        req = req.header(k.as_str(), v.as_str());
-    }
-
-    req = req.json(&openai_body);
-
-    let resp = req.send().await?;
-    let status = resp.status();
-
-    tracing::info!(
-        profile = %profile.name,
-        status = %status,
-        "forward_translated: upstream response"
-    );
-
-    if !status.is_success() {
-        let err_body = resp.text().await.unwrap_or_default();
-
-        if status.is_client_error() {
-            // 4xx 是客户端错误（认证失败、参数错误等），不可恢复，不触发断路器。
-            // 转换为 Anthropic 错误格式，透传原始状态码。
-            tracing::warn!(
-                profile = %profile.name,
-                status = %status,
-                body = %err_body,
-                "forward_translated: client error (non-retryable)"
-            );
-            let error_type = match status.as_u16() {
-                401 => "authentication_error",
-                403 => "permission_error",
-                404 => "not_found_error",
-                429 => "rate_limit_error",
-                _ => "invalid_request_error",
-            };
-            let anthropic_err = serde_json::json!({
-                "type": "error",
-                "error": {
-                    "type": error_type,
-                    "message": err_body,
-                }
-            });
-            let response = Response::builder()
-                .status(status.as_u16())
-                .header("content-type", "application/json")
-                .body(Body::from(
-                    serde_json::to_vec(&anthropic_err).unwrap_or_default(),
-                ))
-                .map_err(|e| anyhow::anyhow!("failed to build error response: {e}"))?;
-            return Ok(response);
-        }
-
-        // 5xx 服务端错误：可重试，走断路器 + 备用
-        tracing::error!(
-            profile = %profile.name,
-            status = %status,
-            body = %err_body,
-            "forward_translated: upstream error"
-        );
-        anyhow::bail!("upstream returned HTTP {status}: {err_body}");
-    }
-
-    if is_streaming {
-        let stream = resp.bytes_stream();
-        let translated_stream = super::streaming::translate_sse_stream(stream, tool_name_map);
-        let response = Response::builder()
-            .status(200)
-            .header("content-type", "text/event-stream")
-            .header("cache-control", "no-cache")
-            .body(Body::from_stream(translated_stream))
-            .map_err(|e| anyhow::anyhow!("failed to build response: {e}"))?;
-        Ok(response)
-    } else {
-        let openai_resp: Value = resp.json().await?;
-        let anthropic_resp = translation::openai_to_anthropic(&openai_resp, &tool_name_map)?;
-        // Store context from non-streaming translated response
-        extract_and_store_context(state, &profile.name, &anthropic_resp);
-        let response = Response::builder()
-            .status(200)
-            .header("content-type", "application/json")
-            .body(Body::from(serde_json::to_vec(&anthropic_resp)?))
-            .map_err(|e| anyhow::anyhow!("failed to build response: {e}"))?;
-        Ok(response)
-    }
-}
-
-async fn forward_responses(
-    state: &ProxyState,
-    profile: &ProfileConfig,
-    body: &Value,
-    is_streaming: bool,
-) -> anyhow::Result<Response> {
-    use super::responses;
-
-    let (responses_body, tool_name_map) =
-        responses::anthropic_to_responses(body, &profile.default_model)?;
-
-    let url = format!("{}/responses", profile.base_url.trim_end_matches('/'));
-
-    let has_key = !profile.api_key.is_empty();
-    let key_preview = if has_key {
-        let k = &profile.api_key;
-        if k.len() > 8 {
-            format!("{}...{}", &k[..4], &k[k.len() - 4..])
-        } else {
-            "***".to_string()
-        }
-    } else {
-        "(empty)".to_string()
-    };
-
-    tracing::info!(
-        profile = %profile.name,
-        url = %url,
-        api_key = %key_preview,
-        streaming = %is_streaming,
-        model = %responses_body.get("model").and_then(|v| v.as_str()).unwrap_or("-"),
-        "forward_responses: sending request"
-    );
-
-    let mut req = state
-        .http_client
-        .post(&url)
-        .header("content-type", "application/json");
-
-    if has_key {
-        req = req.header("Authorization", format!("Bearer {}", profile.api_key));
-    }
-
-    // ChatGPT-Account-ID header（从 extra_env 或 custom_headers 传入）
-    if let Some(account_id) = profile.extra_env.get("CHATGPT_ACCOUNT_ID") {
-        req = req.header("ChatGPT-Account-ID", account_id.as_str());
-    }
-
-    for (k, v) in &profile.custom_headers {
-        req = req.header(k.as_str(), v.as_str());
-    }
-
-    req = req.json(&responses_body);
-
-    let resp = req.send().await?;
-    let status = resp.status();
-
-    tracing::info!(
-        profile = %profile.name,
-        status = %status,
-        "forward_responses: upstream response"
-    );
-
-    if !status.is_success() {
-        let err_body = resp.text().await.unwrap_or_default();
-
-        if status.is_client_error() {
-            tracing::warn!(
-                profile = %profile.name,
-                status = %status,
-                body = %err_body,
-                "forward_responses: client error (non-retryable)"
-            );
-            let error_type = match status.as_u16() {
-                401 => "authentication_error",
-                403 => "permission_error",
-                404 => "not_found_error",
-                429 => "rate_limit_error",
-                _ => "invalid_request_error",
-            };
-            let anthropic_err = serde_json::json!({
-                "type": "error",
-                "error": {
-                    "type": error_type,
-                    "message": err_body,
-                }
-            });
-            let response = Response::builder()
-                .status(status.as_u16())
-                .header("content-type", "application/json")
-                .body(Body::from(
-                    serde_json::to_vec(&anthropic_err).unwrap_or_default(),
-                ))
-                .map_err(|e| anyhow::anyhow!("failed to build error response: {e}"))?;
-            return Ok(response);
-        }
-
-        tracing::error!(
-            profile = %profile.name,
-            status = %status,
-            body = %err_body,
-            "forward_responses: upstream error"
-        );
-        anyhow::bail!("upstream returned HTTP {status}: {err_body}");
-    }
-
-    if is_streaming {
-        let stream = resp.bytes_stream();
-        let translated_stream =
-            super::responses_streaming::translate_responses_stream(stream, tool_name_map);
-        let response = Response::builder()
-            .status(200)
-            .header("content-type", "text/event-stream")
-            .header("cache-control", "no-cache")
-            .body(Body::from_stream(translated_stream))
-            .map_err(|e| anyhow::anyhow!("failed to build response: {e}"))?;
-        Ok(response)
-    } else {
-        let responses_resp: Value = resp.json().await?;
-        let anthropic_resp = responses::responses_to_anthropic(&responses_resp, &tool_name_map)?;
-        extract_and_store_context(state, &profile.name, &anthropic_resp);
-        let response = Response::builder()
-            .status(200)
-            .header("content-type", "application/json")
-            .body(Body::from(serde_json::to_vec(&anthropic_resp)?))
-            .map_err(|e| anyhow::anyhow!("failed to build response: {e}"))?;
-        Ok(response)
     }
 }

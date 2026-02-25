@@ -3,7 +3,7 @@ use futures::stream::{Stream, StreamExt};
 use serde_json::{json, Value};
 use std::pin::Pin;
 
-use super::responses::ToolNameMap;
+use super::util::{format_sse, ToolNameMap};
 
 /// Translates an OpenAI Responses API SSE stream to Anthropic SSE format.
 ///
@@ -287,13 +287,6 @@ impl ResponsesStreamState {
             _ => vec![],
         }
     }
-}
-
-fn format_sse(event: &str, data: &Value) -> String {
-    format!(
-        "event: {event}\ndata: {}\n\n",
-        serde_json::to_string(data).unwrap_or_default()
-    )
 }
 
 #[cfg(test)]

@@ -3,21 +3,7 @@ use std::collections::HashMap;
 use anyhow::Result;
 use serde_json::{json, Value};
 
-/// 工具名映射（截断名 → 原始名），复用 translation 的截断逻辑
-pub type ToolNameMap = HashMap<String, String>;
-
-const MAX_TOOL_NAME_LEN: usize = 64;
-
-fn truncate_tool_name(name: &str) -> String {
-    if name.len() <= MAX_TOOL_NAME_LEN {
-        return name.to_string();
-    }
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    name.hash(&mut hasher);
-    let hash = format!("{:08x}", hasher.finish());
-    format!("{}_{}", &name[..MAX_TOOL_NAME_LEN - 9], &hash[..8])
-}
+use super::util::{truncate_tool_name, ToolNameMap};
 
 /// Convert Anthropic Messages API request → OpenAI Responses API request
 pub fn anthropic_to_responses(

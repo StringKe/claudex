@@ -3,13 +3,15 @@ use futures::stream::{Stream, StreamExt};
 use serde_json::{json, Value};
 use std::pin::Pin;
 
+use super::util::{format_sse, ToolNameMap};
+
 /// Translates an OpenAI SSE stream to Anthropic SSE format.
 ///
 /// OpenAI format:  `data: {"choices":[{"delta":{"content":"..."}}]}`
 /// Anthropic format: multiple event types (message_start, content_block_start, content_block_delta, etc.)
 pub fn translate_sse_stream<S>(
     input: S,
-    tool_name_map: super::translation::ToolNameMap,
+    tool_name_map: ToolNameMap,
 ) -> Pin<Box<dyn Stream<Item = Result<Bytes, reqwest::Error>> + Send>>
 where
     S: Stream<Item = Result<Bytes, reqwest::Error>> + Send + 'static,
@@ -102,7 +104,7 @@ struct StreamState {
     block_started: bool,
     output_tokens: u64,
     current_tool_call: Option<ToolCallState>,
-    tool_name_map: super::translation::ToolNameMap,
+    tool_name_map: ToolNameMap,
 }
 
 struct ToolCallState {
@@ -112,7 +114,7 @@ struct ToolCallState {
 }
 
 impl StreamState {
-    fn new(tool_name_map: super::translation::ToolNameMap) -> Self {
+    fn new(tool_name_map: ToolNameMap) -> Self {
         Self {
             block_index: 0,
             block_started: false,
@@ -285,26 +287,10 @@ impl StreamState {
     }
 }
 
-fn format_sse(event: &str, data: &Value) -> String {
-    format!(
-        "event: {event}\ndata: {}\n\n",
-        serde_json::to_string(data).unwrap_or_default()
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
-
-    #[test]
-    fn test_format_sse() {
-        let data = json!({"type": "test"});
-        let result = format_sse("my_event", &data);
-        assert!(result.starts_with("event: my_event\ndata: "));
-        assert!(result.ends_with("\n\n"));
-        assert!(result.contains("\"type\":\"test\""));
-    }
 
     #[test]
     fn test_process_text_delta() {
