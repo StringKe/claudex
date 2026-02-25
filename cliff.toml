@@ -1,0 +1,60 @@
+# git-cliff configuration for claudex
+# Commit format: <类型>[范围]: <中文描述>
+# https://git-cliff.org/docs/configuration
+
+[changelog]
+header = """
+# Changelog\n
+"""
+body = """
+{%- macro remote_url() -%}
+  https://github.com/StringKe/claudex
+{%- endmacro -%}
+
+{% if version -%}
+    ## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else -%}
+    ## [Unreleased]
+{% endif -%}
+
+{% for group, commits in commits | group_by(attribute="group") %}
+    ### {{ group | upper_first }}
+    {% for commit in commits %}
+        - {% if commit.scope %}**{{ commit.scope }}**: {% endif %}{{ commit.message | upper_first }}\
+            {% if commit.breaking %} (**BREAKING**){% endif %} \
+            ([{{ commit.id | truncate(length=7, end="") }}]({{ self::remote_url() }}/commit/{{ commit.id }}))\
+    {% endfor %}
+{% endfor %}
+"""
+footer = ""
+trim = true
+
+[git]
+conventional_commits = false
+filter_unconventional = false
+protect_breaking_commits = false
+split_commits = false
+tag_pattern = "v[0-9].*"
+sort_commits = "newest"
+
+commit_preprocessors = [
+    # 只保留首行（去掉 commit body）
+    { pattern = '\n[\s\S]*', replace = '' },
+    # 将 <类型>[范围]: <描述> 转为 conventional commit 格式供 commit_parsers 解析
+    { pattern = '^(\w+)\[([^\]]+)\]:\s*(.*)$', replace = '${1}(${2}): ${3}' },
+    { pattern = '^(\w+):\s*(.*)$', replace = '${1}: ${2}' },
+]
+
+commit_parsers = [
+    { message = "^feat", group = "Features" },
+    { message = "^fix", group = "Bug Fixes" },
+    { message = "^perf", group = "Performance" },
+    { message = "^refactor", group = "Refactoring" },
+    { message = "^docs", group = "Documentation" },
+    { message = "^test", group = "Testing" },
+    { message = "^build", group = "Build" },
+    { message = "^ci", group = "CI/CD" },
+    { message = "^chore", group = "Miscellaneous" },
+    { message = "^style", skip = true },
+    { message = "^Merge", skip = true },
+]

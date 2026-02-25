@@ -15,14 +15,24 @@ jobs:
       tag: ${{ steps.tag.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Get tag
         id: tag
         run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+      - name: Generate changelog
+        id: changelog
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --latest --strip header
       - name: Create draft release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.tag.outputs.tag }}
-        run: gh release create "$TAG" --draft --title "$TAG" --generate-notes
+          CHANGELOG: ${{ steps.changelog.outputs.content }}
+        run: |
+          gh release create "$TAG" --draft --title "$TAG" --notes "$CHANGELOG"
 
   build:
     name: Build ${{ matrix.target }}
