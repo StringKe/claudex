@@ -13,11 +13,8 @@ Claudex 按以下顺序搜索配置文件：
 2. `./claudex.toml`（当前目录）
 3. `./.claudex/config.toml`（当前目录）
 4. 父目录（最多向上 10 级），检查上述两种模式
-5. `~/.config/claudex/config.toml`（XDG — **优先于**平台特定路径）
-6. 平台特定路径（macOS 为 `~/Library/Application Support/claudex/config.toml` 等）
 
 <Aside type="note">
-  XDG 路径（`~/.config/claudex/config.toml`）现在优先于平台特定路径。如果所有位置都不存在配置文件，创建默认配置时使用 XDG 路径。
 </Aside>
 
 ```bash
@@ -108,7 +105,7 @@ oauth_provider = "openai"
 兼容提供商：**ChatGPT/Codex 订阅**（通过 Codex CLI）
 
 <Aside type="tip">
-  此类型主要用于 OAuth 订阅。详细的 Codex CLI 配置步骤请参见 [Provider 配置指南](/claudex/zh-cn/guides/provider-setup/)。
+  此类型主要用于 OAuth 订阅。详细的 Codex CLI 配置步骤请参见 [Provider 配置指南](/zh-cn/guides/provider-setup/)。
 </Aside>
 
 ### Profile 字段
@@ -301,4 +298,4 @@ claudex run grok "Fix lint errors" --print --dangerously-skip-permissions
 
 参见 [`config.example.toml`](https://github.com/StringKe/claudex/blob/main/config.example.toml) 获取包含所有提供商和选项的完整配置文件。
 
-每个提供商的详细配置步骤（包括 API 密钥获取链接和 OAuth 流程），请参见 [Provider 配置指南](/claudex/zh-cn/guides/provider-setup/)。
+每个提供商的详细配置步骤（包括 API 密钥获取链接和 OAuth 流程），请参见 [Provider 配置指南](/zh-cn/guides/provider-setup/)。

@@ -5,7 +5,7 @@ edition = "2021"
 description = "Multi-instance Claude Code manager with intelligent translation proxy"
 license = "MIT"
 repository = "https://github.com/StringKe/claudex"
-homepage = "https://github.com/StringKe/claudex"
+homepage = "https://claudex.space"
 keywords = ["claude", "proxy", "llm", "ai", "translation"]
 categories = ["command-line-utilities", "web-programming"]
 

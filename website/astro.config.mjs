@@ -4,8 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 import sitemap from '@astrojs/sitemap';
 
 export default defineConfig({
-  site: 'https://stringke.github.io',
-  base: '/claudex',
+  site: 'https://claudex.space',
   integrations: [
     starlight({
       title: {
@@ -20,6 +19,24 @@ export default defineConfig({
       },
       social: [
         { icon: 'github', label: 'GitHub', href: 'https://github.com/StringKe/claudex' },
+      ],
+      head: [
+        {
+          tag: 'meta',
+          attrs: { property: 'og:site_name', content: 'Claudex' },
+        },
+        {
+          tag: 'meta',
+          attrs: { name: 'twitter:site', content: '@anthropic' },
+        },
+        {
+          tag: 'meta',
+          attrs: { name: 'keywords', content: 'claudex, claude code, ai proxy, openai, grok, deepseek, kimi, glm, ollama, translation proxy, multi-provider' },
+        },
+        {
+          tag: 'link',
+          attrs: { rel: 'canonical', href: 'https://claudex.space' },
+        },
       ],
       customCss: ['./src/styles/global.css'],
       sidebar: [

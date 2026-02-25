@@ -14,7 +14,6 @@ Claudex searches for config files in this order:
 3. `./.claudex/config.toml` (current directory)
 4. Parent directories (up to 10 levels), checking both patterns
 5. `~/.config/claudex/config.toml` (XDG — checked **before** platform-specific paths)
-6. Platform-specific paths (e.g., `~/Library/Application Support/claudex/config.toml` on macOS)
 
 <Aside type="note">
   The XDG path (`~/.config/claudex/config.toml`) is now checked before platform-specific paths. If no config file exists anywhere, the XDG path is used when creating the default config.
@@ -108,7 +107,7 @@ oauth_provider = "openai"
 Compatible providers: **ChatGPT/Codex subscriptions** (via Codex CLI)
 
 <Aside type="tip">
-  This provider type is primarily used with OAuth subscriptions. See the [Provider Setup Guide](/claudex/en/guides/provider-setup/) for detailed instructions on setting up Codex CLI.
+  This provider type is primarily used with OAuth subscriptions. See the [Provider Setup Guide](/en/guides/provider-setup/) for detailed instructions on setting up Codex CLI.
 </Aside>
 
 ### Profile Fields
@@ -301,4 +300,4 @@ This avoids log interleaving when running multiple instances and keeps stderr cl
 
 See [`config.example.toml`](https://github.com/StringKe/claudex/blob/main/config.example.toml) for a complete configuration file with all providers and options.
 
-For step-by-step setup instructions for each provider (including API key links and OAuth flows), see the [Provider Setup Guide](/claudex/en/guides/provider-setup/).
+For step-by-step setup instructions for each provider (including API key links and OAuth flows), see the [Provider Setup Guide](/en/guides/provider-setup/).
