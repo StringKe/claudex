@@ -1,0 +1,87 @@
+name: Bug Report / 缺陷报告
+description: Report a bug or unexpected behavior / 报告缺陷或异常行为
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please search existing issues before submitting.
+        感谢反馈！提交前请先搜索已有 issue。
+
+  - type: checkboxes
+    id: duplicate-check
+    attributes:
+      label: Duplicate Check / 重复检查
+      options:
+        - label: I have searched existing issues and this is not a duplicate / 我已搜索现有 issue，确认非重复
+          required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Claudex Version
+      description: "Output of `claudex --version`"
+      placeholder: "0.1.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Linux (x86_64)
+        - Linux (ARM64)
+        - Windows
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description / 描述
+      description: "What happened? / 发生了什么？"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce / 复现步骤
+      description: "Minimal steps to reproduce the issue / 最小复现步骤"
+      value: |
+        1.
+        2.
+        3.
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior / 预期行为
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior / 实际行为
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration / 配置
+      description: "Relevant profile config (remove API keys!) / 相关 profile 配置（去掉 API key！）"
+      render: toml
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Proxy Logs / 代理日志
+      description: "From `~/Library/Caches/claudex/proxy-*.log` / 来自代理日志文件"
+      render: text
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context / 补充信息

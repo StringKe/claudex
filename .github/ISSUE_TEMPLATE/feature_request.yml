@@ -1,0 +1,44 @@
+name: Feature Request / 功能建议
+description: Suggest a new feature or improvement / 建议新功能或改进
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for your idea! Please search existing issues before submitting.
+        感谢建议！提交前请先搜索已有 issue。
+
+  - type: checkboxes
+    id: duplicate-check
+    attributes:
+      label: Duplicate Check / 重复检查
+      options:
+        - label: I have searched existing issues and this is not a duplicate / 我已搜索现有 issue，确认非重复
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / 问题
+      description: "What problem does this solve? / 解决什么问题？"
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution / 建议方案
+      description: "How should it work? / 期望如何工作？"
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered / 备选方案
+      description: "Other approaches you've thought about / 考虑过的其他方案"
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context / 补充信息

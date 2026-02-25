@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security Vulnerability / 安全漏洞
+    url: https://github.com/StringKe/claudex/security/advisories/new
+    about: Report security issues privately / 私密报告安全问题
+  - name: Documentation / 文档
+    url: https://stringke.github.io/claudex/
+    about: Read the documentation / 查阅文档

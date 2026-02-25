@@ -1,0 +1,50 @@
+name: Provider Support / 新增提供商支持
+description: Request or contribute a new AI provider / 请求或贡献新的 AI 提供商支持
+labels: ["provider", "help wanted"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        We need community help to test and add more providers!
+        我们需要社区帮助测试和添加更多提供商！
+
+  - type: input
+    id: provider-name
+    attributes:
+      label: Provider Name / 提供商名称
+      placeholder: "e.g. Mistral, Cohere, Yi, Zhipu..."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: provider-type
+    attributes:
+      label: API Compatibility / API 兼容性
+      options:
+        - Anthropic-compatible (DirectAnthropic)
+        - OpenAI-compatible (OpenAICompatible)
+        - Custom / Unknown
+    validations:
+      required: true
+
+  - type: input
+    id: base-url
+    attributes:
+      label: API Base URL
+      placeholder: "https://api.example.com/v1"
+
+  - type: textarea
+    id: details
+    attributes:
+      label: Details / 详情
+      description: "API docs link, model names, special requirements / API 文档链接、模型名、特殊要求"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution / 贡献意愿
+      options:
+        - label: I have an API key and can help test / 我有 API key，可以协助测试
+        - label: I can submit a PR with the profile config / 我可以提交包含 profile 配置的 PR
