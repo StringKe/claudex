@@ -178,7 +178,7 @@ pub async fn run_tui(
                     tokio::time::sleep(std::time::Duration::from_millis(500)).await;
                 }
 
-                crate::launch::launch_claude(&config_snapshot, &profile, None, &[])?;
+                crate::launch::launch_claude(&config_snapshot, &profile, None, &[], false)?;
             }
             return Ok(());
         }

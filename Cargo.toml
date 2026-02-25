@@ -74,6 +74,11 @@ bytes = "1"
 
 # System
 libc = "0.2"
+nix = { version = "0.29", features = ["term", "poll", "signal", "process", "fs"] }
+signal-hook = "0.3"
+
+# Link detection
+regex = "1"
 
 # Self-update
 self_update = { version = "0.42", features = ["rustls"] }

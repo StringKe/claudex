@@ -9,6 +9,7 @@ mod metrics;
 mod profile;
 mod proxy;
 mod router;
+mod terminal;
 mod tui;
 mod update;
 
@@ -36,6 +37,7 @@ async fn main() -> Result<()> {
         Some(Commands::Run {
             profile: profile_name,
             model,
+            hyperlinks,
             args,
         }) => {
             // Ensure proxy is running
@@ -51,7 +53,7 @@ async fn main() -> Result<()> {
                 .ok_or_else(|| anyhow::anyhow!("profile '{}' not found", profile_name))?
                 .clone();
 
-            launch::launch_claude(&config, &profile, model.as_deref(), &args)?;
+            launch::launch_claude(&config, &profile, model.as_deref(), &args, hyperlinks)?;
         }
 
         Some(Commands::Profile { action }) => match action {

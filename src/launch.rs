@@ -2,13 +2,15 @@ use std::process::Command;
 
 use anyhow::{bail, Context, Result};
 
-use crate::config::{ClaudexConfig, ProfileConfig};
+use crate::config::{ClaudexConfig, HyperlinksConfig, ProfileConfig};
+use crate::terminal;
 
 pub fn launch_claude(
     config: &ClaudexConfig,
     profile: &ProfileConfig,
     model_override: Option<&str>,
     extra_args: &[String],
+    hyperlinks_override: bool,
 ) -> Result<()> {
     let proxy_base = format!(
         "http://{}:{}/proxy/{}",
@@ -54,11 +56,33 @@ pub fn launch_claude(
         "launching claude"
     );
 
-    let status = cmd.status().context("failed to execute claude binary")?;
+    // Determine whether to use PTY mode for hyperlinks
+    let use_pty = should_use_pty(&config.hyperlinks, hyperlinks_override);
 
-    if !status.success() {
-        bail!("claude exited with status: {}", status);
+    if use_pty {
+        tracing::info!("hyperlinks enabled, using PTY proxy mode");
+        let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("/"));
+        terminal::pty::spawn_with_pty(cmd, cwd)?;
+    } else {
+        let status = cmd.status().context("failed to execute claude binary")?;
+        if !status.success() {
+            bail!("claude exited with status: {}", status);
+        }
     }
 
     Ok(())
+}
+
+/// Decide whether to use PTY mode based on config + CLI flag.
+fn should_use_pty(config_hyperlinks: &HyperlinksConfig, cli_override: bool) -> bool {
+    // CLI --hyperlinks flag forces enable
+    if cli_override {
+        return true;
+    }
+
+    match config_hyperlinks {
+        HyperlinksConfig::Enabled => true,
+        HyperlinksConfig::Disabled => false,
+        HyperlinksConfig::Auto => terminal::detect::terminal_supports_hyperlinks(),
+    }
 }

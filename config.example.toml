@@ -11,6 +11,10 @@ proxy_host = "127.0.0.1"
 # Log level: trace, debug, info, warn, error
 log_level = "info"
 
+# Terminal hyperlinks (OSC 8): "auto" | true | false
+# "auto" detects terminal support; true/false force on/off
+hyperlinks = "auto"
+
 # Model aliases (shorthand → full model name)
 [model_aliases]
 grok3 = "grok-3-beta"

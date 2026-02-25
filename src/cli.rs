@@ -20,6 +20,9 @@ pub enum Commands {
         /// Override the model for this session
         #[arg(short, long)]
         model: Option<String>,
+        /// Enable terminal hyperlinks (OSC 8) for clickable paths and URLs
+        #[arg(long)]
+        hyperlinks: bool,
         /// Extra arguments passed to claude
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,

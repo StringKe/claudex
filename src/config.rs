@@ -25,8 +25,43 @@ pub struct ClaudexConfig {
     pub router: RouterConfig,
     #[serde(default)]
     pub context: ContextEngineConfig,
+    #[serde(default)]
+    pub hyperlinks: HyperlinksConfig,
     #[serde(skip)]
     pub config_source: Option<PathBuf>,
+}
+
+/// Hyperlinks mode: "auto" detects terminal support, true/false force on/off.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(from = "HyperlinksRaw")]
+pub enum HyperlinksConfig {
+    #[default]
+    Auto,
+    Enabled,
+    Disabled,
+}
+
+/// Intermediate type for deserializing hyperlinks from TOML (string or bool).
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum HyperlinksRaw {
+    Bool(bool),
+    Str(String),
+}
+
+impl From<HyperlinksRaw> for HyperlinksConfig {
+    fn from(raw: HyperlinksRaw) -> Self {
+        match raw {
+            HyperlinksRaw::Bool(true) => HyperlinksConfig::Enabled,
+            HyperlinksRaw::Bool(false) => HyperlinksConfig::Disabled,
+            HyperlinksRaw::Str(s) => match s.to_lowercase().as_str() {
+                "auto" => HyperlinksConfig::Auto,
+                "true" | "on" | "enabled" => HyperlinksConfig::Enabled,
+                "false" | "off" | "disabled" => HyperlinksConfig::Disabled,
+                _ => HyperlinksConfig::Auto,
+            },
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -291,6 +326,7 @@ impl Default for ClaudexConfig {
             model_aliases: HashMap::new(),
             router: RouterConfig::default(),
             context: ContextEngineConfig::default(),
+            hyperlinks: HyperlinksConfig::default(),
             config_source: None,
         }
     }
@@ -395,6 +431,75 @@ mod tests {
         assert_eq!(config.proxy_host, "127.0.0.1");
         assert_eq!(config.log_level, "info");
         assert!(config.profiles[0].enabled);
+    }
+
+    #[test]
+    fn test_default_hyperlinks_is_auto() {
+        let config = ClaudexConfig::default();
+        assert_eq!(config.hyperlinks, HyperlinksConfig::Auto);
+    }
+
+    #[test]
+    fn test_hyperlinks_parse_auto_string() {
+        let toml_str = r#"hyperlinks = "auto""#;
+        let config: ClaudexConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.hyperlinks, HyperlinksConfig::Auto);
+    }
+
+    #[test]
+    fn test_hyperlinks_parse_true_bool() {
+        let toml_str = "hyperlinks = true";
+        let config: ClaudexConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.hyperlinks, HyperlinksConfig::Enabled);
+    }
+
+    #[test]
+    fn test_hyperlinks_parse_false_bool() {
+        let toml_str = "hyperlinks = false";
+        let config: ClaudexConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.hyperlinks, HyperlinksConfig::Disabled);
+    }
+
+    #[test]
+    fn test_hyperlinks_parse_true_string() {
+        let toml_str = r#"hyperlinks = "true""#;
+        let config: ClaudexConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.hyperlinks, HyperlinksConfig::Enabled);
+    }
+
+    #[test]
+    fn test_hyperlinks_parse_false_string() {
+        let toml_str = r#"hyperlinks = "false""#;
+        let config: ClaudexConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.hyperlinks, HyperlinksConfig::Disabled);
+    }
+
+    #[test]
+    fn test_hyperlinks_parse_on_string() {
+        let toml_str = r#"hyperlinks = "on""#;
+        let config: ClaudexConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.hyperlinks, HyperlinksConfig::Enabled);
+    }
+
+    #[test]
+    fn test_hyperlinks_parse_off_string() {
+        let toml_str = r#"hyperlinks = "off""#;
+        let config: ClaudexConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.hyperlinks, HyperlinksConfig::Disabled);
+    }
+
+    #[test]
+    fn test_hyperlinks_parse_unknown_defaults_to_auto() {
+        let toml_str = r#"hyperlinks = "whatever""#;
+        let config: ClaudexConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.hyperlinks, HyperlinksConfig::Auto);
+    }
+
+    #[test]
+    fn test_hyperlinks_omitted_defaults_to_auto() {
+        let toml_str = "proxy_port = 8080";
+        let config: ClaudexConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.hyperlinks, HyperlinksConfig::Auto);
     }
 
     #[test]
