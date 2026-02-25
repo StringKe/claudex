@@ -168,10 +168,7 @@ pub fn read_external_token(provider: &OAuthProvider) -> Result<OAuthToken> {
         OAuthProvider::Openai => read_codex_credentials(),
         OAuthProvider::Google => read_gemini_credentials(),
         OAuthProvider::Kimi => read_kimi_credentials(),
-        _ => anyhow::bail!(
-            "no external token reader for provider {:?}",
-            provider
-        ),
+        _ => anyhow::bail!("no external token reader for provider {:?}", provider),
     }
 }
 
@@ -182,9 +179,7 @@ fn read_gemini_credentials() -> Result<OAuthToken> {
     // Gemini CLI stores credentials in ~/.gemini/oauth_creds.json or similar
     let candidates = [
         home.join(".gemini").join("oauth_creds.json"),
-        home.join(".config")
-            .join("gemini")
-            .join("oauth_creds.json"),
+        home.join(".config").join("gemini").join("oauth_creds.json"),
     ];
 
     for path in &candidates {
@@ -294,10 +289,7 @@ mod tests {
         });
 
         let tokens = json.get("tokens").unwrap();
-        let access_token = tokens
-            .get("access_token")
-            .and_then(|v| v.as_str())
-            .unwrap();
+        let access_token = tokens.get("access_token").and_then(|v| v.as_str()).unwrap();
         assert_eq!(access_token, "codex-nested-token");
         assert_eq!(
             json.get("auth_mode").and_then(|v| v.as_str()),
@@ -349,7 +341,10 @@ mod tests {
             oauth_obj.get("refreshToken").and_then(|v| v.as_str()),
             Some("refresh-tok")
         );
-        assert_eq!(oauth_obj.get("expiresAt").and_then(|v| v.as_i64()), Some(1700000000000));
+        assert_eq!(
+            oauth_obj.get("expiresAt").and_then(|v| v.as_i64()),
+            Some(1700000000000)
+        );
     }
 
     #[test]
@@ -446,7 +441,10 @@ mod tests {
 
     #[test]
     fn test_keyring_entry_name_special_chars() {
-        assert_eq!(keyring_entry_name("my-profile_123"), "my-profile_123-oauth-token");
+        assert_eq!(
+            keyring_entry_name("my-profile_123"),
+            "my-profile_123-oauth-token"
+        );
     }
 
     #[test]

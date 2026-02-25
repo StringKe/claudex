@@ -38,7 +38,13 @@ pub async fn apply_context_engine(
 
     // 3. Conversation compression
     if context_config.compression.enabled {
-        compress_if_needed(body, &context_config.compression, &state.http_client, config).await;
+        compress_if_needed(
+            body,
+            &context_config.compression,
+            &state.http_client,
+            config,
+        )
+        .await;
     }
 }
 
@@ -126,8 +132,7 @@ async fn compress_if_needed(
         return;
     }
 
-    let endpoint =
-        resolve_profile_endpoint(config, &compression.profile, &compression.model);
+    let endpoint = resolve_profile_endpoint(config, &compression.profile, &compression.model);
     let (base_url, api_key, model) = match endpoint {
         Some(v) => v,
         None => {

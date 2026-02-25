@@ -81,7 +81,10 @@ fn ensure_oauth_profile(
 
     config.profiles.push(profile);
     config.save().context("failed to save config")?;
-    println!("Created OAuth profile '{profile_name}' for {}", provider.display_name());
+    println!(
+        "Created OAuth profile '{profile_name}' for {}",
+        provider.display_name()
+    );
     Ok(())
 }
 
@@ -94,12 +97,17 @@ const QWEN_CLIENT_ID: &str = "claudex-qwen";
 
 // ── Login ───────────────────────────────────────────────────────────────
 
-pub async fn login(config: &mut ClaudexConfig, provider_str: &str, profile_name: &str) -> Result<()> {
-    let provider = OAuthProvider::from_str(provider_str)
-        .ok_or_else(|| anyhow::anyhow!(
+pub async fn login(
+    config: &mut ClaudexConfig,
+    provider_str: &str,
+    profile_name: &str,
+) -> Result<()> {
+    let provider = OAuthProvider::from_str(provider_str).ok_or_else(|| {
+        anyhow::anyhow!(
             "unknown provider '{}'. Supported: claude, openai, google, qwen, kimi, github",
             provider_str
-        ))?;
+        )
+    })?;
 
     ensure_oauth_profile(config, profile_name, &provider)?;
 
@@ -122,7 +130,9 @@ async fn login_claude(profile_name: &str) -> Result<()> {
 
     super::token::store_token(profile_name, &token)?;
     println!("Claude OAuth token stored for profile '{profile_name}'.");
-    println!("Note: Claude subscription profiles bypass the proxy (Claude Code uses its own OAuth).");
+    println!(
+        "Note: Claude subscription profiles bypass the proxy (Claude Code uses its own OAuth)."
+    );
     Ok(())
 }
 
@@ -131,7 +141,8 @@ async fn login_openai(profile_name: &str) -> Result<()> {
     // 优先读取 Codex CLI 的 auth.json（已通过 `codex` 登录的 ChatGPT 订阅）
     match super::token::read_codex_credentials() {
         Ok(token) => {
-            let auth_mode = token.extra
+            let auth_mode = token
+                .extra
                 .as_ref()
                 .and_then(|e| e.get("auth_mode"))
                 .and_then(|v| v.as_str())
@@ -163,7 +174,9 @@ async fn login_openai(profile_name: &str) -> Result<()> {
 /// Google: 读取 Gemini CLI 外部 credentials
 async fn login_google(profile_name: &str) -> Result<()> {
     println!("Reading Google/Gemini credentials from external CLI...");
-    println!("Note: Google OAuth requires a registered Client ID. Using external CLI token instead.");
+    println!(
+        "Note: Google OAuth requires a registered Client ID. Using external CLI token instead."
+    );
 
     let token = super::token::read_external_token(&OAuthProvider::Google)
         .context("Failed to read Gemini CLI credentials. Make sure Gemini CLI is installed and authenticated.")?;
@@ -177,8 +190,9 @@ async fn login_google(profile_name: &str) -> Result<()> {
 async fn login_kimi(profile_name: &str) -> Result<()> {
     println!("Reading Kimi credentials from external CLI...");
 
-    let token = super::token::read_external_token(&OAuthProvider::Kimi)
-        .context("Failed to read Kimi CLI credentials. Make sure Kimi CLI is installed and authenticated.")?;
+    let token = super::token::read_external_token(&OAuthProvider::Kimi).context(
+        "Failed to read Kimi CLI credentials. Make sure Kimi CLI is installed and authenticated.",
+    )?;
 
     super::token::store_token(profile_name, &token)?;
     println!("Kimi OAuth token stored for profile '{profile_name}'.");
@@ -237,10 +251,7 @@ async fn login_device_code(profile_name: &str, provider: &OAuthProvider) -> Resu
         .get("device_code")
         .and_then(|v| v.as_str())
         .context("missing device_code in response")?;
-    let interval = body
-        .get("interval")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(5);
+    let interval = body.get("interval").and_then(|v| v.as_u64()).unwrap_or(5);
 
     println!();
     println!("  Open: {verification_uri}");
@@ -260,11 +271,14 @@ async fn login_device_code(profile_name: &str, provider: &OAuthProvider) -> Resu
     )
     .await?;
 
-    let token = OAuthToken::from_token_response(&token_resp)
-        .context("failed to parse token response")?;
+    let token =
+        OAuthToken::from_token_response(&token_resp).context("failed to parse token response")?;
 
     super::token::store_token(profile_name, &token)?;
-    println!("{} OAuth token stored for profile '{profile_name}'.", provider.display_name());
+    println!(
+        "{} OAuth token stored for profile '{profile_name}'.",
+        provider.display_name()
+    );
     Ok(())
 }
 
@@ -370,40 +384,33 @@ pub async fn refresh(config: &ClaudexConfig, profile_name: &str) -> Result<()> {
             // Re-read external credentials (Codex CLI for OpenAI)
             let token = super::token::read_external_token(provider)?;
             super::token::store_token(profile_name, &token)?;
-            println!("Refreshed {} token from external CLI", provider.display_name());
+            println!(
+                "Refreshed {} token from external CLI",
+                provider.display_name()
+            );
         }
         OAuthProvider::Qwen | OAuthProvider::Github => {
-            let token = super::token::load_token(profile_name)
-                .context("no existing token to refresh")?;
+            let token =
+                super::token::load_token(profile_name).context("no existing token to refresh")?;
             let refresh_token = token
                 .refresh_token
                 .as_ref()
                 .ok_or_else(|| anyhow::anyhow!("no refresh_token available, please re-login"))?;
 
             let (token_url, client_id) = match provider {
-                OAuthProvider::Openai => (
-                    "https://auth0.openai.com/oauth/token",
-                    OPENAI_CLIENT_ID,
-                ),
+                OAuthProvider::Openai => ("https://auth0.openai.com/oauth/token", OPENAI_CLIENT_ID),
                 OAuthProvider::Github => (
                     "https://github.com/login/oauth/access_token",
                     GITHUB_CLIENT_ID,
                 ),
-                OAuthProvider::Qwen => (
-                    "https://chat.qwen.ai/api/oauth/token",
-                    QWEN_CLIENT_ID,
-                ),
+                OAuthProvider::Qwen => ("https://chat.qwen.ai/api/oauth/token", QWEN_CLIENT_ID),
                 _ => unreachable!(),
             };
 
             let client = reqwest::Client::new();
-            let resp = super::server::refresh_access_token(
-                &client,
-                token_url,
-                refresh_token,
-                client_id,
-            )
-            .await?;
+            let resp =
+                super::server::refresh_access_token(&client, token_url, refresh_token, client_id)
+                    .await?;
 
             let mut new_token = OAuthToken::from_token_response(&resp)
                 .context("failed to parse refreshed token")?;
@@ -500,7 +507,10 @@ mod tests {
     fn test_provider_defaults_claude() {
         let defaults = provider_defaults(&OAuthProvider::Claude);
         assert_eq!(defaults.base_url, "https://api.claude.ai");
-        assert!(matches!(defaults.provider_type, ProviderType::DirectAnthropic));
+        assert!(matches!(
+            defaults.provider_type,
+            ProviderType::DirectAnthropic
+        ));
     }
 
     #[test]

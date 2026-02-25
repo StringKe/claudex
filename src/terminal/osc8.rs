@@ -9,20 +9,18 @@ static URL_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(https?://|file://|mailto:)[^\s<>"'\x1b)\]]*[^\s<>"'\x1b)\].,:;!?]"#).unwrap()
 });
 
-static ABS_PATH_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"/[\w./_-]+\.\w+(?::\d+(?::\d+)?)?").unwrap()
-});
+static ABS_PATH_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"/[\w./_-]+\.\w+(?::\d+(?::\d+)?)?").unwrap());
 
-static REL_PATH_DOTSLASH_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?:\.\./|\./)([\w./_-]+)(?::\d+(?::\d+)?)?").unwrap()
-});
+static REL_PATH_DOTSLASH_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?:\.\./|\./)([\w./_-]+)(?::\d+(?::\d+)?)?").unwrap());
 
-static REL_PATH_DIR_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"[\w-]+/[\w./_-]+\.\w+(?::\d+(?::\d+)?)?").unwrap()
-});
+static REL_PATH_DIR_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"[\w-]+/[\w./_-]+\.\w+(?::\d+(?::\d+)?)?").unwrap());
 
 static ANSI_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\x1b(?:\[[0-9;]*[a-zA-Z]|\](?:[^;\x07\x1b]*;)*[^;\x07\x1b]*(?:\x07|\x1b\\))").unwrap()
+    Regex::new(r"\x1b(?:\[[0-9;]*[a-zA-Z]|\](?:[^;\x07\x1b]*;)*[^;\x07\x1b]*(?:\x07|\x1b\\))")
+        .unwrap()
 });
 
 /// Segment of a terminal line: either an ANSI escape or plain text.
@@ -393,10 +391,7 @@ mod tests {
     #[test]
     fn test_wrap_osc8_format() {
         let result = wrap_osc8("https://example.com", "example");
-        assert_eq!(
-            result,
-            "\x1b]8;;https://example.com\x07example\x1b]8;;\x07"
-        );
+        assert_eq!(result, "\x1b]8;;https://example.com\x07example\x1b]8;;\x07");
     }
 
     #[test]
@@ -568,7 +563,7 @@ mod tests {
         let d = make_detector(Path::new("/tmp"));
         let replacements = vec![(5usize, 10usize, String::new())];
         assert!(d.overlaps(&replacements, 7, 12)); // overlaps
-        assert!(d.overlaps(&replacements, 3, 7));  // overlaps
+        assert!(d.overlaps(&replacements, 3, 7)); // overlaps
         assert!(d.overlaps(&replacements, 5, 10)); // exact match
         assert!(!d.overlaps(&replacements, 0, 5)); // adjacent, no overlap
         assert!(!d.overlaps(&replacements, 10, 15)); // adjacent, no overlap
@@ -626,7 +621,9 @@ mod tests {
         let mut d = make_detector(Path::new("/tmp"));
         let input = "https://example.com/path%20with%20spaces?q=hello+world";
         let result = d.enhance_line(input);
-        assert!(result.contains("\x1b]8;;https://example.com/path%20with%20spaces?q=hello+world\x07"));
+        assert!(
+            result.contains("\x1b]8;;https://example.com/path%20with%20spaces?q=hello+world\x07")
+        );
     }
 
     #[test]

@@ -69,10 +69,7 @@ pub async fn start_callback_server(port: u16) -> Result<String> {
                             .get("error")
                             .cloned()
                             .unwrap_or_else(|| "unknown error".to_string());
-                        let desc = params
-                            .get("error_description")
-                            .cloned()
-                            .unwrap_or_default();
+                        let desc = params.get("error_description").cloned().unwrap_or_default();
                         axum::response::Html(format!(
                             "<html><body><h1>Authorization failed</h1>\
                              <p>Error: {error}</p><p>{desc}</p></body></html>"
@@ -89,9 +86,7 @@ pub async fn start_callback_server(port: u16) -> Result<String> {
 
     // Spawn the server with graceful shutdown
     let server_handle = tokio::spawn(async move {
-        axum::serve(listener, app)
-            .await
-            .ok();
+        axum::serve(listener, app).await.ok();
     });
 
     // Wait for the callback (timeout 5 minutes)
@@ -132,7 +127,10 @@ pub async fn poll_device_code(
             .await
             .context("device code poll request failed")?;
 
-        let body: serde_json::Value = resp.json().await.context("invalid JSON from token endpoint")?;
+        let body: serde_json::Value = resp
+            .json()
+            .await
+            .context("invalid JSON from token endpoint")?;
 
         if body.get("access_token").is_some() {
             return Ok(body);
@@ -294,7 +292,10 @@ mod tests {
     fn test_pkce_uniqueness() {
         let a = PkceChallenge::generate();
         let b = PkceChallenge::generate();
-        assert_ne!(a.code_verifier, b.code_verifier, "two PKCE pairs should be unique");
+        assert_ne!(
+            a.code_verifier, b.code_verifier,
+            "two PKCE pairs should be unique"
+        );
         assert_ne!(a.code_challenge, b.code_challenge);
     }
 
@@ -321,7 +322,9 @@ mod tests {
         // 模拟浏览器回调
         let client = reqwest::Client::new();
         let resp = client
-            .get(format!("http://127.0.0.1:{port}/callback?code=test-auth-code-xyz"))
+            .get(format!(
+                "http://127.0.0.1:{port}/callback?code=test-auth-code-xyz"
+            ))
             .send()
             .await
             .unwrap();

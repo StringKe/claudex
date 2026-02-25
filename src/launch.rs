@@ -23,9 +23,7 @@ pub fn launch_claude(
         .unwrap_or_else(|| config.resolve_model(&profile.default_model));
 
     // 非交互模式检测：首个 arg 不是 flag → Claude 以 print mode 运行
-    let is_noninteractive = extra_args
-        .first()
-        .is_some_and(|arg| !arg.starts_with('-'));
+    let is_noninteractive = extra_args.first().is_some_and(|arg| !arg.starts_with('-'));
 
     let mut cmd = Command::new(&config.claude_binary);
 

@@ -135,8 +135,7 @@ fn run_proxy_loop(
         // stdin → PTY master (user input, pass through unmodified)
         if let Some(revents) = fds[0].revents() {
             if revents.contains(PollFlags::POLLIN) {
-                let n =
-                    nix::unistd::read(stdin_raw, &mut read_buf).context("read stdin failed")?;
+                let n = nix::unistd::read(stdin_raw, &mut read_buf).context("read stdin failed")?;
                 if n == 0 {
                     break;
                 }

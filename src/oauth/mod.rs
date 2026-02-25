@@ -83,18 +83,20 @@ impl OAuthToken {
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
 
-        let expires_at = json.get("expires_in").and_then(|v| v.as_i64()).map(|secs| {
-            chrono::Utc::now().timestamp_millis() + secs * 1000
-        });
+        let expires_at = json
+            .get("expires_in")
+            .and_then(|v| v.as_i64())
+            .map(|secs| chrono::Utc::now().timestamp_millis() + secs * 1000);
 
         let token_type = json
             .get("token_type")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
 
-        let scopes = json.get("scope").and_then(|v| v.as_str()).map(|s| {
-            s.split_whitespace().map(|s| s.to_string()).collect()
-        });
+        let scopes = json
+            .get("scope")
+            .and_then(|v| v.as_str())
+            .map(|s| s.split_whitespace().map(|s| s.to_string()).collect());
 
         Some(Self {
             access_token,
@@ -202,15 +204,36 @@ mod tests {
 
     #[test]
     fn test_parse_provider_str() {
-        assert_eq!(OAuthProvider::from_str("claude"), Some(OAuthProvider::Claude));
-        assert_eq!(OAuthProvider::from_str("openai"), Some(OAuthProvider::Openai));
-        assert_eq!(OAuthProvider::from_str("google"), Some(OAuthProvider::Google));
-        assert_eq!(OAuthProvider::from_str("gemini"), Some(OAuthProvider::Google));
+        assert_eq!(
+            OAuthProvider::from_str("claude"),
+            Some(OAuthProvider::Claude)
+        );
+        assert_eq!(
+            OAuthProvider::from_str("openai"),
+            Some(OAuthProvider::Openai)
+        );
+        assert_eq!(
+            OAuthProvider::from_str("google"),
+            Some(OAuthProvider::Google)
+        );
+        assert_eq!(
+            OAuthProvider::from_str("gemini"),
+            Some(OAuthProvider::Google)
+        );
         assert_eq!(OAuthProvider::from_str("qwen"), Some(OAuthProvider::Qwen));
         assert_eq!(OAuthProvider::from_str("kimi"), Some(OAuthProvider::Kimi));
-        assert_eq!(OAuthProvider::from_str("moonshot"), Some(OAuthProvider::Kimi));
-        assert_eq!(OAuthProvider::from_str("github"), Some(OAuthProvider::Github));
-        assert_eq!(OAuthProvider::from_str("copilot"), Some(OAuthProvider::Github));
+        assert_eq!(
+            OAuthProvider::from_str("moonshot"),
+            Some(OAuthProvider::Kimi)
+        );
+        assert_eq!(
+            OAuthProvider::from_str("github"),
+            Some(OAuthProvider::Github)
+        );
+        assert_eq!(
+            OAuthProvider::from_str("copilot"),
+            Some(OAuthProvider::Github)
+        );
         assert_eq!(OAuthProvider::from_str("unknown"), None);
     }
 
@@ -359,12 +382,30 @@ mod tests {
 
     #[test]
     fn test_parse_provider_str_case_insensitive() {
-        assert_eq!(OAuthProvider::from_str("Claude"), Some(OAuthProvider::Claude));
-        assert_eq!(OAuthProvider::from_str("OPENAI"), Some(OAuthProvider::Openai));
-        assert_eq!(OAuthProvider::from_str("GitHub"), Some(OAuthProvider::Github));
-        assert_eq!(OAuthProvider::from_str("GEMINI"), Some(OAuthProvider::Google));
-        assert_eq!(OAuthProvider::from_str("Moonshot"), Some(OAuthProvider::Kimi));
-        assert_eq!(OAuthProvider::from_str("Copilot"), Some(OAuthProvider::Github));
+        assert_eq!(
+            OAuthProvider::from_str("Claude"),
+            Some(OAuthProvider::Claude)
+        );
+        assert_eq!(
+            OAuthProvider::from_str("OPENAI"),
+            Some(OAuthProvider::Openai)
+        );
+        assert_eq!(
+            OAuthProvider::from_str("GitHub"),
+            Some(OAuthProvider::Github)
+        );
+        assert_eq!(
+            OAuthProvider::from_str("GEMINI"),
+            Some(OAuthProvider::Google)
+        );
+        assert_eq!(
+            OAuthProvider::from_str("Moonshot"),
+            Some(OAuthProvider::Kimi)
+        );
+        assert_eq!(
+            OAuthProvider::from_str("Copilot"),
+            Some(OAuthProvider::Github)
+        );
     }
 
     #[test]

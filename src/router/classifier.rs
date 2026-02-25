@@ -17,10 +17,7 @@ pub async fn classify_intent(
     prompt: &str,
     http_client: &reqwest::Client,
 ) -> Result<String> {
-    let url = format!(
-        "{}/chat/completions",
-        base_url.trim_end_matches('/')
-    );
+    let url = format!("{}/chat/completions", base_url.trim_end_matches('/'));
 
     let body = json!({
         "model": model,

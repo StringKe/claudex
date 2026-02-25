@@ -21,13 +21,27 @@ pub async fn handle_messages(
     let start = Instant::now();
 
     // 入站请求日志
-    let auth_header = headers.get("authorization")
+    let auth_header = headers
+        .get("authorization")
         .and_then(|v| v.to_str().ok())
-        .map(|s| if s.len() > 20 { format!("{}...", &s[..20]) } else { s.to_string() })
+        .map(|s| {
+            if s.len() > 20 {
+                format!("{}...", &s[..20])
+            } else {
+                s.to_string()
+            }
+        })
         .unwrap_or_else(|| "(none)".to_string());
-    let api_key_header = headers.get("x-api-key")
+    let api_key_header = headers
+        .get("x-api-key")
         .and_then(|v| v.to_str().ok())
-        .map(|s| if s.len() > 20 { format!("{}...", &s[..20]) } else { s.to_string() })
+        .map(|s| {
+            if s.len() > 20 {
+                format!("{}...", &s[..20])
+            } else {
+                s.to_string()
+            }
+        })
         .unwrap_or_else(|| "(none)".to_string());
 
     tracing::info!(
@@ -89,11 +103,7 @@ pub async fn handle_messages(
     // OAuth token lazy refresh
     if profile.auth_type == AuthType::OAuth {
         if let Err(e) = crate::oauth::providers::ensure_valid_token(&mut profile).await {
-            return (
-                StatusCode::UNAUTHORIZED,
-                format!("OAuth token error: {e}"),
-            )
-                .into_response();
+            return (StatusCode::UNAUTHORIZED, format!("OAuth token error: {e}")).into_response();
         }
     }
 
@@ -221,7 +231,15 @@ async fn resolve_auto_profile(state: &ProxyState, body: &Value) -> String {
         }
     };
 
-    match classifier::classify_intent(&base_url, &api_key, &model, &user_message, &state.http_client).await {
+    match classifier::classify_intent(
+        &base_url,
+        &api_key,
+        &model,
+        &user_message,
+        &state.http_client,
+    )
+    .await
+    {
         Ok(intent) => {
             let profile_name = router_config.resolve_profile(&intent).unwrap_or_else(|| {
                 router_config
@@ -340,7 +358,11 @@ async fn forward_direct(
     let has_key = !profile.api_key.is_empty();
     let key_preview = if has_key {
         let k = &profile.api_key;
-        if k.len() > 8 { format!("{}...{}", &k[..4], &k[k.len()-4..]) } else { "***".to_string() }
+        if k.len() > 8 {
+            format!("{}...{}", &k[..4], &k[k.len() - 4..])
+        } else {
+            "***".to_string()
+        }
     } else {
         "(empty)".to_string()
     };
@@ -411,7 +433,8 @@ async fn forward_translated(
 ) -> anyhow::Result<Response> {
     use super::translation;
 
-    let (openai_body, tool_name_map) = translation::anthropic_to_openai(body, &profile.default_model)?;
+    let (openai_body, tool_name_map) =
+        translation::anthropic_to_openai(body, &profile.default_model)?;
 
     let url = format!(
         "{}/chat/completions",
@@ -421,7 +444,11 @@ async fn forward_translated(
     let has_key = !profile.api_key.is_empty();
     let key_preview = if has_key {
         let k = &profile.api_key;
-        if k.len() > 8 { format!("{}...{}", &k[..4], &k[k.len()-4..]) } else { "***".to_string() }
+        if k.len() > 8 {
+            format!("{}...{}", &k[..4], &k[k.len() - 4..])
+        } else {
+            "***".to_string()
+        }
     } else {
         "(empty)".to_string()
     };

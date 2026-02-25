@@ -79,7 +79,8 @@ pub fn anthropic_to_openai(anthropic: &Value, default_model: &str) -> Result<(Va
                                     }
                                 }
                                 Some("tool_use") => {
-                                    let orig = block.get("name").and_then(|n| n.as_str()).unwrap_or("");
+                                    let orig =
+                                        block.get("name").and_then(|n| n.as_str()).unwrap_or("");
                                     let truncated = truncate_tool_name(orig);
                                     if truncated != orig {
                                         tool_name_map.insert(truncated.clone(), orig.to_string());
@@ -150,10 +151,7 @@ pub fn anthropic_to_openai(anthropic: &Value, default_model: &str) -> Result<(Va
         let openai_tools: Vec<Value> = tools
             .iter()
             .map(|tool| {
-                let original_name = tool
-                    .get("name")
-                    .and_then(|n| n.as_str())
-                    .unwrap_or("");
+                let original_name = tool.get("name").and_then(|n| n.as_str()).unwrap_or("");
                 let truncated = truncate_tool_name(original_name);
                 if truncated != original_name {
                     tool_name_map.insert(truncated.clone(), original_name.to_string());
@@ -221,10 +219,7 @@ pub fn openai_to_anthropic(openai: &Value, tool_name_map: &ToolNameMap) -> Resul
                 .unwrap_or("{}");
             let input: Value = serde_json::from_str(args_str).unwrap_or(json!({}));
 
-            let truncated_name = func
-                .get("name")
-                .and_then(|n| n.as_str())
-                .unwrap_or("");
+            let truncated_name = func.get("name").and_then(|n| n.as_str()).unwrap_or("");
             // 还原原始名字（如果被截断过）
             let original_name = tool_name_map
                 .get(truncated_name)

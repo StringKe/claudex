@@ -32,8 +32,8 @@ async fn main() -> Result<()> {
     // `claudex run` 时 proxy 日志只写文件，不污染 Claude Code 终端输出
     let is_run_command = matches!(&cli.command, Some(Commands::Run { .. }));
 
-    let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new(&config.log_level));
+    let env_filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&config.log_level));
 
     // 日志文件（所有模式都写）
     let file_layer = proxy::proxy_log_path().and_then(|log_path| {

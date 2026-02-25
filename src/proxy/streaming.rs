@@ -199,10 +199,7 @@ impl StreamState {
                         events.extend(prev_events);
                     }
 
-                    let truncated_name = func
-                        .get("name")
-                        .and_then(|n| n.as_str())
-                        .unwrap_or("");
+                    let truncated_name = func.get("name").and_then(|n| n.as_str()).unwrap_or("");
                     // 还原被截断的工具名
                     let name = self
                         .tool_name_map

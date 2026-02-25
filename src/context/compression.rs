@@ -41,7 +41,8 @@ pub async fn compress_messages(
         return Ok(json!(messages));
     }
 
-    let summary = call_summarizer(base_url, api_key, model, &conversation_text, http_client).await?;
+    let summary =
+        call_summarizer(base_url, api_key, model, &conversation_text, http_client).await?;
 
     let mut result = vec![json!({
         "role": "user",
@@ -59,10 +60,7 @@ async fn call_summarizer(
     text: &str,
     http_client: &reqwest::Client,
 ) -> Result<String> {
-    let url = format!(
-        "{}/chat/completions",
-        base_url.trim_end_matches('/')
-    );
+    let url = format!("{}/chat/completions", base_url.trim_end_matches('/'));
 
     let body = json!({
         "model": model,

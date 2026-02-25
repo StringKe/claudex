@@ -687,7 +687,10 @@ mod tests {
         assert!(config.context.compression.enabled);
         assert_eq!(config.context.compression.threshold_tokens, 10000);
         assert_eq!(config.context.compression.profile, "openrouter");
-        assert_eq!(config.context.compression.model, "qwen/qwen-2.5-7b-instruct");
+        assert_eq!(
+            config.context.compression.model,
+            "qwen/qwen-2.5-7b-instruct"
+        );
         assert!(!config.context.rag.enabled);
         assert_eq!(config.context.rag.profile, "openrouter");
         assert_eq!(config.context.rag.model, "openai/text-embedding-3-small");
