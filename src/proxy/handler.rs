@@ -326,7 +326,11 @@ async fn try_forward(
     if tracing::enabled!(tracing::Level::DEBUG) {
         let body_str = serde_json::to_string(&translated.body).unwrap_or_default();
         let preview = if body_str.len() > 2000 {
-            format!("{}...(truncated, total {} bytes)", truncate_at_char_boundary(&body_str, 2000), body_str.len())
+            format!(
+                "{}...(truncated, total {} bytes)",
+                truncate_at_char_boundary(&body_str, 2000),
+                body_str.len()
+            )
         } else {
             body_str
         };
