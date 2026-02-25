@@ -91,7 +91,8 @@ fn ensure_oauth_profile(
 // ── OAuth client IDs (public, non-secret) ──────────────────────────────
 // These are public client IDs used for OAuth PKCE flows (no client secret needed)
 
-const OPENAI_CLIENT_ID: &str = "app-claudex-oauth";
+const OPENAI_CLIENT_ID: &str = "app_EMoamEEZ73f0CkXaXp7hrann";
+const OPENAI_TOKEN_URL: &str = "https://auth.openai.com/oauth/token";
 const GITHUB_CLIENT_ID: &str = "Iv1.claudex_github";
 const QWEN_CLIENT_ID: &str = "claudex-qwen";
 
@@ -380,14 +381,28 @@ pub async fn refresh(config: &ClaudexConfig, profile_name: &str) -> Result<()> {
             super::token::store_token(profile_name, &token)?;
             println!("Refreshed Claude token from ~/.claude/.credentials.json");
         }
-        OAuthProvider::Google | OAuthProvider::Kimi | OAuthProvider::Openai => {
-            // Re-read external credentials (Codex CLI for OpenAI)
+        OAuthProvider::Google | OAuthProvider::Kimi => {
+            // Re-read external credentials
             let token = super::token::read_external_token(provider)?;
             super::token::store_token(profile_name, &token)?;
             println!(
                 "Refreshed {} token from external CLI",
                 provider.display_name()
             );
+        }
+        OAuthProvider::Openai => {
+            // OpenAI: 用 refresh_token 刷新，回写 auth.json
+            let token = super::token::read_external_token(provider)
+                .context("cannot read Codex credentials")?;
+            let refresh_tok = token
+                .refresh_token
+                .as_ref()
+                .ok_or_else(|| anyhow::anyhow!("no refresh_token in Codex credentials, please re-login with `codex --login`"))?;
+
+            let new_token =
+                refresh_openai_token(refresh_tok, token.refresh_token.clone()).await?;
+            super::token::store_token(profile_name, &new_token)?;
+            println!("Token refreshed for profile '{profile_name}'.");
         }
         OAuthProvider::Qwen | OAuthProvider::Github => {
             let token =
@@ -398,7 +413,6 @@ pub async fn refresh(config: &ClaudexConfig, profile_name: &str) -> Result<()> {
                 .ok_or_else(|| anyhow::anyhow!("no refresh_token available, please re-login"))?;
 
             let (token_url, client_id) = match provider {
-                OAuthProvider::Openai => ("https://auth0.openai.com/oauth/token", OPENAI_CLIENT_ID),
                 OAuthProvider::Github => (
                     "https://github.com/login/oauth/access_token",
                     GITHUB_CLIENT_ID,
@@ -430,7 +444,7 @@ pub async fn refresh(config: &ClaudexConfig, profile_name: &str) -> Result<()> {
 
 // ── Token refresh for proxy (called from handler) ───────────────────────
 
-/// 确保 profile 的 OAuth token 有效，必要时从外部 CLI 文件重读。
+/// 确保 profile 的 OAuth token 有效，必要时从外部 CLI 文件重读或自动刷新。
 /// 不自动访问 keyring（避免 macOS Keychain 弹窗），只读文件。
 pub async fn ensure_valid_token(profile: &mut ProfileConfig) -> Result<()> {
     if profile.auth_type != AuthType::OAuth {
@@ -444,38 +458,114 @@ pub async fn ensure_valid_token(profile: &mut ProfileConfig) -> Result<()> {
 
     // 从外部 CLI 文件读取（无 keyring 弹窗）
     let provider = match profile.oauth_provider.as_ref() {
-        Some(p) => p,
+        Some(p) => p.clone(),
         None => anyhow::bail!("no oauth_provider for profile '{}'", profile.name),
     };
 
-    match super::token::read_external_token(provider) {
-        Ok(token) => {
-            profile.api_key = token.access_token;
+    let token = super::token::read_external_token(&provider).with_context(|| {
+        format!(
+            "OAuth token not available for '{}'. Run `claudex auth login {} --profile {}`",
+            profile.name,
+            provider.display_name().to_lowercase(),
+            profile.name
+        )
+    })?;
 
-            // 从 token extra 中注入 CHATGPT_ACCOUNT_ID（Codex 订阅需要此 header）
-            if let Some(account_id) = token
-                .extra
-                .as_ref()
-                .and_then(|e| e.get("account_id"))
-                .and_then(|v| v.as_str())
-            {
-                profile
-                    .extra_env
-                    .entry("CHATGPT_ACCOUNT_ID".to_string())
-                    .or_insert_with(|| account_id.to_string());
+    // 检查 token 是否过期（提前 60 秒刷新）
+    if token.is_expired(60) {
+        if provider == OAuthProvider::Openai {
+            if let Some(ref refresh_tok) = token.refresh_token {
+                tracing::info!(
+                    "OpenAI token expired for profile '{}', refreshing...",
+                    profile.name
+                );
+                let new_token =
+                    refresh_openai_token(refresh_tok, token.refresh_token.clone()).await?;
+                apply_token_to_profile(profile, &new_token);
+                return Ok(());
             }
-
-            Ok(())
         }
-        Err(e) => {
-            anyhow::bail!(
-                "OAuth token not available for '{}': {e}. Run `claudex auth login {} --profile {}`",
-                profile.name,
-                provider.display_name().to_lowercase(),
-                profile.name
-            );
-        }
+        // 其他 provider 或无 refresh_token：报错
+        anyhow::bail!(
+            "OAuth token expired for '{}' and cannot auto-refresh. Run `claudex auth refresh {}`",
+            profile.name,
+            profile.name
+        );
     }
+
+    apply_token_to_profile(profile, &token);
+    Ok(())
+}
+
+/// 将 token 信息注入到 profile 的 api_key 和 extra_env 中
+fn apply_token_to_profile(profile: &mut ProfileConfig, token: &OAuthToken) {
+    profile.api_key = token.access_token.clone();
+
+    // 从 token extra 中注入 CHATGPT_ACCOUNT_ID（Codex 订阅需要此 header）
+    if let Some(account_id) = token
+        .extra
+        .as_ref()
+        .and_then(|e| e.get("account_id"))
+        .and_then(|v| v.as_str())
+    {
+        profile
+            .extra_env
+            .entry("CHATGPT_ACCOUNT_ID".to_string())
+            .or_insert_with(|| account_id.to_string());
+    }
+}
+
+/// 使用 refresh_token 刷新 OpenAI access_token，并回写 ~/.codex/auth.json
+async fn refresh_openai_token(
+    refresh_token: &str,
+    original_refresh_token: Option<String>,
+) -> Result<OAuthToken> {
+    let client = reqwest::Client::new();
+    let resp = super::server::refresh_access_token(
+        &client,
+        OPENAI_TOKEN_URL,
+        refresh_token,
+        OPENAI_CLIENT_ID,
+    )
+    .await
+    .context("OpenAI token refresh failed")?;
+
+    let mut new_token =
+        OAuthToken::from_token_response(&resp).context("failed to parse refreshed token")?;
+
+    // 保留原 refresh_token（如果响应没有返回新的）
+    if new_token.refresh_token.is_none() {
+        new_token.refresh_token = original_refresh_token;
+    }
+
+    // 从新 access_token 的 JWT 提取 expires_at
+    if new_token.expires_at.is_none() {
+        new_token.expires_at = super::token::extract_jwt_exp_pub(&new_token.access_token);
+    }
+
+    // 从 id_token 提取 account_id
+    let account_id = resp
+        .get("id_token")
+        .and_then(|v| v.as_str())
+        .and_then(|id_tok| {
+            super::token::extract_jwt_claim_pub(
+                id_tok,
+                "https://api.openai.com/auth",
+                "chatgpt_account_id",
+            )
+        });
+
+    let mut extra = serde_json::json!({"auth_mode": "chatgpt"});
+    if let Some(ref aid) = account_id {
+        extra["account_id"] = serde_json::json!(aid);
+    }
+    new_token.extra = Some(extra);
+
+    // 回写 ~/.codex/auth.json
+    super::token::write_codex_credentials(&new_token)?;
+
+    tracing::info!("OpenAI token refreshed successfully");
+    Ok(new_token)
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────

@@ -168,6 +168,16 @@ pub fn read_codex_credentials() -> Result<OAuthToken> {
     })
 }
 
+/// 从 JWT payload 的嵌套 namespace 中提取字段（pub 版本，供 providers.rs 调用）
+pub fn extract_jwt_claim_pub(token: &str, namespace: &str, field: &str) -> Option<String> {
+    extract_jwt_claim(token, namespace, field)
+}
+
+/// 从 JWT access_token 的 payload 提取 exp 字段（pub 版本，供 providers.rs 调用）
+pub fn extract_jwt_exp_pub(token: &str) -> Option<i64> {
+    extract_jwt_exp(token)
+}
+
 /// 从 JWT payload 的嵌套 namespace 中提取字段
 /// e.g. extract_jwt_claim(token, "https://api.openai.com/auth", "chatgpt_account_id")
 fn extract_jwt_claim(token: &str, namespace: &str, field: &str) -> Option<String> {
@@ -200,6 +210,37 @@ fn extract_jwt_exp(token: &str) -> Option<i64> {
         .ok()?;
     let json: serde_json::Value = serde_json::from_slice(&payload).ok()?;
     json.get("exp").and_then(|v| v.as_i64()).map(|s| s * 1000)
+}
+
+/// 将刷新后的 token 回写到 ~/.codex/auth.json，保持与 Codex CLI 兼容
+pub fn write_codex_credentials(token: &OAuthToken) -> Result<()> {
+    let home = dirs::home_dir().context("cannot determine home directory")?;
+    let cred_path = home.join(".codex").join("auth.json");
+
+    // 读取现有文件保留 auth_mode 等字段
+    let mut json: serde_json::Value = if let Ok(content) = std::fs::read_to_string(&cred_path) {
+        serde_json::from_str(&content).unwrap_or_else(|_| serde_json::json!({}))
+    } else {
+        serde_json::json!({})
+    };
+
+    // 确保 tokens 对象存在
+    if json.get("tokens").is_none() {
+        json["tokens"] = serde_json::json!({});
+    }
+
+    let tokens = json.get_mut("tokens").unwrap();
+    tokens["access_token"] = serde_json::json!(token.access_token);
+    if let Some(ref rt) = token.refresh_token {
+        tokens["refresh_token"] = serde_json::json!(rt);
+    }
+
+    // 更新 last_refresh 时间戳
+    json["last_refresh"] = serde_json::json!(chrono::Utc::now().to_rfc3339());
+
+    std::fs::write(&cred_path, serde_json::to_string_pretty(&json)?)?;
+    tracing::info!("wrote refreshed token to {}", cred_path.display());
+    Ok(())
 }
 
 /// 读取外部 CLI 的 token 文件（按 provider 分发）
