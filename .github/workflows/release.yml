@@ -49,9 +49,6 @@ jobs:
           - target: aarch64-apple-darwin
             os: macos-latest
             cross: false
-          - target: x86_64-pc-windows-msvc
-            os: windows-latest
-            cross: false
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -83,35 +80,18 @@ jobs:
           fi
         shell: bash
 
-      - name: Package (Unix)
-        if: runner.os != 'Windows'
+      - name: Package
         env:
           TAG: ${{ needs.create-release.outputs.tag }}
         run: |
           cd target/${{ matrix.target }}/release
           tar czf ../../../claudex-${TAG}-${{ matrix.target }}.tar.gz claudex
-        shell: bash
-
-      - name: Package (Windows)
-        if: runner.os == 'Windows'
-        env:
-          TAG: ${{ needs.create-release.outputs.tag }}
-        run: |
-          cd target/${{ matrix.target }}/release
-          7z a ../../../claudex-${TAG}-${{ matrix.target }}.zip claudex.exe
-        shell: bash
 
       - name: Upload
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.create-release.outputs.tag }}
-        run: |
-          if [ "${{ runner.os }}" = "Windows" ]; then
-            gh release upload "$TAG" claudex-${TAG}-${{ matrix.target }}.zip
-          else
-            gh release upload "$TAG" claudex-${TAG}-${{ matrix.target }}.tar.gz
-          fi
-        shell: bash
+        run: gh release upload "$TAG" claudex-${TAG}-${{ matrix.target }}.tar.gz
 
   publish-release:
     name: Publish Release
