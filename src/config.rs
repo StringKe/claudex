@@ -227,19 +227,55 @@ impl ClaudexConfig {
         }
     }
 
-    /// Create a default global config with the example template
+    /// Create a minimal default global config (no profiles, user adds their own)
     fn create_default_global() -> Result<Self> {
         let path = Self::config_path()?;
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        let example = include_str!("../config.example.toml");
-        std::fs::write(&path, example)?;
+
+        let minimal = r#"# Claudex Configuration
+# See config.example.toml for full reference:
+#   https://github.com/StringKe/claudex/blob/main/config.example.toml
+
+proxy_port = 13456
+proxy_host = "127.0.0.1"
+log_level = "info"
+hyperlinks = "auto"
+
+[model_aliases]
+
+# Add your profiles below. Example:
+#
+# [[profiles]]
+# name = "openrouter"
+# provider_type = "OpenAICompatible"
+# base_url = "https://openrouter.ai/api/v1"
+# api_key = "sk-or-..."
+# default_model = "anthropic/claude-sonnet-4"
+# enabled = true
+# priority = 100
+
+[router]
+enabled = false
+
+[context.compression]
+enabled = false
+
+[context.sharing]
+enabled = false
+
+[context.rag]
+enabled = false
+"#;
+
+        std::fs::write(&path, minimal)?;
         println!("Created default config at: {}", path.display());
         println!("Edit it to add your API keys and profiles.");
+        println!("Full example: https://github.com/StringKe/claudex/blob/main/config.example.toml");
 
         let mut config: ClaudexConfig =
-            toml::from_str(example).context("failed to parse default config")?;
+            toml::from_str(minimal).context("failed to parse default config")?;
         config.config_source = Some(path);
         Ok(config)
     }
