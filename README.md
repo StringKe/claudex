@@ -30,7 +30,10 @@ Claudex is a unified proxy that lets [Claude Code](https://docs.anthropic.com/en
 - **Config discovery** — Automatic config file search from current directory up to global config
 - **Self-update** — `claudex update` downloads the latest release from GitHub
 - **Local model support** — Ollama, vLLM, LM Studio, or any OpenAI-compatible service
-- **Keyring integration** — Secure API key storage via OS keychain (macOS Keychain, Linux Secret Service)
+- **OAuth subscription support** — Use AI subscriptions (ChatGPT Plus via Codex CLI, Claude Max, etc.) via `claudex auth login`
+- **Model slot mapping** — Map Claude Code's `/model` switcher (haiku/sonnet/opus) to any provider's models
+- **Non-interactive mode** — `claudex run <profile> "prompt" --print` for one-shot execution
+- **Tool name compatibility** — Auto-truncates tool names exceeding OpenAI's 64-char limit with transparent roundtrip restoration
 
 ## Installation
 
@@ -73,14 +76,17 @@ claudex run auto
 ## How It Works
 
 ```
-claudex run grok
+claudex run openrouter-claude
     │
     ├── Start proxy (if not running) → 127.0.0.1:13456
     │
     └── exec claude with env vars:
-        ANTHROPIC_BASE_URL=http://127.0.0.1:13456/proxy/grok
-        ANTHROPIC_API_KEY=claudex-passthrough
-        ANTHROPIC_MODEL=grok-3-beta
+        ANTHROPIC_BASE_URL=http://127.0.0.1:13456/proxy/openrouter-claude
+        ANTHROPIC_AUTH_TOKEN=claudex-passthrough   (gateway mode, no auth conflict)
+        ANTHROPIC_MODEL=anthropic/claude-sonnet-4
+        ANTHROPIC_DEFAULT_HAIKU_MODEL=...          (from profile models config)
+        ANTHROPIC_DEFAULT_SONNET_MODEL=...
+        ANTHROPIC_DEFAULT_OPUS_MODEL=...
 ```
 
 The proxy intercepts requests and handles protocol translation transparently:
@@ -110,7 +116,8 @@ Claudex searches for config files in this order:
 2. `./claudex.toml` (current directory)
 3. `./.claudex/config.toml`
 4. Parent directories (up to 10 levels)
-5. `~/.config/claudex/config.toml` (global, created if missing)
+5. `~/.config/claudex/config.toml` (XDG, recommended)
+6. Platform config dir (macOS `~/Library/Application Support/claudex/config.toml`)
 
 ```bash
 # Show loaded config and search paths
@@ -140,6 +147,53 @@ See [`config.example.toml`](./config.example.toml) for the full configuration re
 | `claudex dashboard` | Launch TUI dashboard |
 | `claudex config [--init]` | Show or initialize config |
 | `claudex update [--check]` | Self-update from GitHub Releases |
+| `claudex auth login <provider>` | OAuth login (claude/openai/google/qwen/kimi/github) |
+| `claudex auth status` | Show OAuth token status |
+| `claudex auth logout <profile>` | Remove OAuth token |
+| `claudex auth refresh <profile>` | Force refresh OAuth token |
+
+## Non-interactive Mode
+
+Run Claude Code in one-shot mode (no TUI, outputs result and exits):
+
+```bash
+claudex run openrouter-claude "Explain this codebase" --print --dangerously-skip-permissions
+```
+
+## OAuth Subscriptions
+
+Use existing CLI subscriptions (e.g., ChatGPT Plus via Codex CLI) instead of API keys:
+
+```bash
+# Read token from Codex CLI (~/.codex/auth.json)
+claudex auth login openai --profile codex-sub
+
+# Check token status
+claudex auth status
+
+# Run with subscription
+claudex run codex-sub
+```
+
+Supported providers: `claude` (reads `~/.claude`), `openai` (reads `~/.codex`), `google`, `kimi`
+
+## Model Slot Mapping
+
+Map Claude Code's `/model` switcher to any provider's models via `[profiles.models]`:
+
+```toml
+[[profiles]]
+name = "openrouter-deepseek"
+provider_type = "OpenAICompatible"
+base_url = "https://openrouter.ai/api/v1"
+api_key = "sk-or-..."
+default_model = "deepseek/deepseek-chat-v3-0324"
+
+[profiles.models]
+haiku = "deepseek/deepseek-chat-v3-0324"
+sonnet = "deepseek/deepseek-chat-v3-0324"
+opus = "deepseek/deepseek-r1"
+```
 
 ## Architecture
 
@@ -147,12 +201,17 @@ See [`config.example.toml`](./config.example.toml) for the full configuration re
 src/
 ├── main.rs              # Entry + CLI dispatch
 ├── cli.rs               # clap command definitions
-├── config.rs            # Config discovery + parsing + keyring
+├── config.rs            # Config discovery + parsing
 ├── profile.rs           # Profile CRUD + connectivity test
 ├── launch.rs            # Claude process launcher
 ├── daemon.rs            # PID file + process management
 ├── metrics.rs           # Request metrics (atomic counters)
 ├── update.rs            # Self-update via GitHub Releases
+├── oauth/               # OAuth subscription auth
+│   ├── mod.rs           # AuthType, OAuthProvider, OAuthToken types
+│   ├── token.rs         # Keyring CRUD + external CLI token readers
+│   ├── server.rs        # Local callback server + Device Code polling
+│   └── providers.rs     # Per-platform login/refresh/status logic
 ├── proxy/               # Translation proxy
 │   ├── handler.rs       # Request routing + circuit breaker + failover
 │   ├── translation.rs   # Anthropic <-> OpenAI protocol translation

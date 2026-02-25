@@ -6,6 +6,7 @@ mod context;
 mod daemon;
 mod launch;
 mod metrics;
+mod oauth;
 mod profile;
 mod proxy;
 mod router;
@@ -15,9 +16,11 @@ mod update;
 
 use anyhow::Result;
 use clap::Parser;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
 
-use cli::{Cli, Commands, ProfileAction, ProxyAction};
+use cli::{AuthAction, Cli, Commands, ProfileAction, ProxyAction};
 use config::ClaudexConfig;
 
 #[tokio::main]
@@ -26,11 +29,40 @@ async fn main() -> Result<()> {
 
     let mut config = ClaudexConfig::load()?;
 
-    // Init tracing
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&config.log_level)),
-        )
+    // `claudex run` 时 proxy 日志只写文件，不污染 Claude Code 终端输出
+    let is_run_command = matches!(&cli.command, Some(Commands::Run { .. }));
+
+    let env_filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new(&config.log_level));
+
+    // 日志文件（所有模式都写）
+    let file_layer = proxy::proxy_log_path().and_then(|log_path| {
+        if let Some(parent) = log_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&log_path)
+            .ok()
+            .map(|file| {
+                tracing_subscriber::fmt::layer()
+                    .with_ansi(false)
+                    .with_writer(std::sync::Mutex::new(file))
+            })
+    });
+
+    // stderr（run 模式不输出）
+    let stderr_layer = if is_run_command {
+        None
+    } else {
+        Some(tracing_subscriber::fmt::layer().with_writer(std::io::stderr))
+    };
+
+    tracing_subscriber::registry()
+        .with(env_filter)
+        .with(stderr_layer)
+        .with(file_layer)
         .init();
 
     match cli.command {
@@ -54,6 +86,13 @@ async fn main() -> Result<()> {
                 .clone();
 
             launch::launch_claude(&config, &profile, model.as_deref(), &args, hyperlinks)?;
+
+            // Claude 退出后，输出日志文件路径
+            if let Some(log_path) = proxy::proxy_log_path() {
+                if log_path.exists() {
+                    eprintln!("\nClaudex proxy log: {}", log_path.display());
+                }
+            }
         }
 
         Some(Commands::Profile { action }) => match action {
@@ -159,6 +198,22 @@ async fn main() -> Result<()> {
                 update::self_update().await?;
             }
         }
+
+        Some(Commands::Auth { action }) => match action {
+            AuthAction::Login { provider, profile } => {
+                let profile_name = profile.unwrap_or_else(|| provider.clone());
+                oauth::providers::login(&mut config, &provider, &profile_name).await?;
+            }
+            AuthAction::Status { profile } => {
+                oauth::providers::status(&config, profile.as_deref()).await?;
+            }
+            AuthAction::Logout { profile } => {
+                oauth::providers::logout(&config, &profile).await?;
+            }
+            AuthAction::Refresh { profile } => {
+                oauth::providers::refresh(&config, &profile).await?;
+            }
+        },
 
         None => {
             // Default: launch TUI if profiles exist, else show help

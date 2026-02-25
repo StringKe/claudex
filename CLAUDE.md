@@ -21,9 +21,14 @@ Claudex 是一个 Rust 实现的多实例 Claude Code 管理器，内置智能�
 src/
 ├── main.rs              # 入口 + CLI dispatch
 ├── cli.rs               # clap 子命令定义
-├── config.rs            # 配置解析 + keyring
+├── config.rs            # 配置解析（API key 直接存 config，不自动读 keyring）
 ├── profile.rs           # Profile 管理
-├── launch.rs            # 启动 claude 进程
+├── launch.rs            # 启动 claude 进程（含 Claude OAuth 特殊处理）
+├── oauth/               # OAuth 订阅认证
+│   ├── mod.rs           # AuthType, OAuthProvider, OAuthToken 类型
+│   ├── token.rs         # 外部 CLI token 读取（Codex/Claude/Gemini）
+│   ├── server.rs        # 本地回调服务器 + Device Code 轮询
+│   └── providers.rs     # 各平台登录/刷新/状态逻辑
 ├── daemon.rs            # PID 文件 + 进程管理
 ├── metrics.rs           # 请求指标
 ├── proxy/               # 翻译代理
@@ -84,6 +89,13 @@ cargo run -- proxy start
 - 响应翻译：content blocks、tool calls、usage、stop_reason
 - 流式翻译（`proxy/streaming.rs`）：SSE 事件转换、tool call 状态机
 
+### 认证方式
+
+- **API Key**（默认）：配置 `api_key` 或 `api_key_keyring`
+- **OAuth 订阅**：配置 `auth_type = "oauth"` + `oauth_provider`，通过 `claudex auth login` 完成
+  - Claude subscription 特殊处理：跳过代理，让 Claude Code 直接使用自身 OAuth
+  - 其他 provider：OAuth token 存入 keyring，代理自动加载和刷新
+
 ### 配置
 
 配置文件位于 `~/.config/claudex/config.toml`，参考 `config.example.toml`。
@@ -103,5 +115,7 @@ cargo run -- proxy start
 | `config.rs` | 中 | 新增配置字段时需要同步更新 |
 | `translation.rs` | 高 | 翻译逻辑是核心，新提供商可能需要特殊处理 |
 | `streaming.rs` | 高 | 流式翻译复杂度高，需要仔细处理状态机 |
-| `handler.rs` | 中 | 新增路由或中间件时修改 |
+| `handler.rs` | 中 | 新增路由或中间件时修改，含 OAuth token 懒刷新 |
 | `cli.rs` | 低 | 新增子命令时修改 |
+| `oauth/` | 低 | OAuth 认证模块，新增 provider 时修改 |
+| `launch.rs` | 低 | Claude OAuth subscription 特殊处理逻辑在此 |

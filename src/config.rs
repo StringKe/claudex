@@ -5,6 +5,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::context::ContextEngineConfig;
+use crate::oauth::{AuthType, OAuthProvider};
 use crate::router::RouterConfig;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -85,6 +86,21 @@ pub struct ProfileConfig {
     pub priority: u32,
     #[serde(default = "default_enabled")]
     pub enabled: bool,
+    #[serde(default)]
+    pub auth_type: AuthType,
+    #[serde(default)]
+    pub oauth_provider: Option<OAuthProvider>,
+    /// 模型 slot 映射（对应 Claude Code 的 /model 切换）
+    #[serde(default)]
+    pub models: ProfileModels,
+}
+
+/// Claude Code 模型 slot 映射
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ProfileModels {
+    pub haiku: Option<String>,
+    pub sonnet: Option<String>,
+    pub opus: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -184,7 +200,17 @@ impl ClaudexConfig {
             }
         }
 
-        // 5. Global config (~/.config/claudex/config.toml)
+        // 5. XDG-style ~/.config/claudex/config.toml (优先，跨平台通用)
+        if let Some(home) = dirs::home_dir() {
+            let xdg_path = home.join(".config").join("claudex").join("config.toml");
+            searched.push(xdg_path.clone());
+            if xdg_path.exists() {
+                let config = Self::load_from(&xdg_path)?;
+                return Ok((config, xdg_path));
+            }
+        }
+
+        // 6. Platform config dir (macOS: ~/Library/Application Support/claudex/config.toml)
         let global_path = Self::config_path()?;
         searched.push(global_path.clone());
         if global_path.exists() {
@@ -267,31 +293,9 @@ impl ClaudexConfig {
     }
 
     fn resolve_api_keys(&mut self) -> Result<()> {
-        for profile in &mut self.profiles {
-            if let Some(ref keyring_entry) = profile.api_key_keyring {
-                if profile.api_key.is_empty() {
-                    match keyring::Entry::new("claudex", keyring_entry) {
-                        Ok(entry) => match entry.get_password() {
-                            Ok(key) => profile.api_key = key,
-                            Err(e) => {
-                                tracing::warn!(
-                                    "failed to read keyring entry '{}': {}",
-                                    keyring_entry,
-                                    e
-                                );
-                            }
-                        },
-                        Err(e) => {
-                            tracing::warn!(
-                                "failed to create keyring entry '{}': {}",
-                                keyring_entry,
-                                e
-                            );
-                        }
-                    }
-                }
-            }
-        }
+        // API key 直接从 config 的 api_key 字段读取，不自动访问 keyring。
+        // OAuth token 只在用户显式调用 `claudex auth` 命令时才从 keyring 加载。
+        // 这样避免 macOS Keychain 反复弹出授权弹窗。
         Ok(())
     }
 
@@ -349,6 +353,9 @@ mod tests {
             extra_env: HashMap::new(),
             priority: 100,
             enabled,
+            auth_type: AuthType::default(),
+            oauth_provider: None,
+            models: ProfileModels::default(),
         }
     }
 
@@ -500,6 +507,151 @@ mod tests {
         let toml_str = "proxy_port = 8080";
         let config: ClaudexConfig = toml::from_str(toml_str).unwrap();
         assert_eq!(config.hyperlinks, HyperlinksConfig::Auto);
+    }
+
+    #[test]
+    fn test_parse_oauth_profile() {
+        let toml_str = r#"
+            [[profiles]]
+            name = "chatgpt-sub"
+            provider_type = "OpenAICompatible"
+            base_url = "https://api.openai.com/v1"
+            default_model = "gpt-4o"
+            auth_type = "oauth"
+            oauth_provider = "openai"
+        "#;
+        let config: ClaudexConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.profiles.len(), 1);
+        assert_eq!(config.profiles[0].auth_type, AuthType::OAuth);
+        assert_eq!(
+            config.profiles[0].oauth_provider,
+            Some(OAuthProvider::Openai)
+        );
+    }
+
+    #[test]
+    fn test_parse_no_auth_type_defaults_to_api_key() {
+        let toml_str = r#"
+            [[profiles]]
+            name = "test"
+            base_url = "http://localhost"
+            default_model = "gpt-4"
+        "#;
+        let config: ClaudexConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.profiles[0].auth_type, AuthType::ApiKey);
+        assert_eq!(config.profiles[0].oauth_provider, None);
+    }
+
+    #[test]
+    fn test_existing_config_backward_compat() {
+        let toml_str = r#"
+            [[profiles]]
+            name = "grok"
+            provider_type = "OpenAICompatible"
+            base_url = "https://api.x.ai/v1"
+            api_key = "sk-xxx"
+            default_model = "grok-3-beta"
+            enabled = true
+            priority = 100
+        "#;
+        let config: ClaudexConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.profiles[0].auth_type, AuthType::ApiKey);
+        assert_eq!(config.profiles[0].api_key, "sk-xxx");
+    }
+
+    #[test]
+    fn test_parse_mixed_auth_type_profiles() {
+        let toml_str = r#"
+            [[profiles]]
+            name = "api-profile"
+            base_url = "https://api.x.ai/v1"
+            api_key = "sk-xxx"
+            default_model = "grok-3"
+
+            [[profiles]]
+            name = "oauth-profile"
+            base_url = "https://api.openai.com/v1"
+            default_model = "gpt-4o"
+            auth_type = "oauth"
+            oauth_provider = "openai"
+        "#;
+        let config: ClaudexConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.profiles.len(), 2);
+        assert_eq!(config.profiles[0].auth_type, AuthType::ApiKey);
+        assert!(config.profiles[0].oauth_provider.is_none());
+        assert_eq!(config.profiles[1].auth_type, AuthType::OAuth);
+        assert_eq!(
+            config.profiles[1].oauth_provider,
+            Some(OAuthProvider::Openai)
+        );
+    }
+
+    #[test]
+    fn test_parse_all_oauth_providers() {
+        let providers = [
+            ("claude", "DirectAnthropic"),
+            ("openai", "OpenAICompatible"),
+            ("google", "OpenAICompatible"),
+            ("qwen", "OpenAICompatible"),
+            ("kimi", "OpenAICompatible"),
+            ("github", "OpenAICompatible"),
+        ];
+        for (provider_str, provider_type) in providers {
+            let toml_str = format!(
+                r#"
+                [[profiles]]
+                name = "test-{provider_str}"
+                provider_type = "{provider_type}"
+                base_url = "http://localhost"
+                default_model = "test"
+                auth_type = "oauth"
+                oauth_provider = "{provider_str}"
+            "#
+            );
+            let config: ClaudexConfig = toml::from_str(&toml_str).unwrap();
+            assert_eq!(
+                config.profiles[0].auth_type,
+                AuthType::OAuth,
+                "failed for {provider_str}"
+            );
+            assert!(
+                config.profiles[0].oauth_provider.is_some(),
+                "oauth_provider missing for {provider_str}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_oauth_profile_api_key_defaults_empty() {
+        let toml_str = r#"
+            [[profiles]]
+            name = "oauth-no-key"
+            base_url = "http://localhost"
+            default_model = "test"
+            auth_type = "oauth"
+            oauth_provider = "openai"
+        "#;
+        let config: ClaudexConfig = toml::from_str(toml_str).unwrap();
+        assert!(config.profiles[0].api_key.is_empty());
+        assert!(config.profiles[0].api_key_keyring.is_none());
+    }
+
+    #[test]
+    fn test_config_example_toml_parses() {
+        let example = include_str!("../config.example.toml");
+        let config: ClaudexConfig = toml::from_str(example).unwrap();
+        assert!(!config.profiles.is_empty());
+        // 确认 OAuth profiles 在其中
+        let oauth_profiles: Vec<_> = config
+            .profiles
+            .iter()
+            .filter(|p| p.auth_type == AuthType::OAuth)
+            .collect();
+        assert!(
+            oauth_profiles.len() >= 3,
+            "expected at least 3 OAuth profiles in example, got {}",
+            oauth_profiles.len()
+        );
     }
 
     #[test]

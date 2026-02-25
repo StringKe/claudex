@@ -83,6 +83,11 @@ regex = "1"
 # Self-update
 self_update = { version = "0.42", features = ["rustls"] }
 
+# OAuth PKCE
+sha2 = "0.10"
+base64 = "0.22"
+rand = "0.9"
+
 [profile.release]
 lto = true
 codegen-units = 1

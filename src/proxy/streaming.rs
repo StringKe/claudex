@@ -9,11 +9,12 @@ use std::pin::Pin;
 /// Anthropic format: multiple event types (message_start, content_block_start, content_block_delta, etc.)
 pub fn translate_sse_stream<S>(
     input: S,
+    tool_name_map: super::translation::ToolNameMap,
 ) -> Pin<Box<dyn Stream<Item = Result<Bytes, reqwest::Error>> + Send>>
 where
     S: Stream<Item = Result<Bytes, reqwest::Error>> + Send + 'static,
 {
-    let mut state = StreamState::new();
+    let mut state = StreamState::new(tool_name_map);
 
     let output = async_stream::stream! {
         // Send message_start
@@ -101,6 +102,7 @@ struct StreamState {
     block_started: bool,
     output_tokens: u64,
     current_tool_call: Option<ToolCallState>,
+    tool_name_map: super::translation::ToolNameMap,
 }
 
 struct ToolCallState {
@@ -110,12 +112,13 @@ struct ToolCallState {
 }
 
 impl StreamState {
-    fn new() -> Self {
+    fn new(tool_name_map: super::translation::ToolNameMap) -> Self {
         Self {
             block_index: 0,
             block_started: false,
             output_tokens: 0,
             current_tool_call: None,
+            tool_name_map,
         }
     }
 
@@ -196,11 +199,16 @@ impl StreamState {
                         events.extend(prev_events);
                     }
 
-                    let name = func
+                    let truncated_name = func
                         .get("name")
                         .and_then(|n| n.as_str())
-                        .unwrap_or("")
-                        .to_string();
+                        .unwrap_or("");
+                    // 还原被截断的工具名
+                    let name = self
+                        .tool_name_map
+                        .get(truncated_name)
+                        .cloned()
+                        .unwrap_or_else(|| truncated_name.to_string());
 
                     self.current_tool_call = Some(ToolCallState {
                         id: id.to_string(),
@@ -303,7 +311,7 @@ mod tests {
 
     #[test]
     fn test_process_text_delta() {
-        let mut state = StreamState::new();
+        let mut state = StreamState::new(std::collections::HashMap::new());
         let line = format!(
             "data: {}",
             json!({
@@ -321,7 +329,7 @@ mod tests {
 
     #[test]
     fn test_subsequent_text_delta_no_block_start() {
-        let mut state = StreamState::new();
+        let mut state = StreamState::new(std::collections::HashMap::new());
         state.block_started = true; // simulate already started
         let line = format!(
             "data: {}",
@@ -335,14 +343,14 @@ mod tests {
 
     #[test]
     fn test_empty_content_ignored() {
-        let mut state = StreamState::new();
+        let mut state = StreamState::new(std::collections::HashMap::new());
         let line = format!("data: {}", json!({"choices": [{"delta": {"content": ""}}]}));
         assert!(state.process_openai_line(&line).is_none());
     }
 
     #[test]
     fn test_done_marker() {
-        let mut state = StreamState::new();
+        let mut state = StreamState::new(std::collections::HashMap::new());
         let result = state.process_openai_line("data: [DONE]");
         // No tool call pending, so None
         assert!(result.is_none());
@@ -350,19 +358,19 @@ mod tests {
 
     #[test]
     fn test_invalid_json_returns_none() {
-        let mut state = StreamState::new();
+        let mut state = StreamState::new(std::collections::HashMap::new());
         assert!(state.process_openai_line("data: {invalid}").is_none());
     }
 
     #[test]
     fn test_no_data_prefix_returns_none() {
-        let mut state = StreamState::new();
+        let mut state = StreamState::new(std::collections::HashMap::new());
         assert!(state.process_openai_line("not a data line").is_none());
     }
 
     #[test]
     fn test_tool_call_start() {
-        let mut state = StreamState::new();
+        let mut state = StreamState::new(std::collections::HashMap::new());
         let line = format!(
             "data: {}",
             json!({
@@ -385,7 +393,7 @@ mod tests {
 
     #[test]
     fn test_tool_call_argument_accumulation() {
-        let mut state = StreamState::new();
+        let mut state = StreamState::new(std::collections::HashMap::new());
         state.current_tool_call = Some(ToolCallState {
             id: "call_1".to_string(),
             name: "search".to_string(),
@@ -413,7 +421,7 @@ mod tests {
 
     #[test]
     fn test_finish_reason_tool_calls_finalizes() {
-        let mut state = StreamState::new();
+        let mut state = StreamState::new(std::collections::HashMap::new());
         state.current_tool_call = Some(ToolCallState {
             id: "call_1".to_string(),
             name: "search".to_string(),
@@ -432,7 +440,7 @@ mod tests {
 
     #[test]
     fn test_usage_tracking() {
-        let mut state = StreamState::new();
+        let mut state = StreamState::new(std::collections::HashMap::new());
         let line = format!(
             "data: {}",
             json!({
@@ -446,13 +454,13 @@ mod tests {
 
     #[test]
     fn test_finalize_tool_call_no_pending() {
-        let mut state = StreamState::new();
+        let mut state = StreamState::new(std::collections::HashMap::new());
         assert!(state.finalize_tool_call().is_none());
     }
 
     #[test]
     fn test_block_index_increments() {
-        let mut state = StreamState::new();
+        let mut state = StreamState::new(std::collections::HashMap::new());
         assert_eq!(state.block_index, 0);
 
         // Start a text block

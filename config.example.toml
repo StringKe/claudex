@@ -107,6 +107,49 @@ default_model = "glm-4-plus"
 enabled = true
 priority = 70
 
+# ─── OAuth Subscription Profiles ───────────────────────
+# Login first: claudex auth login <provider> --profile <name>
+
+# Claude Max (via Claude Code's own OAuth)
+[[profiles]]
+name = "claude-max"
+provider_type = "DirectAnthropic"
+base_url = "https://api.claude.ai"
+default_model = "claude-sonnet-4-20250514"
+auth_type = "oauth"
+oauth_provider = "claude"
+enabled = false
+
+# ChatGPT Plus/Pro (via OpenAI OAuth)
+[[profiles]]
+name = "chatgpt-sub"
+provider_type = "OpenAICompatible"
+base_url = "https://api.openai.com/v1"
+default_model = "gpt-4o"
+auth_type = "oauth"
+oauth_provider = "openai"
+enabled = false
+
+# Gemini Pro (via Google OAuth)
+[[profiles]]
+name = "gemini-sub"
+provider_type = "OpenAICompatible"
+base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+default_model = "gemini-2.5-pro"
+auth_type = "oauth"
+oauth_provider = "google"
+enabled = false
+
+# GitHub Copilot (via GitHub Device Code Flow)
+[[profiles]]
+name = "copilot"
+provider_type = "OpenAICompatible"
+base_url = "https://api.githubcopilot.com"
+default_model = "gpt-4o"
+auth_type = "oauth"
+oauth_provider = "github"
+enabled = false
+
 # ─── Local Models (via Ollama / vLLM / LM Studio) ──────
 
 # Ollama

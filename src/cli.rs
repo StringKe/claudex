@@ -56,6 +56,12 @@ pub enum Commands {
         #[arg(long)]
         check: bool,
     },
+
+    /// Manage OAuth authentication for subscription services
+    Auth {
+        #[command(subcommand)]
+        action: AuthAction,
+    },
 }
 
 #[derive(Subcommand)]
@@ -78,6 +84,34 @@ pub enum ProfileAction {
     Show {
         /// Profile name
         name: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum AuthAction {
+    /// Login to an OAuth provider (claude, openai, google, qwen, kimi, github)
+    Login {
+        /// Provider name
+        provider: String,
+        /// Profile name (defaults to provider name)
+        #[arg(short, long)]
+        profile: Option<String>,
+    },
+    /// Show OAuth token status
+    Status {
+        /// Profile name (show all if omitted)
+        #[arg(short, long)]
+        profile: Option<String>,
+    },
+    /// Remove OAuth token for a profile
+    Logout {
+        /// Profile name
+        profile: String,
+    },
+    /// Force refresh OAuth token
+    Refresh {
+        /// Profile name
+        profile: String,
     },
 }
 

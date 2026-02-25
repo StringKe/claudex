@@ -30,7 +30,10 @@ Claudex 是一个统一代理，让 [Claude Code](https://docs.anthropic.com/en/
 - **配置发现** — 从当前目录向上自动搜索配置文件
 - **自更新** — `claudex update` 从 GitHub 下载最新版本
 - **本地模型支持** — Ollama、vLLM、LM Studio 或任何 OpenAI 兼容服务
-- **密钥环集成** — 通过 OS 钥匙链安全存储 API 密钥（macOS Keychain、Linux Secret Service）
+- **OAuth 订阅认证** — 通过 `claudex auth login` 使用已有 CLI 订阅（ChatGPT Plus via Codex CLI、Claude Max 等）
+- **模型 slot 映射** — 通过 `[profiles.models]` 配置 Claude Code `/model` 切换器对应的模型名
+- **非交互模式** — `claudex run <profile> "prompt" --print` 一次性执行
+- **工具名兼容** — 自动截断超过 OpenAI 64 字符限制的工具名并透明还原
 
 ## 安装
 
@@ -73,14 +76,14 @@ claudex run auto
 ## 工作原理
 
 ```
-claudex run grok
+claudex run openrouter-claude
     │
     ├── 启动代理（如果未运行）→ 127.0.0.1:13456
     │
     └── 执行 claude，设置环境变量：
-        ANTHROPIC_BASE_URL=http://127.0.0.1:13456/proxy/grok
-        ANTHROPIC_API_KEY=claudex-passthrough
-        ANTHROPIC_MODEL=grok-3-beta
+        ANTHROPIC_BASE_URL=http://127.0.0.1:13456/proxy/openrouter-claude
+        ANTHROPIC_AUTH_TOKEN=claudex-passthrough   (Gateway 模式，不与 claude.ai 冲突)
+        ANTHROPIC_MODEL=anthropic/claude-sonnet-4
 ```
 
 代理拦截请求并透明处理协议翻译：
@@ -110,7 +113,8 @@ Claudex 按以下顺序搜索配置文件：
 2. `./claudex.toml`（当前目录）
 3. `./.claudex/config.toml`
 4. 父目录（最多向上 10 级）
-5. `~/.config/claudex/config.toml`（全局，不存在时自动创建）
+5. `~/.config/claudex/config.toml`（XDG，推荐）
+6. 平台配置目录（macOS `~/Library/Application Support/claudex/config.toml`）
 
 ```bash
 # 查看加载的配置和搜索路径
@@ -140,6 +144,50 @@ claudex config --init
 | `claudex dashboard` | 启动 TUI 仪表盘 |
 | `claudex config [--init]` | 查看或初始化配置 |
 | `claudex update [--check]` | 从 GitHub Releases 自更新 |
+| `claudex auth login <provider>` | OAuth 登录（claude/openai/google/qwen/kimi/github） |
+| `claudex auth status` | 查看 OAuth token 状态 |
+| `claudex auth logout <profile>` | 删除 OAuth token |
+| `claudex auth refresh <profile>` | 强制刷新 OAuth token |
+
+## 非交互模式
+
+一次性执行，输出结果后退出：
+
+```bash
+claudex run openrouter-claude "解释这段代码" --print --dangerously-skip-permissions
+```
+
+## OAuth 订阅认证
+
+使用已有 CLI 订阅（如 Codex CLI 的 ChatGPT Plus）：
+
+```bash
+# 从 Codex CLI 读取 token（~/.codex/auth.json）
+claudex auth login openai --profile codex-sub
+
+# 查看状态
+claudex auth status
+
+# 使用订阅运行
+claudex run codex-sub
+```
+
+支持的提供商：`claude`（读 `~/.claude`）、`openai`（读 `~/.codex`）、`google`、`kimi`
+
+## 模型 Slot 映射
+
+通过 `[profiles.models]` 配置 Claude Code `/model` 切换器：
+
+```toml
+[[profiles]]
+name = "openrouter-deepseek"
+default_model = "deepseek/deepseek-chat-v3-0324"
+
+[profiles.models]
+haiku = "deepseek/deepseek-chat-v3-0324"
+sonnet = "deepseek/deepseek-chat-v3-0324"
+opus = "deepseek/deepseek-r1"
+```
 
 ## 架构
 
@@ -153,9 +201,14 @@ src/
 ├── daemon.rs            # PID 文件 + 进程管理
 ├── metrics.rs           # 请求指标（原子计数器）
 ├── update.rs            # 通过 GitHub Releases 自更新
+├── oauth/               # OAuth 订阅认证
+│   ├── mod.rs           # AuthType、OAuthProvider、OAuthToken 类型
+│   ├── token.rs         # 外部 CLI token 读取（Codex/Claude/Gemini）
+│   ├── server.rs        # 本地回调服务器 + Device Code 轮询
+│   └── providers.rs     # 各平台登录/状态逻辑
 ├── proxy/               # 翻译代理
-│   ├── handler.rs       # 请求路由 + 断路器 + 故障转移
-│   ├── translation.rs   # Anthropic <-> OpenAI 协议翻译
+│   ├── handler.rs       # 请求路由 + 断路器 + OAuth token 刷新
+│   ├── translation.rs   # Anthropic <-> OpenAI 协议翻译（含工具名截断）
 │   ├── streaming.rs     # SSE 流式翻译（状态机）
 │   ├── fallback.rs      # 断路器实现
 │   ├── health.rs        # 后台健康检查

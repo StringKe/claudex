@@ -5,7 +5,8 @@ use std::time::{Duration, Instant};
 use anyhow::{bail, Result};
 use reqwest::Client;
 
-use crate::config::{ClaudexConfig, ProfileConfig, ProviderType};
+use crate::config::{ClaudexConfig, ProfileConfig, ProfileModels, ProviderType};
+use crate::oauth::AuthType;
 
 pub async fn list_profiles(config: &ClaudexConfig) {
     if config.profiles.is_empty() {
@@ -264,6 +265,9 @@ pub async fn interactive_add(config: &mut ClaudexConfig) -> Result<()> {
         extra_env: HashMap::new(),
         priority: 100,
         enabled: true,
+        auth_type: AuthType::ApiKey,
+        oauth_provider: None,
+        models: ProfileModels::default(),
     };
 
     // Test connectivity

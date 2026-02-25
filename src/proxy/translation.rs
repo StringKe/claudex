@@ -1,8 +1,31 @@
+use std::collections::HashMap;
+
 use anyhow::Result;
 use serde_json::{json, Value};
 
+/// OpenAI 工具名最大长度
+const MAX_TOOL_NAME_LEN: usize = 64;
+
+/// 工具名映射（截断名 → 原始名）
+pub type ToolNameMap = HashMap<String, String>;
+
+/// 截断过长的工具名，保持可辨识性
+fn truncate_tool_name(name: &str) -> String {
+    if name.len() <= MAX_TOOL_NAME_LEN {
+        return name.to_string();
+    }
+    // 取前 55 字符 + "_" + 8 字符 hash
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    name.hash(&mut hasher);
+    let hash = format!("{:08x}", hasher.finish());
+    format!("{}_{}", &name[..MAX_TOOL_NAME_LEN - 9], &hash[..8])
+}
+
 /// Convert Anthropic Messages API request → OpenAI Chat Completions request
-pub fn anthropic_to_openai(anthropic: &Value, default_model: &str) -> Result<Value> {
+/// 返回 (openai_body, tool_name_map)，tool_name_map 用于在响应中还原被截断的工具名
+pub fn anthropic_to_openai(anthropic: &Value, default_model: &str) -> Result<(Value, ToolNameMap)> {
+    let mut tool_name_map: ToolNameMap = HashMap::new();
     let mut messages = Vec::new();
 
     // System prompt → system message
@@ -56,11 +79,16 @@ pub fn anthropic_to_openai(anthropic: &Value, default_model: &str) -> Result<Val
                                     }
                                 }
                                 Some("tool_use") => {
+                                    let orig = block.get("name").and_then(|n| n.as_str()).unwrap_or("");
+                                    let truncated = truncate_tool_name(orig);
+                                    if truncated != orig {
+                                        tool_name_map.insert(truncated.clone(), orig.to_string());
+                                    }
                                     tool_calls.push(json!({
                                         "id": block.get("id").unwrap_or(&json!("")),
                                         "type": "function",
                                         "function": {
-                                            "name": block.get("name").unwrap_or(&json!("")),
+                                            "name": truncated,
                                             "arguments": serde_json::to_string(
                                                 block.get("input").unwrap_or(&json!({}))
                                             ).unwrap_or_default(),
@@ -117,15 +145,23 @@ pub fn anthropic_to_openai(anthropic: &Value, default_model: &str) -> Result<Val
         openai_req["stream"] = stream.clone();
     }
 
-    // Convert tools
+    // Convert tools（截断超过 64 字符的工具名）
     if let Some(tools) = anthropic.get("tools").and_then(|t| t.as_array()) {
         let openai_tools: Vec<Value> = tools
             .iter()
             .map(|tool| {
+                let original_name = tool
+                    .get("name")
+                    .and_then(|n| n.as_str())
+                    .unwrap_or("");
+                let truncated = truncate_tool_name(original_name);
+                if truncated != original_name {
+                    tool_name_map.insert(truncated.clone(), original_name.to_string());
+                }
                 json!({
                     "type": "function",
                     "function": {
-                        "name": tool.get("name").unwrap_or(&json!("")),
+                        "name": truncated,
                         "description": tool.get("description").unwrap_or(&json!("")),
                         "parameters": tool.get("input_schema").unwrap_or(&json!({})),
                     }
@@ -135,16 +171,24 @@ pub fn anthropic_to_openai(anthropic: &Value, default_model: &str) -> Result<Val
         openai_req["tools"] = json!(openai_tools);
     }
 
-    // Convert tool_choice
+    // Convert tool_choice（工具名也需要截断）
     if let Some(tc) = anthropic.get("tool_choice") {
-        openai_req["tool_choice"] = convert_tool_choice(tc);
+        openai_req["tool_choice"] = convert_tool_choice(tc, &tool_name_map);
     }
 
-    Ok(openai_req)
+    if !tool_name_map.is_empty() {
+        tracing::debug!(
+            count = tool_name_map.len(),
+            "truncated tool names for OpenAI compatibility"
+        );
+    }
+
+    Ok((openai_req, tool_name_map))
 }
 
 /// Convert OpenAI Chat Completions response → Anthropic Messages API response
-pub fn openai_to_anthropic(openai: &Value) -> Result<Value> {
+/// tool_name_map: 截断名 → 原始名，用于还原工具名
+pub fn openai_to_anthropic(openai: &Value, tool_name_map: &ToolNameMap) -> Result<Value> {
     let empty_obj = json!({});
     let choice = openai
         .get("choices")
@@ -166,7 +210,7 @@ pub fn openai_to_anthropic(openai: &Value) -> Result<Value> {
         }
     }
 
-    // Tool calls
+    // Tool calls（还原被截断的工具名）
     if let Some(tool_calls) = message.get("tool_calls").and_then(|tc| tc.as_array()) {
         for tc in tool_calls {
             let empty_func = json!({});
@@ -177,10 +221,20 @@ pub fn openai_to_anthropic(openai: &Value) -> Result<Value> {
                 .unwrap_or("{}");
             let input: Value = serde_json::from_str(args_str).unwrap_or(json!({}));
 
+            let truncated_name = func
+                .get("name")
+                .and_then(|n| n.as_str())
+                .unwrap_or("");
+            // 还原原始名字（如果被截断过）
+            let original_name = tool_name_map
+                .get(truncated_name)
+                .map(|s| s.as_str())
+                .unwrap_or(truncated_name);
+
             content.push(json!({
                 "type": "tool_use",
                 "id": tc.get("id").unwrap_or(&json!("")),
-                "name": func.get("name").unwrap_or(&json!("")),
+                "name": original_name,
                 "input": input,
             }));
         }
@@ -294,7 +348,7 @@ fn content_to_string(content: &Value) -> String {
     }
 }
 
-fn convert_tool_choice(tc: &Value) -> Value {
+fn convert_tool_choice(tc: &Value, _tool_name_map: &ToolNameMap) -> Value {
     match tc {
         Value::String(s) => match s.as_str() {
             "auto" => json!("auto"),
@@ -304,7 +358,8 @@ fn convert_tool_choice(tc: &Value) -> Value {
         },
         Value::Object(obj) => {
             if let Some(name) = obj.get("name").and_then(|n| n.as_str()) {
-                json!({"type": "function", "function": {"name": name}})
+                let truncated = truncate_tool_name(name);
+                json!({"type": "function", "function": {"name": truncated}})
             } else {
                 json!("auto")
             }
@@ -318,6 +373,16 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    /// 辅助：调用 anthropic_to_openai 只取 body
+    fn a2o(req: &Value, model: &str) -> Value {
+        anthropic_to_openai(req, model).unwrap().0
+    }
+
+    /// 空映射
+    fn empty_map() -> ToolNameMap {
+        HashMap::new()
+    }
+
     // --- anthropic_to_openai ---
 
     #[test]
@@ -326,7 +391,7 @@ mod tests {
             "messages": [{"role": "user", "content": "hello"}],
             "max_tokens": 100
         });
-        let result = anthropic_to_openai(&req, "gpt-4").unwrap();
+        let result = a2o(&req, "gpt-4");
         assert_eq!(result["model"], "gpt-4");
         assert_eq!(result["messages"][0]["role"], "user");
         assert_eq!(result["messages"][0]["content"], "hello");
@@ -339,7 +404,7 @@ mod tests {
             "system": "You are helpful.",
             "messages": [{"role": "user", "content": "hi"}]
         });
-        let result = anthropic_to_openai(&req, "m").unwrap();
+        let result = a2o(&req, "m");
         assert_eq!(result["messages"][0]["role"], "system");
         assert_eq!(result["messages"][0]["content"], "You are helpful.");
         assert_eq!(result["messages"][1]["role"], "user");
@@ -354,7 +419,7 @@ mod tests {
             ],
             "messages": []
         });
-        let result = anthropic_to_openai(&req, "m").unwrap();
+        let result = a2o(&req, "m");
         assert_eq!(result["messages"][0]["content"], "Part 1\nPart 2");
     }
 
@@ -364,7 +429,7 @@ mod tests {
             "model": "custom-model",
             "messages": [{"role": "user", "content": "hi"}]
         });
-        let result = anthropic_to_openai(&req, "default-model").unwrap();
+        let result = a2o(&req, "default-model");
         assert_eq!(result["model"], "custom-model");
     }
 
@@ -377,7 +442,7 @@ mod tests {
             "top_p": 0.9,
             "stream": true
         });
-        let result = anthropic_to_openai(&req, "m").unwrap();
+        let result = a2o(&req, "m");
         assert_eq!(result["max_tokens"], 500);
         assert_eq!(result["temperature"], 0.7);
         assert_eq!(result["top_p"], 0.9);
@@ -395,7 +460,7 @@ mod tests {
                 ]
             }]
         });
-        let result = anthropic_to_openai(&req, "m").unwrap();
+        let result = a2o(&req, "m");
         let msg = &result["messages"][0];
         assert_eq!(msg["role"], "assistant");
         assert_eq!(msg["content"], "Let me search.");
@@ -413,7 +478,7 @@ mod tests {
                 "content": "search result here"
             }]
         });
-        let result = anthropic_to_openai(&req, "m").unwrap();
+        let result = a2o(&req, "m");
         let msg = &result["messages"][0];
         assert_eq!(msg["role"], "tool");
         assert_eq!(msg["tool_call_id"], "call_1");
@@ -429,7 +494,7 @@ mod tests {
                 "input_schema": {"type": "object", "properties": {"city": {"type": "string"}}}
             }]
         });
-        let result = anthropic_to_openai(&req, "m").unwrap();
+        let result = a2o(&req, "m");
         let tool = &result["tools"][0];
         assert_eq!(tool["type"], "function");
         assert_eq!(tool["function"]["name"], "get_weather");
@@ -440,28 +505,28 @@ mod tests {
     #[test]
     fn test_tool_choice_auto() {
         let req = json!({"messages": [], "tool_choice": "auto"});
-        let result = anthropic_to_openai(&req, "m").unwrap();
+        let result = a2o(&req, "m");
         assert_eq!(result["tool_choice"], "auto");
     }
 
     #[test]
     fn test_tool_choice_any() {
         let req = json!({"messages": [], "tool_choice": "any"});
-        let result = anthropic_to_openai(&req, "m").unwrap();
+        let result = a2o(&req, "m");
         assert_eq!(result["tool_choice"], "required");
     }
 
     #[test]
     fn test_tool_choice_none() {
         let req = json!({"messages": [], "tool_choice": "none"});
-        let result = anthropic_to_openai(&req, "m").unwrap();
+        let result = a2o(&req, "m");
         assert_eq!(result["tool_choice"], "none");
     }
 
     #[test]
     fn test_tool_choice_specific() {
         let req = json!({"messages": [], "tool_choice": {"name": "my_tool"}});
-        let result = anthropic_to_openai(&req, "m").unwrap();
+        let result = a2o(&req, "m");
         assert_eq!(result["tool_choice"]["type"], "function");
         assert_eq!(result["tool_choice"]["function"]["name"], "my_tool");
     }
@@ -479,7 +544,7 @@ mod tests {
             }],
             "usage": {"prompt_tokens": 10, "completion_tokens": 5}
         });
-        let result = openai_to_anthropic(&resp).unwrap();
+        let result = openai_to_anthropic(&resp, &empty_map()).unwrap();
         assert_eq!(result["type"], "message");
         assert_eq!(result["role"], "assistant");
         assert_eq!(result["model"], "gpt-4");
@@ -512,7 +577,7 @@ mod tests {
             }],
             "usage": {"prompt_tokens": 20, "completion_tokens": 15}
         });
-        let result = openai_to_anthropic(&resp).unwrap();
+        let result = openai_to_anthropic(&resp, &empty_map()).unwrap();
         assert_eq!(result["stop_reason"], "tool_use");
         assert_eq!(result["content"][0]["type"], "tool_use");
         assert_eq!(result["content"][0]["id"], "call_abc");
@@ -529,19 +594,19 @@ mod tests {
             })
         };
         assert_eq!(
-            openai_to_anthropic(&make_resp("stop")).unwrap()["stop_reason"],
+            openai_to_anthropic(&make_resp("stop"), &empty_map()).unwrap()["stop_reason"],
             "end_turn"
         );
         assert_eq!(
-            openai_to_anthropic(&make_resp("length")).unwrap()["stop_reason"],
+            openai_to_anthropic(&make_resp("length"), &empty_map()).unwrap()["stop_reason"],
             "max_tokens"
         );
         assert_eq!(
-            openai_to_anthropic(&make_resp("tool_calls")).unwrap()["stop_reason"],
+            openai_to_anthropic(&make_resp("tool_calls"), &empty_map()).unwrap()["stop_reason"],
             "tool_use"
         );
         assert_eq!(
-            openai_to_anthropic(&make_resp("content_filter")).unwrap()["stop_reason"],
+            openai_to_anthropic(&make_resp("content_filter"), &empty_map()).unwrap()["stop_reason"],
             "end_turn"
         );
     }
@@ -549,8 +614,73 @@ mod tests {
     #[test]
     fn test_empty_openai_response() {
         let resp = json!({"choices": [], "usage": {}});
-        let result = openai_to_anthropic(&resp).unwrap();
+        let result = openai_to_anthropic(&resp, &empty_map()).unwrap();
         assert_eq!(result["type"], "message");
         assert!(result["content"].as_array().unwrap().is_empty());
+    }
+
+    // --- tool name truncation ---
+
+    #[test]
+    fn test_truncate_short_name_unchanged() {
+        assert_eq!(truncate_tool_name("get_weather"), "get_weather");
+    }
+
+    #[test]
+    fn test_truncate_exactly_64_unchanged() {
+        let name = "a".repeat(64);
+        assert_eq!(truncate_tool_name(&name), name);
+    }
+
+    #[test]
+    fn test_truncate_65_chars() {
+        let name = "a".repeat(65);
+        let result = truncate_tool_name(&name);
+        assert_eq!(result.len(), 64);
+        assert!(result.starts_with("aaaa"));
+        assert!(result.contains('_'));
+    }
+
+    #[test]
+    fn test_truncate_preserves_determinism() {
+        let name = "mcp__very_long_server_name__extremely_long_tool_function_name_here_v2";
+        let r1 = truncate_tool_name(name);
+        let r2 = truncate_tool_name(name);
+        assert_eq!(r1, r2); // 确定性
+        assert_eq!(r1.len(), 64);
+    }
+
+    #[test]
+    fn test_tool_name_roundtrip() {
+        let long_name = "mcp__claude_in_chrome__validate_and_render_mermaid_diagram_extra_long";
+        let req = json!({
+            "messages": [],
+            "tools": [{
+                "name": long_name,
+                "description": "test",
+                "input_schema": {}
+            }]
+        });
+        let (body, map) = anthropic_to_openai(&req, "m").unwrap();
+        let truncated = body["tools"][0]["function"]["name"].as_str().unwrap();
+        assert!(truncated.len() <= 64);
+
+        // 模拟 OpenAI 返回截断名
+        let resp = json!({
+            "choices": [{
+                "message": {
+                    "tool_calls": [{
+                        "id": "c1",
+                        "type": "function",
+                        "function": {"name": truncated, "arguments": "{}"}
+                    }]
+                },
+                "finish_reason": "tool_calls"
+            }],
+            "usage": {}
+        });
+        let result = openai_to_anthropic(&resp, &map).unwrap();
+        // 还原原始名字
+        assert_eq!(result["content"][0]["name"], long_name);
     }
 }

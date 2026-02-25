@@ -28,6 +28,16 @@ pub struct ProxyState {
     pub rag_index: Option<RagIndex>,
 }
 
+/// 获取 proxy 日志文件路径（~/.cache/claudex/proxy-{timestamp}-{pid}.log）
+/// 每次启动生成独立日志文件，支持多实例并行
+pub fn proxy_log_path() -> Option<std::path::PathBuf> {
+    dirs::cache_dir().map(|d| {
+        let ts = chrono::Local::now().format("%Y%m%d-%H%M%S");
+        let pid = std::process::id();
+        d.join("claudex").join(format!("proxy-{ts}-{pid}.log"))
+    })
+}
+
 pub async fn start_proxy(config: ClaudexConfig, port_override: Option<u16>) -> Result<()> {
     let port = port_override.unwrap_or(config.proxy_port);
     let host = config.proxy_host.clone();
@@ -83,7 +93,6 @@ pub async fn start_proxy(config: ClaudexConfig, port_override: Option<u16>) -> R
     let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
 
     tracing::info!("proxy listening on {bind_addr}");
-    println!("Claudex proxy started on {bind_addr}");
 
     crate::daemon::write_pid(std::process::id())?;
 

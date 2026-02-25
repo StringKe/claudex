@@ -8,6 +8,7 @@ use axum::response::{IntoResponse, Response};
 use serde_json::Value;
 
 use crate::config::{ProfileConfig, ProviderType};
+use crate::oauth::AuthType;
 use crate::proxy::ProxyState;
 use crate::router::classifier;
 
@@ -18,6 +19,24 @@ pub async fn handle_messages(
     body: axum::body::Bytes,
 ) -> Response {
     let start = Instant::now();
+
+    // 入站请求日志
+    let auth_header = headers.get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| if s.len() > 20 { format!("{}...", &s[..20]) } else { s.to_string() })
+        .unwrap_or_else(|| "(none)".to_string());
+    let api_key_header = headers.get("x-api-key")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| if s.len() > 20 { format!("{}...", &s[..20]) } else { s.to_string() })
+        .unwrap_or_else(|| "(none)".to_string());
+
+    tracing::info!(
+        profile = %profile_name,
+        authorization = %auth_header,
+        x_api_key = %api_key_header,
+        body_len = %body.len(),
+        "incoming request"
+    );
 
     let mut body_value: Value = match serde_json::from_slice(&body) {
         Ok(v) => v,
@@ -35,7 +54,7 @@ pub async fn handle_messages(
 
     let config = state.config.read().await;
 
-    let profile = match config.find_profile(&resolved_profile_name) {
+    let mut profile = match config.find_profile(&resolved_profile_name) {
         Some(p) => p.clone(),
         None => {
             return (
@@ -66,6 +85,17 @@ pub async fn handle_messages(
     let full_config = config.clone();
     let metrics = state.metrics.get_or_create(&resolved_profile_name);
     drop(config);
+
+    // OAuth token lazy refresh
+    if profile.auth_type == AuthType::OAuth {
+        if let Err(e) = crate::oauth::providers::ensure_valid_token(&mut profile).await {
+            return (
+                StatusCode::UNAUTHORIZED,
+                format!("OAuth token error: {e}"),
+            )
+                .into_response();
+        }
+    }
 
     // --- Context Engine: apply pre-processing ---
     super::middleware::apply_context_engine(
@@ -307,13 +337,30 @@ async fn forward_direct(
 ) -> anyhow::Result<Response> {
     let url = format!("{}/v1/messages", profile.base_url.trim_end_matches('/'));
 
+    let has_key = !profile.api_key.is_empty();
+    let key_preview = if has_key {
+        let k = &profile.api_key;
+        if k.len() > 8 { format!("{}...{}", &k[..4], &k[k.len()-4..]) } else { "***".to_string() }
+    } else {
+        "(empty)".to_string()
+    };
+
+    tracing::info!(
+        profile = %profile.name,
+        url = %url,
+        api_key = %key_preview,
+        streaming = %is_streaming,
+        model = %body.get("model").and_then(|v| v.as_str()).unwrap_or("-"),
+        "forward_direct: sending request"
+    );
+
     let mut req = state
         .http_client
         .post(&url)
         .header("content-type", "application/json")
         .header("anthropic-version", "2023-06-01");
 
-    if !profile.api_key.is_empty() {
+    if has_key {
         req = req.header("x-api-key", &profile.api_key);
     }
 
@@ -325,6 +372,12 @@ async fn forward_direct(
 
     let resp = req.send().await?;
     let status = resp.status();
+
+    tracing::info!(
+        profile = %profile.name,
+        status = %status,
+        "forward_direct: upstream response"
+    );
 
     if is_streaming {
         let stream = resp.bytes_stream();
@@ -358,11 +411,28 @@ async fn forward_translated(
 ) -> anyhow::Result<Response> {
     use super::translation;
 
-    let openai_body = translation::anthropic_to_openai(body, &profile.default_model)?;
+    let (openai_body, tool_name_map) = translation::anthropic_to_openai(body, &profile.default_model)?;
 
     let url = format!(
         "{}/chat/completions",
         profile.base_url.trim_end_matches('/')
+    );
+
+    let has_key = !profile.api_key.is_empty();
+    let key_preview = if has_key {
+        let k = &profile.api_key;
+        if k.len() > 8 { format!("{}...{}", &k[..4], &k[k.len()-4..]) } else { "***".to_string() }
+    } else {
+        "(empty)".to_string()
+    };
+
+    tracing::info!(
+        profile = %profile.name,
+        url = %url,
+        api_key = %key_preview,
+        streaming = %is_streaming,
+        model = %openai_body.get("model").and_then(|v| v.as_str()).unwrap_or("-"),
+        "forward_translated: sending request"
     );
 
     let mut req = state
@@ -370,7 +440,7 @@ async fn forward_translated(
         .post(&url)
         .header("content-type", "application/json");
 
-    if !profile.api_key.is_empty() {
+    if has_key {
         req = req.header("Authorization", format!("Bearer {}", profile.api_key));
     }
 
@@ -383,14 +453,26 @@ async fn forward_translated(
     let resp = req.send().await?;
     let status = resp.status();
 
+    tracing::info!(
+        profile = %profile.name,
+        status = %status,
+        "forward_translated: upstream response"
+    );
+
     if !status.is_success() {
         let err_body = resp.text().await.unwrap_or_default();
+        tracing::error!(
+            profile = %profile.name,
+            status = %status,
+            body = %err_body,
+            "forward_translated: upstream error"
+        );
         anyhow::bail!("upstream returned HTTP {status}: {err_body}");
     }
 
     if is_streaming {
         let stream = resp.bytes_stream();
-        let translated_stream = super::streaming::translate_sse_stream(stream);
+        let translated_stream = super::streaming::translate_sse_stream(stream, tool_name_map);
         let response = Response::builder()
             .status(200)
             .header("content-type", "text/event-stream")
@@ -400,7 +482,7 @@ async fn forward_translated(
         Ok(response)
     } else {
         let openai_resp: Value = resp.json().await?;
-        let anthropic_resp = translation::openai_to_anthropic(&openai_resp)?;
+        let anthropic_resp = translation::openai_to_anthropic(&openai_resp, &tool_name_map)?;
         // Store context from non-streaming translated response
         extract_and_store_context(state, &profile.name, &anthropic_resp);
         let response = Response::builder()
