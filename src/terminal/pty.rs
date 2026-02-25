@@ -109,6 +109,8 @@ fn run_proxy_loop(
     let mut stdout = std::io::stdout().lock();
     let mut read_buf = [0u8; 4096];
     let mut line_buf = String::new();
+    // 保留跨 read 边界的不完整 UTF-8 尾部字节（最多 3 字节）
+    let mut utf8_residual = Vec::with_capacity(3);
 
     loop {
         let mut fds = [
@@ -149,8 +151,27 @@ fn run_proxy_loop(
                 match nix::unistd::read(master_raw, &mut read_buf) {
                     Ok(0) => break,
                     Ok(n) => {
-                        let chunk = String::from_utf8_lossy(&read_buf[..n]);
-                        line_buf.push_str(&chunk);
+                        // 将上次残留字节拼接到本次数据前面
+                        let mut combined;
+                        let data: &[u8] = if utf8_residual.is_empty() {
+                            &read_buf[..n]
+                        } else {
+                            combined = std::mem::take(&mut utf8_residual);
+                            combined.extend_from_slice(&read_buf[..n]);
+                            &combined
+                        };
+
+                        // 找到最后一个完整 UTF-8 字符的边界
+                        let valid_end = find_utf8_safe_end(data);
+
+                        if let Ok(chunk) = std::str::from_utf8(&data[..valid_end]) {
+                            line_buf.push_str(chunk);
+                        }
+
+                        // 保存不完整的 UTF-8 尾部字节
+                        if valid_end < data.len() {
+                            utf8_residual.extend_from_slice(&data[valid_end..]);
+                        }
 
                         // Process complete lines
                         while let Some(pos) = line_buf.find('\n') {
@@ -181,6 +202,43 @@ fn run_proxy_loop(
     }
 
     Ok(())
+}
+
+/// 从字节切片末尾回溯，找到最后一个完整 UTF-8 字符的边界。
+/// 返回可以安全转为 str 的字节长度；尾部不完整的字节留给下次 read。
+fn find_utf8_safe_end(data: &[u8]) -> usize {
+    if data.is_empty() {
+        return 0;
+    }
+    // 从末尾往前扫描，最多回退 3 字节（UTF-8 最长 4 字节）
+    let len = data.len();
+    for i in 0..4.min(len) {
+        let pos = len - 1 - i;
+        let byte = data[pos];
+        if byte < 0x80 {
+            // ASCII：完整字符，pos+1 之前全部有效
+            return len;
+        }
+        // 找到多字节序列的首字节（leading byte: 11xxxxxx）
+        if byte >= 0xC0 {
+            let expected_len = if byte < 0xE0 {
+                2
+            } else if byte < 0xF0 {
+                3
+            } else {
+                4
+            };
+            let available = len - pos;
+            return if available >= expected_len {
+                len // 完整字符
+            } else {
+                pos // 不完整，截断到此处
+            };
+        }
+        // 0x80..0xBF 是 continuation byte，继续往前找 leading byte
+    }
+    // 4 字节都是 continuation byte（不可能的合法 UTF-8），放弃全部
+    0
 }
 
 /// Sync terminal window size from real terminal to PTY.
