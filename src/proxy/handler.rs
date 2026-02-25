@@ -86,11 +86,7 @@ pub async fn handle_messages(
         try_with_circuit_breaker(&state, &profile, &headers, &body_value, is_streaming).await;
 
     let result = match primary_result {
-        Ok(response) => {
-            // Store context from successful response
-            store_response_context(&state, &resolved_profile_name, &body_value).await;
-            Ok(response)
-        }
+        Ok(response) => Ok(response),
         Err(primary_err) => {
             tracing::warn!(
                 profile = %profile.name,
@@ -111,7 +107,6 @@ pub async fn handle_messages(
                             backup = %backup.name,
                             "failover succeeded"
                         );
-                        store_response_context(&state, &backup.name, &body_value).await;
                         success = Some(response);
                         break;
                     }
@@ -201,7 +196,7 @@ async fn try_with_circuit_breaker(
     body: &Value,
     is_streaming: bool,
 ) -> anyhow::Result<Response> {
-    // Check circuit breaker
+    // Check circuit breaker (single lock scope to avoid race condition)
     {
         let mut map = state.circuit_breakers.write().await;
         let cb = map
@@ -211,24 +206,26 @@ async fn try_with_circuit_breaker(
             anyhow::bail!("circuit breaker open for profile '{}'", profile.name);
         }
     }
+    // Lock is released here — forward can take seconds, don't hold it
 
     let result = try_forward(state, profile, headers, body, is_streaming).await;
 
-    // Record success/failure in circuit breaker
-    {
-        let mut map = state.circuit_breakers.write().await;
-        if let Some(cb) = map.get_mut(&profile.name) {
-            match &result {
-                Ok(_) => cb.record_success(),
-                Err(_) => cb.record_failure(),
-            }
-        }
+    // Record result atomically
+    let mut map = state.circuit_breakers.write().await;
+    let cb = map
+        .entry(profile.name.clone())
+        .or_insert_with(Default::default);
+    match &result {
+        Ok(_) => cb.record_success(),
+        Err(_) => cb.record_failure(),
     }
+    drop(map);
 
     result
 }
 
-/// Forward request to a single provider (used for both primary and backup)
+/// Forward request to a single provider (used for both primary and backup).
+/// For non-streaming responses, also extracts and stores context for sharing.
 async fn try_forward(
     state: &ProxyState,
     profile: &ProfileConfig,
@@ -241,6 +238,42 @@ async fn try_forward(
         ProviderType::OpenAICompatible => {
             forward_translated(state, profile, body, is_streaming).await
         }
+    }
+}
+
+/// Extract assistant text from an Anthropic-format response and store for sharing.
+/// Only works for non-streaming responses where the body is available.
+fn extract_and_store_context(state: &ProxyState, profile_name: &str, resp_body: &Value) {
+    // Anthropic format: {"content": [{"type": "text", "text": "..."}]}
+    let text = resp_body
+        .get("content")
+        .and_then(|c| c.as_array())
+        .map(|blocks| {
+            blocks
+                .iter()
+                .filter_map(|b| {
+                    if b.get("type").and_then(|t| t.as_str()) == Some("text") {
+                        b.get("text").and_then(|t| t.as_str())
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+        .unwrap_or_default();
+
+    if text.len() >= 100 {
+        let truncated = if text.len() > 500 {
+            format!("{}...", &text[..500])
+        } else {
+            text
+        };
+        let shared_context = state.shared_context.clone();
+        let name = profile_name.to_string();
+        tokio::spawn(async move {
+            shared_context.store(&name, truncated).await;
+        });
     }
 }
 
@@ -273,19 +306,25 @@ async fn forward_direct(
 
     if is_streaming {
         let stream = resp.bytes_stream();
-        Ok(Response::builder()
+        let response = Response::builder()
             .status(status.as_u16())
             .header("content-type", "text/event-stream")
             .header("cache-control", "no-cache")
             .body(Body::from_stream(stream))
-            .unwrap())
+            .map_err(|e| anyhow::anyhow!("failed to build response: {e}"))?;
+        Ok(response)
     } else {
         let resp_bytes = resp.bytes().await?;
-        Ok(Response::builder()
+        // Store context from non-streaming Anthropic-format response
+        if let Ok(resp_json) = serde_json::from_slice::<Value>(&resp_bytes) {
+            extract_and_store_context(state, &profile.name, &resp_json);
+        }
+        let response = Response::builder()
             .status(status.as_u16())
             .header("content-type", "application/json")
             .body(Body::from(resp_bytes))
-            .unwrap())
+            .map_err(|e| anyhow::anyhow!("failed to build response: {e}"))?;
+        Ok(response)
     }
 }
 
@@ -330,26 +369,23 @@ async fn forward_translated(
     if is_streaming {
         let stream = resp.bytes_stream();
         let translated_stream = super::streaming::translate_sse_stream(stream);
-        Ok(Response::builder()
+        let response = Response::builder()
             .status(200)
             .header("content-type", "text/event-stream")
             .header("cache-control", "no-cache")
             .body(Body::from_stream(translated_stream))
-            .unwrap())
+            .map_err(|e| anyhow::anyhow!("failed to build response: {e}"))?;
+        Ok(response)
     } else {
         let openai_resp: Value = resp.json().await?;
         let anthropic_resp = translation::openai_to_anthropic(&openai_resp)?;
-        Ok(Response::builder()
+        // Store context from non-streaming translated response
+        extract_and_store_context(state, &profile.name, &anthropic_resp);
+        let response = Response::builder()
             .status(200)
             .header("content-type", "application/json")
             .body(Body::from(serde_json::to_vec(&anthropic_resp)?))
-            .unwrap())
-    }
-}
-
-/// Store response context for cross-profile sharing
-async fn store_response_context(state: &ProxyState, profile: &str, body: &Value) {
-    if let Some(info) = crate::context::sharing::extract_key_info(body) {
-        state.shared_context.store(profile, info).await;
+            .map_err(|e| anyhow::anyhow!("failed to build response: {e}"))?;
+        Ok(response)
     }
 }

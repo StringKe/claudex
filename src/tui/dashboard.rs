@@ -33,12 +33,13 @@ pub fn render(f: &mut Frame, app: &mut App, config: &ClaudexConfig, health: &Hea
 fn render_profiles(
     f: &mut Frame,
     app: &mut App,
-    config: &ClaudexConfig,
+    _config: &ClaudexConfig,
     health: &HealthMap,
     area: Rect,
 ) {
-    let items: Vec<ListItem> = config
-        .profiles
+    // Use cached profile_list (synced with ListState) instead of config.profiles
+    let items: Vec<ListItem> = app
+        .profile_list
         .iter()
         .enumerate()
         .map(|(i, profile)| {

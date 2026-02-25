@@ -56,6 +56,18 @@ impl RagIndex {
             all_embeddings.extend(embeddings);
         }
 
+        // Validate lengths match — embedding API may return fewer results on error
+        if all_chunks.len() != all_embeddings.len() {
+            tracing::warn!(
+                chunks = all_chunks.len(),
+                embeddings = all_embeddings.len(),
+                "chunk/embedding count mismatch, truncating to shorter"
+            );
+            let min_len = all_chunks.len().min(all_embeddings.len());
+            all_chunks.truncate(min_len);
+            all_embeddings.truncate(min_len);
+        }
+
         *self.chunks.write().await = all_chunks;
         *self.embeddings.write().await = all_embeddings;
 

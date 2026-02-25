@@ -210,7 +210,8 @@ pub async fn run_tui(
                 }
             }
             _ = tick.tick() => {
-                // Periodic refresh (metrics update, etc.)
+                // Periodic refresh: sync profile list cache with config
+                app.refresh_profiles().await;
             }
         }
     }

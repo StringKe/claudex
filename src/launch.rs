@@ -32,9 +32,13 @@ pub fn launch_claude(
         .env("ANTHROPIC_API_KEY", "claudex-passthrough")
         .env("ANTHROPIC_MODEL", &model);
 
-    for (k, v) in &profile.custom_headers {
-        let header_val = format!("{}:{}", k, v);
-        cmd.env("ANTHROPIC_CUSTOM_HEADERS", &header_val);
+    if !profile.custom_headers.is_empty() {
+        let headers: Vec<String> = profile
+            .custom_headers
+            .iter()
+            .map(|(k, v)| format!("{k}:{v}"))
+            .collect();
+        cmd.env("ANTHROPIC_CUSTOM_HEADERS", headers.join(","));
     }
 
     for (k, v) in &profile.extra_env {
