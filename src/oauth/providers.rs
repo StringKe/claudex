@@ -451,6 +451,20 @@ pub async fn ensure_valid_token(profile: &mut ProfileConfig) -> Result<()> {
     match super::token::read_external_token(provider) {
         Ok(token) => {
             profile.api_key = token.access_token;
+
+            // 从 token extra 中注入 CHATGPT_ACCOUNT_ID（Codex 订阅需要此 header）
+            if let Some(account_id) = token
+                .extra
+                .as_ref()
+                .and_then(|e| e.get("account_id"))
+                .and_then(|v| v.as_str())
+            {
+                profile
+                    .extra_env
+                    .entry("CHATGPT_ACCOUNT_ID".to_string())
+                    .or_insert_with(|| account_id.to_string());
+            }
+
             Ok(())
         }
         Err(e) => {
@@ -648,5 +662,119 @@ mod tests {
                 provider
             );
         }
+    }
+
+    // ── account_id 注入逻辑 ──────────────────────────────────
+
+    #[test]
+    fn test_account_id_injection_from_token_extra() {
+        // 模拟 ensure_valid_token 的 account_id 注入逻辑
+        let token = OAuthToken {
+            access_token: "test-token".to_string(),
+            refresh_token: None,
+            expires_at: None,
+            token_type: Some("Bearer".to_string()),
+            scopes: None,
+            extra: Some(serde_json::json!({"auth_mode": "chatgpt", "account_id": "acc-123"})),
+        };
+
+        let mut extra_env = std::collections::HashMap::new();
+
+        // 注入逻辑（与 ensure_valid_token 中相同）
+        if let Some(account_id) = token
+            .extra
+            .as_ref()
+            .and_then(|e| e.get("account_id"))
+            .and_then(|v| v.as_str())
+        {
+            extra_env
+                .entry("CHATGPT_ACCOUNT_ID".to_string())
+                .or_insert_with(|| account_id.to_string());
+        }
+
+        assert_eq!(extra_env.get("CHATGPT_ACCOUNT_ID").unwrap(), "acc-123");
+    }
+
+    #[test]
+    fn test_account_id_no_override_existing() {
+        // 用户手动配置的 CHATGPT_ACCOUNT_ID 不应被覆盖
+        let token = OAuthToken {
+            access_token: "test-token".to_string(),
+            refresh_token: None,
+            expires_at: None,
+            token_type: Some("Bearer".to_string()),
+            scopes: None,
+            extra: Some(serde_json::json!({"account_id": "new-acc"})),
+        };
+
+        let mut extra_env = std::collections::HashMap::new();
+        extra_env.insert("CHATGPT_ACCOUNT_ID".to_string(), "existing-acc".to_string());
+
+        if let Some(account_id) = token
+            .extra
+            .as_ref()
+            .and_then(|e| e.get("account_id"))
+            .and_then(|v| v.as_str())
+        {
+            extra_env
+                .entry("CHATGPT_ACCOUNT_ID".to_string())
+                .or_insert_with(|| account_id.to_string());
+        }
+
+        assert_eq!(extra_env.get("CHATGPT_ACCOUNT_ID").unwrap(), "existing-acc");
+    }
+
+    #[test]
+    fn test_account_id_missing_in_token_extra() {
+        let token = OAuthToken {
+            access_token: "test-token".to_string(),
+            refresh_token: None,
+            expires_at: None,
+            token_type: Some("Bearer".to_string()),
+            scopes: None,
+            extra: Some(serde_json::json!({"auth_mode": "api-key"})),
+        };
+
+        let mut extra_env = std::collections::HashMap::new();
+
+        if let Some(account_id) = token
+            .extra
+            .as_ref()
+            .and_then(|e| e.get("account_id"))
+            .and_then(|v| v.as_str())
+        {
+            extra_env
+                .entry("CHATGPT_ACCOUNT_ID".to_string())
+                .or_insert_with(|| account_id.to_string());
+        }
+
+        assert!(extra_env.get("CHATGPT_ACCOUNT_ID").is_none());
+    }
+
+    #[test]
+    fn test_account_id_no_extra_field() {
+        let token = OAuthToken {
+            access_token: "test-token".to_string(),
+            refresh_token: None,
+            expires_at: None,
+            token_type: Some("Bearer".to_string()),
+            scopes: None,
+            extra: None,
+        };
+
+        let mut extra_env = std::collections::HashMap::new();
+
+        if let Some(account_id) = token
+            .extra
+            .as_ref()
+            .and_then(|e| e.get("account_id"))
+            .and_then(|v| v.as_str())
+        {
+            extra_env
+                .entry("CHATGPT_ACCOUNT_ID".to_string())
+                .or_insert_with(|| account_id.to_string());
+        }
+
+        assert!(extra_env.get("CHATGPT_ACCOUNT_ID").is_none());
     }
 }

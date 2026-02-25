@@ -89,12 +89,14 @@ pub fn launch_claude(
     #[cfg(not(unix))]
     let use_pty = false;
 
+    let mut resume_session_id: Option<String> = None;
+
     if use_pty {
         #[cfg(unix)]
         {
             tracing::info!("hyperlinks enabled, using PTY proxy mode");
             let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("/"));
-            terminal::pty::spawn_with_pty(cmd, cwd)?;
+            resume_session_id = terminal::pty::spawn_with_pty(cmd, cwd)?;
         }
     } else {
         let mut child = cmd.spawn().context("failed to execute claude binary")?;
@@ -124,7 +126,44 @@ pub fn launch_claude(
         }
     }
 
+    // 追加 claudex resume 命令提示
+    if let Some(session_id) = resume_session_id {
+        print_claudex_resume_hint(&profile.name, &session_id, extra_args);
+    }
+
     Ok(())
+}
+
+/// 在 Claude Code 退出后追加 claudex resume 命令提示
+fn print_claudex_resume_hint(profile_name: &str, session_id: &str, extra_args: &[String]) {
+    let hint = build_resume_hint(profile_name, session_id, extra_args);
+    eprintln!("\nResume this session with claudex:\n  {hint}");
+}
+
+/// 构造 claudex resume 命令字符串（纯函数，便于测试）
+fn build_resume_hint(profile_name: &str, session_id: &str, extra_args: &[String]) -> String {
+    // 过滤掉原始 extra_args 中的 --resume 及其值参数
+    let mut args_clean: Vec<&str> = Vec::new();
+    let mut skip_next = false;
+    for arg in extra_args {
+        if skip_next {
+            skip_next = false;
+            continue;
+        }
+        if arg == "--resume" {
+            skip_next = true;
+            continue;
+        }
+        args_clean.push(arg);
+    }
+
+    let args_str = if args_clean.is_empty() {
+        String::new()
+    } else {
+        format!(" {}", args_clean.join(" "))
+    };
+
+    format!("claudex run {profile_name} --resume {session_id}{args_str}")
 }
 
 /// Decide whether to use PTY mode based on config + CLI flag.
@@ -138,5 +177,61 @@ fn should_use_pty(config_hyperlinks: &HyperlinksConfig, cli_override: bool) -> b
         HyperlinksConfig::Enabled => true,
         HyperlinksConfig::Disabled => false,
         HyperlinksConfig::Auto => terminal::detect::terminal_supports_hyperlinks(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_resume_hint_no_extra_args() {
+        let hint = build_resume_hint("codex-sub", "abc-123", &[]);
+        assert_eq!(hint, "claudex run codex-sub --resume abc-123");
+    }
+
+    #[test]
+    fn test_build_resume_hint_with_extra_args() {
+        let args = vec![
+            "--dangerously-skip-permissions".to_string(),
+            "--verbose".to_string(),
+        ];
+        let hint = build_resume_hint("codex-sub", "abc-123", &args);
+        assert_eq!(
+            hint,
+            "claudex run codex-sub --resume abc-123 --dangerously-skip-permissions --verbose"
+        );
+    }
+
+    #[test]
+    fn test_build_resume_hint_filters_existing_resume() {
+        let args = vec![
+            "--resume".to_string(),
+            "old-session-id".to_string(),
+            "--dangerously-skip-permissions".to_string(),
+        ];
+        let hint = build_resume_hint("codex-sub", "new-session-id", &args);
+        assert_eq!(
+            hint,
+            "claudex run codex-sub --resume new-session-id --dangerously-skip-permissions"
+        );
+    }
+
+    #[test]
+    fn test_build_resume_hint_resume_at_end() {
+        let args = vec![
+            "--verbose".to_string(),
+            "--resume".to_string(),
+            "old-id".to_string(),
+        ];
+        let hint = build_resume_hint("my-profile", "new-id", &args);
+        assert_eq!(hint, "claudex run my-profile --resume new-id --verbose");
+    }
+
+    #[test]
+    fn test_build_resume_hint_resume_only() {
+        let args = vec!["--resume".to_string(), "old-id".to_string()];
+        let hint = build_resume_hint("p", "new-id", &args);
+        assert_eq!(hint, "claudex run p --resume new-id");
     }
 }

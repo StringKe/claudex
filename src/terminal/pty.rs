@@ -13,7 +13,8 @@ use nix::unistd::{self, ForkResult};
 use super::osc8::LinkDetector;
 
 /// Launch a child process in a PTY and proxy its output through the link detector.
-pub fn spawn_with_pty(mut cmd: Command, cwd: PathBuf) -> Result<()> {
+/// Returns the detected resume session ID if Claude Code output a `claude --resume` line.
+pub fn spawn_with_pty(mut cmd: Command, cwd: PathBuf) -> Result<Option<String>> {
     // Open a PTY pair
     let pty = openpty(None, None).context("failed to open PTY")?;
     let master_fd = pty.master;
@@ -68,7 +69,8 @@ pub fn spawn_with_pty(mut cmd: Command, cwd: PathBuf) -> Result<()> {
             setup_sigwinch_handler(stdin.as_raw_fd(), master_fd.as_raw_fd());
 
             // Run the proxy loop
-            let exit_code = run_proxy_loop(&master_fd, &stdin, &mut LinkDetector::new(cwd));
+            let (exit_code, resume_session_id) =
+                run_proxy_loop(&master_fd, &stdin, &mut LinkDetector::new(cwd));
 
             // Restore terminal settings
             if let Some(ref orig) = orig_termios {
@@ -90,16 +92,29 @@ pub fn spawn_with_pty(mut cmd: Command, cwd: PathBuf) -> Result<()> {
                 }
             }
 
-            Ok(())
+            Ok(resume_session_id)
         }
     }
 }
 
 /// Main proxy loop: shuttle data between stdin/PTY master and enhance output.
+/// Returns (loop_result, detected_resume_session_id).
 fn run_proxy_loop(
     master_fd: &OwnedFd,
     stdin_handle: &std::io::Stdin,
     detector: &mut LinkDetector,
+) -> (Result<()>, Option<String>) {
+    let mut resume_session_id: Option<String> = None;
+    let result = run_proxy_loop_inner(master_fd, stdin_handle, detector, &mut resume_session_id);
+    (result, resume_session_id)
+}
+
+/// Inner proxy loop with `?` operator support.
+fn run_proxy_loop_inner(
+    master_fd: &OwnedFd,
+    stdin_handle: &std::io::Stdin,
+    detector: &mut LinkDetector,
+    resume_session_id: &mut Option<String>,
 ) -> Result<()> {
     let master_raw = master_fd.as_raw_fd();
     let stdin_raw = stdin_handle.as_raw_fd();
@@ -178,6 +193,9 @@ fn run_proxy_loop(
                             let line = line_buf[..pos].to_string();
                             line_buf = line_buf[pos + 1..].to_string();
 
+                            // 检测 `claude --resume <session-id>`
+                            detect_resume_session(&line, resume_session_id);
+
                             let enhanced = detector.enhance_line(&line);
                             writeln!(stdout, "{enhanced}")?;
                         }
@@ -192,6 +210,7 @@ fn run_proxy_loop(
             if revents.contains(PollFlags::POLLHUP) {
                 // Child exited: flush remaining buffer
                 if !line_buf.is_empty() {
+                    detect_resume_session(&line_buf, resume_session_id);
                     let enhanced = detector.enhance_line(&line_buf);
                     write!(stdout, "{enhanced}")?;
                     stdout.flush()?;
@@ -202,6 +221,66 @@ fn run_proxy_loop(
     }
 
     Ok(())
+}
+
+/// 从输出行中检测 `claude --resume <session-id>` 模式，提取 session ID。
+fn detect_resume_session(line: &str, session_id: &mut Option<String>) {
+    // 匹配 ANSI 转义序列剥离后的纯文本，支持带/不带终端控制字符
+    let stripped = strip_ansi_escapes(line);
+    let trimmed = stripped.trim();
+    if let Some(rest) = trimmed.strip_prefix("claude --resume ") {
+        let id = rest.trim();
+        if !id.is_empty() {
+            *session_id = Some(id.to_string());
+        }
+    }
+}
+
+/// 剥离 ANSI 转义序列（CSI、OSC 等）
+fn strip_ansi_escapes(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\x1b' {
+            match chars.peek() {
+                Some('[') => {
+                    chars.next();
+                    // CSI: 消费到 0x40..0x7E
+                    while let Some(&ch) = chars.peek() {
+                        chars.next();
+                        if ('\x40'..='\x7e').contains(&ch) {
+                            break;
+                        }
+                    }
+                }
+                Some(']') => {
+                    chars.next();
+                    // OSC: 消费到 ST (ESC \ 或 BEL)
+                    while let Some(&ch) = chars.peek() {
+                        if ch == '\x07' {
+                            chars.next();
+                            break;
+                        }
+                        if ch == '\x1b' {
+                            chars.next();
+                            if chars.peek() == Some(&'\\') {
+                                chars.next();
+                            }
+                            break;
+                        }
+                        chars.next();
+                    }
+                }
+                _ => {
+                    // 其他单字符转义
+                    chars.next();
+                }
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    out
 }
 
 /// 从字节切片末尾回溯，找到最后一个完整 UTF-8 字符的边界。
@@ -258,4 +337,168 @@ fn setup_sigwinch_handler(stdin_fd: i32, master_fd: i32) {
             sync_winsize(stdin_fd, master_fd);
         })
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── strip_ansi_escapes ──────────────────────────────────
+
+    #[test]
+    fn test_strip_ansi_plain_text() {
+        assert_eq!(strip_ansi_escapes("hello world"), "hello world");
+    }
+
+    #[test]
+    fn test_strip_ansi_empty() {
+        assert_eq!(strip_ansi_escapes(""), "");
+    }
+
+    #[test]
+    fn test_strip_ansi_csi_color() {
+        // \x1b[32m = green, \x1b[0m = reset
+        assert_eq!(
+            strip_ansi_escapes("\x1b[32mclaude --resume abc\x1b[0m"),
+            "claude --resume abc"
+        );
+    }
+
+    #[test]
+    fn test_strip_ansi_csi_cursor_movement() {
+        // \x1b[2K = erase line, \x1b[1A = cursor up
+        assert_eq!(strip_ansi_escapes("\x1b[2K\x1b[1Ahello"), "hello");
+    }
+
+    #[test]
+    fn test_strip_ansi_osc_with_bel() {
+        // OSC terminated by BEL (\x07)
+        assert_eq!(strip_ansi_escapes("\x1b]0;title\x07text here"), "text here");
+    }
+
+    #[test]
+    fn test_strip_ansi_osc_with_st() {
+        // OSC terminated by ST (ESC \)
+        assert_eq!(
+            strip_ansi_escapes("\x1b]8;id=link;https://example.com\x1b\\click\x1b]8;;\x1b\\"),
+            "click"
+        );
+    }
+
+    #[test]
+    fn test_strip_ansi_mixed_escapes() {
+        let input = "\x1b[1m\x1b[36mclaude\x1b[0m --resume \x1b[33mabcdef\x1b[0m";
+        assert_eq!(strip_ansi_escapes(input), "claude --resume abcdef");
+    }
+
+    #[test]
+    fn test_strip_ansi_single_char_escape() {
+        // ESC followed by a non-[ non-] char (e.g. ESC M = reverse line feed)
+        assert_eq!(strip_ansi_escapes("\x1bMtext"), "text");
+    }
+
+    // ── detect_resume_session ───────────────────────────────
+
+    #[test]
+    fn test_detect_resume_plain() {
+        let mut id = None;
+        detect_resume_session("claude --resume abc-123-def", &mut id);
+        assert_eq!(id.as_deref(), Some("abc-123-def"));
+    }
+
+    #[test]
+    fn test_detect_resume_with_ansi() {
+        let mut id = None;
+        let line = "\x1b[32mclaude --resume \x1b[1mabc-123\x1b[0m";
+        detect_resume_session(line, &mut id);
+        assert_eq!(id.as_deref(), Some("abc-123"));
+    }
+
+    #[test]
+    fn test_detect_resume_with_leading_whitespace() {
+        let mut id = None;
+        detect_resume_session("  claude --resume xyz-789  ", &mut id);
+        assert_eq!(id.as_deref(), Some("xyz-789"));
+    }
+
+    #[test]
+    fn test_detect_resume_not_matched() {
+        let mut id = None;
+        detect_resume_session("some other output line", &mut id);
+        assert!(id.is_none());
+    }
+
+    #[test]
+    fn test_detect_resume_partial_prefix() {
+        let mut id = None;
+        detect_resume_session("claude --resume", &mut id);
+        // strip_prefix 成功但 rest 为空（trim 后为空），不应设置
+        assert!(id.is_none());
+    }
+
+    #[test]
+    fn test_detect_resume_uuid_format() {
+        let mut id = None;
+        detect_resume_session(
+            "claude --resume 0130c158-76e0-4f95-b067-a6e171fa2f3a",
+            &mut id,
+        );
+        assert_eq!(id.as_deref(), Some("0130c158-76e0-4f95-b067-a6e171fa2f3a"));
+    }
+
+    #[test]
+    fn test_detect_resume_overwrites_previous() {
+        let mut id = Some("old-id".to_string());
+        detect_resume_session("claude --resume new-id", &mut id);
+        assert_eq!(id.as_deref(), Some("new-id"));
+    }
+
+    #[test]
+    fn test_detect_resume_empty_line() {
+        let mut id = None;
+        detect_resume_session("", &mut id);
+        assert!(id.is_none());
+    }
+
+    #[test]
+    fn test_detect_resume_osc8_wrapped() {
+        // Claude Code 可能用 OSC 8 超链接包裹 resume 命令
+        let mut id = None;
+        let line = "\x1b]8;;https://example.com\x1b\\claude --resume abc-456\x1b]8;;\x1b\\";
+        detect_resume_session(line, &mut id);
+        assert_eq!(id.as_deref(), Some("abc-456"));
+    }
+
+    // ── find_utf8_safe_end ──────────────────────────────────
+
+    #[test]
+    fn test_utf8_safe_end_empty() {
+        assert_eq!(find_utf8_safe_end(&[]), 0);
+    }
+
+    #[test]
+    fn test_utf8_safe_end_ascii_only() {
+        assert_eq!(find_utf8_safe_end(b"hello"), 5);
+    }
+
+    #[test]
+    fn test_utf8_safe_end_complete_multibyte() {
+        // "中" = 0xE4 0xB8 0xAD (3 bytes)
+        let data = "中".as_bytes();
+        assert_eq!(find_utf8_safe_end(data), 3);
+    }
+
+    #[test]
+    fn test_utf8_safe_end_incomplete_multibyte() {
+        // "中" leading byte + 1 continuation byte (missing last)
+        let data = &[0xE4, 0xB8];
+        assert_eq!(find_utf8_safe_end(data), 0);
+    }
+
+    #[test]
+    fn test_utf8_safe_end_mixed_ascii_and_incomplete() {
+        // "hi" + incomplete "中" (2 of 3 bytes)
+        let data = &[b'h', b'i', 0xE4, 0xB8];
+        assert_eq!(find_utf8_safe_end(data), 2);
+    }
 }
