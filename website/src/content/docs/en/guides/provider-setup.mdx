@@ -1,0 +1,407 @@
+---
+title: Provider Setup Guide
+description: Step-by-step instructions for configuring each AI provider with Claudex
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+This guide covers detailed setup instructions for every provider supported by Claudex, including API key providers, OAuth subscriptions, and local models.
+
+## API Key Providers
+
+### Anthropic
+
+1. Sign up at [console.anthropic.com](https://console.anthropic.com/)
+2. Navigate to **API Keys** and create a new key (format: `sk-ant-*`)
+
+```toml
+[[profiles]]
+name = "anthropic"
+provider_type = "DirectAnthropic"
+base_url = "https://api.anthropic.com"
+api_key = "sk-ant-..."
+default_model = "claude-sonnet-4-20250514"
+```
+
+```bash
+claudex profile test anthropic
+```
+
+### MiniMax
+
+1. Sign up at [platform.minimaxi.com](https://platform.minimaxi.com/)
+2. Navigate to **API Keys** in the console
+
+```toml
+[[profiles]]
+name = "minimax"
+provider_type = "DirectAnthropic"
+base_url = "https://api.minimax.io/anthropic"
+api_key = "..."
+default_model = "claude-sonnet-4-20250514"
+```
+
+```bash
+claudex profile test minimax
+```
+
+### OpenRouter
+
+1. Sign up at [openrouter.ai](https://openrouter.ai/)
+2. Get your API key at [openrouter.ai/keys](https://openrouter.ai/keys)
+
+```toml
+[[profiles]]
+name = "openrouter"
+provider_type = "OpenAICompatible"
+base_url = "https://openrouter.ai/api/v1"
+api_key = "sk-or-..."
+default_model = "anthropic/claude-sonnet-4"
+```
+
+```bash
+claudex profile test openrouter
+```
+
+<Aside type="tip">
+  OpenRouter supports hundreds of models from different providers. Use the `anthropic/` prefix for Claude models.
+</Aside>
+
+### Grok (xAI)
+
+1. Sign up at [console.x.ai](https://console.x.ai/)
+2. Create an API key in the console
+
+```toml
+[[profiles]]
+name = "grok"
+provider_type = "OpenAICompatible"
+base_url = "https://api.x.ai/v1"
+api_key = "xai-..."
+default_model = "grok-3-beta"
+```
+
+```bash
+claudex profile test grok
+```
+
+### OpenAI
+
+1. Sign up at [platform.openai.com](https://platform.openai.com/)
+2. Create an API key at [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+
+```toml
+[[profiles]]
+name = "chatgpt"
+provider_type = "OpenAICompatible"
+base_url = "https://api.openai.com/v1"
+api_key = "sk-..."
+default_model = "gpt-4o"
+```
+
+```bash
+claudex profile test chatgpt
+```
+
+### DeepSeek
+
+1. Sign up at [platform.deepseek.com](https://platform.deepseek.com/)
+2. Create an API key in the console
+
+```toml
+[[profiles]]
+name = "deepseek"
+provider_type = "OpenAICompatible"
+base_url = "https://api.deepseek.com"
+api_key = "sk-..."
+default_model = "deepseek-chat"
+```
+
+```bash
+claudex profile test deepseek
+```
+
+### Kimi / Moonshot
+
+1. Sign up at [platform.moonshot.cn](https://platform.moonshot.cn/)
+2. Create an API key in the console
+
+```toml
+[[profiles]]
+name = "kimi"
+provider_type = "OpenAICompatible"
+base_url = "https://api.moonshot.cn/v1"
+api_key = "sk-..."
+default_model = "moonshot-v1-128k"
+```
+
+```bash
+claudex profile test kimi
+```
+
+### GLM / Zhipu
+
+1. Sign up at [open.bigmodel.cn](https://open.bigmodel.cn/)
+2. Create an API key in the console
+
+```toml
+[[profiles]]
+name = "glm"
+provider_type = "OpenAICompatible"
+base_url = "https://open.bigmodel.cn/api/paas/v4"
+api_key = "..."
+default_model = "glm-4-plus"
+```
+
+```bash
+claudex profile test glm
+```
+
+## OAuth Subscriptions
+
+OAuth authentication lets you use existing provider subscriptions (ChatGPT Plus, Claude Max, etc.) instead of separate API keys.
+
+### Claude Max / Pro
+
+Use your existing Claude subscription through Claude Code's native OAuth session.
+
+**Prerequisites**: Claude Code installed and logged in (`claude` command works normally)
+
+```toml
+[[profiles]]
+name = "claude-sub"
+provider_type = "DirectAnthropic"
+base_url = "https://api.anthropic.com"
+default_model = "claude-sonnet-4-20250514"
+auth_type = "oauth"
+oauth_provider = "claude"
+
+[profiles.models]
+haiku = "claude-haiku-4-20250514"
+sonnet = "claude-sonnet-4-20250514"
+opus = "claude-opus-4-20250514"
+```
+
+<Aside type="note">
+  Claude OAuth profiles use a special gateway auth mode. Claudex sets `ANTHROPIC_AUTH_TOKEN` instead of `ANTHROPIC_API_KEY` to avoid conflicting with Claude Code's own subscription login. The proxy is skipped for Claude subscription profiles.
+</Aside>
+
+No separate `claudex auth login` step is needed. Claudex reads the existing session from `~/.claude`.
+
+### ChatGPT Plus / Codex CLI
+
+Use your ChatGPT Plus or Pro subscription via the Codex CLI token.
+
+**Prerequisites**: Install [Codex CLI](https://github.com/openai/codex) and authenticate:
+
+```bash
+# Install Codex CLI
+npm install -g @openai/codex
+
+# Authenticate (opens browser)
+codex auth
+```
+
+Then configure Claudex:
+
+```toml
+[[profiles]]
+name = "codex-sub"
+provider_type = "OpenAIResponses"
+base_url = "https://chatgpt.com/backend-api/codex"
+default_model = "gpt-4o"
+auth_type = "oauth"
+oauth_provider = "openai"
+
+[profiles.models]
+haiku = "gpt-4o-mini"
+sonnet = "gpt-4o"
+opus = "o1-pro"
+```
+
+```bash
+# Read token from Codex CLI
+claudex auth login openai --profile codex-sub
+
+# Verify
+claudex auth status
+
+# Run
+claudex run codex-sub
+```
+
+<Aside type="tip">
+  The `openai` OAuth provider uses `OpenAIResponses` as the provider type. This communicates through the OpenAI Responses API (`/responses` endpoint) rather than the Chat Completions API (`/chat/completions`).
+</Aside>
+
+### Google Gemini
+
+Use your Google account via OAuth Device Code flow.
+
+```toml
+[[profiles]]
+name = "gemini"
+provider_type = "OpenAICompatible"
+base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+default_model = "gemini-2.5-pro"
+auth_type = "oauth"
+oauth_provider = "google"
+
+[profiles.models]
+haiku = "gemini-2.0-flash"
+sonnet = "gemini-2.5-pro"
+opus = "gemini-2.5-pro"
+```
+
+```bash
+# Start device code flow (opens browser for Google login)
+claudex auth login google --profile gemini
+
+# Verify
+claudex auth status
+```
+
+### Qwen / Tongyi Qianwen
+
+Use your Qwen account via OAuth Device Code flow.
+
+```toml
+[[profiles]]
+name = "qwen-oauth"
+provider_type = "OpenAICompatible"
+base_url = "https://chat.qwenlm.ai/api/chat/v1"
+default_model = "qwen-max"
+auth_type = "oauth"
+oauth_provider = "qwen"
+```
+
+```bash
+# Start device code flow
+claudex auth login qwen --profile qwen-oauth
+
+# Verify
+claudex auth status
+```
+
+### Kimi / Moonshot (OAuth)
+
+Use your Kimi account via OAuth Device Code flow.
+
+```toml
+[[profiles]]
+name = "kimi-oauth"
+provider_type = "OpenAICompatible"
+base_url = "https://api.moonshot.cn/v1"
+default_model = "moonshot-v1-128k"
+auth_type = "oauth"
+oauth_provider = "kimi"
+```
+
+```bash
+# Start device code flow
+claudex auth login kimi --profile kimi-oauth
+
+# Verify
+claudex auth status
+```
+
+### GitHub Copilot
+
+Use your GitHub Copilot subscription via OAuth Device Code flow.
+
+```toml
+[[profiles]]
+name = "github-copilot"
+provider_type = "OpenAICompatible"
+base_url = "https://api.githubcopilot.com"
+default_model = "gpt-4o"
+auth_type = "oauth"
+oauth_provider = "github"
+```
+
+```bash
+# Start device code flow (opens browser for GitHub login)
+claudex auth login github --profile github-copilot
+
+# Verify
+claudex auth status
+```
+
+## Local Models
+
+### Ollama
+
+1. Install Ollama: [ollama.com](https://ollama.com/)
+2. Pull a model:
+
+```bash
+ollama pull qwen2.5:72b
+```
+
+3. Configure Claudex:
+
+```toml
+[[profiles]]
+name = "local-qwen"
+provider_type = "OpenAICompatible"
+base_url = "http://localhost:11434/v1"
+api_key = ""
+default_model = "qwen2.5:72b"
+```
+
+```bash
+claudex profile test local-qwen
+```
+
+<Aside type="note">
+  Ollama does not require an API key. Leave `api_key` empty or omit it.
+</Aside>
+
+### vLLM
+
+1. Install and start vLLM:
+
+```bash
+pip install vllm
+vllm serve meta-llama/Llama-3.3-70B-Instruct --port 8000
+```
+
+2. Configure Claudex:
+
+```toml
+[[profiles]]
+name = "local-llama"
+provider_type = "OpenAICompatible"
+base_url = "http://localhost:8000/v1"
+api_key = ""
+default_model = "meta-llama/Llama-3.3-70B-Instruct"
+```
+
+### LM Studio
+
+1. Download LM Studio from [lmstudio.ai](https://lmstudio.ai/)
+2. Load a model and start the local server (default port: 1234)
+
+```toml
+[[profiles]]
+name = "lm-studio"
+provider_type = "OpenAICompatible"
+base_url = "http://localhost:1234/v1"
+api_key = ""
+default_model = "loaded-model-name"
+```
+
+## Verifying Your Setup
+
+After configuring any provider, verify connectivity:
+
+```bash
+# Test a specific profile
+claudex profile test <profile-name>
+
+# Test all profiles
+claudex profile test all
+
+# List all configured profiles
+claudex profile list
+```

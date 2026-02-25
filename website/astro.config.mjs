@@ -32,6 +32,13 @@ export default defineConfig({
           ],
         },
         {
+          label: 'Guides',
+          translations: { 'zh-CN': '使用指南' },
+          items: [
+            'guides/provider-setup',
+          ],
+        },
+        {
           label: 'Features',
           translations: { 'zh-CN': '功能特性' },
           items: [
