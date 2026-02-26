@@ -141,9 +141,9 @@ async fn main() -> Result<()> {
             tui::run_tui(config_arc, metrics_store, health).await?;
         }
 
-        Some(Commands::Config { init }) => {
+        Some(Commands::Config { init, yaml }) => {
             if init {
-                ClaudexConfig::init_local()?;
+                ClaudexConfig::init_local(yaml)?;
             } else {
                 let source_display = config
                     .config_source

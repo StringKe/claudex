@@ -2,11 +2,29 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
+use figment::providers::{Env, Format, Serialized};
+use figment::Figment;
 use serde::{Deserialize, Serialize};
 
 use crate::context::ContextEngineConfig;
 use crate::oauth::{AuthType, OAuthProvider};
 use crate::router::RouterConfig;
+
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub enum ConfigFormat {
+    #[default]
+    Toml,
+    Yaml,
+}
+
+impl ConfigFormat {
+    fn from_path(path: &Path) -> Self {
+        match path.extension().and_then(|e| e.to_str()) {
+            Some("yaml" | "yml") => ConfigFormat::Yaml,
+            _ => ConfigFormat::Toml,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClaudexConfig {
@@ -30,6 +48,8 @@ pub struct ClaudexConfig {
     pub hyperlinks: HyperlinksConfig,
     #[serde(skip)]
     pub config_source: Option<PathBuf>,
+    #[serde(skip)]
+    pub config_format: ConfigFormat,
 }
 
 /// Hyperlinks mode: "auto" detects terminal support, true/false force on/off.
@@ -209,34 +229,116 @@ fn default_enabled() -> bool {
     true
 }
 
-/// Config file names to search for
-const CONFIG_FILE_NAMES: &[&str] = &["claudex.toml"];
-const CONFIG_DIR_NAMES: &[(&str, &str)] = &[(".claudex", "config.toml")];
+/// Config file names to search for in project directories
+const CONFIG_FILE_NAMES: &[&str] = &["claudex.toml", "claudex.yaml", "claudex.yml"];
+const CONFIG_DIR_NAMES: &[(&str, &[&str])] = &[(
+    ".claudex",
+    &["config.toml", "config.yaml", "config.yml"],
+)];
 const MAX_PARENT_TRAVERSAL: usize = 10;
 
+/// Global config file names (in ~/.config/claudex/)
+const GLOBAL_CONFIG_NAMES: &[&str] = &["config.toml", "config.yaml", "config.yml"];
+
 impl ClaudexConfig {
-    /// Global config path: ~/.config/claudex/config.toml (XDG-style, all platforms)
-    pub fn config_path() -> Result<PathBuf> {
+    /// Global config dir: ~/.config/claudex/
+    fn config_dir() -> Result<PathBuf> {
         let home = dirs::home_dir().context("cannot determine home directory")?;
-        let config_dir = home.join(".config").join("claudex");
-        Ok(config_dir.join("config.toml"))
+        Ok(home.join(".config").join("claudex"))
     }
 
-    /// Discover config file with priority-based search
-    pub fn discover_config() -> Result<(Self, PathBuf)> {
-        let mut searched = Vec::new();
+    /// Global config path: ~/.config/claudex/config.toml (XDG-style, all platforms)
+    pub fn config_path() -> Result<PathBuf> {
+        Ok(Self::config_dir()?.join("config.toml"))
+    }
 
-        // 1. $CLAUDEX_CONFIG environment variable
+    /// Find the first existing global config file (TOML or YAML)
+    fn find_global_config() -> Result<Option<PathBuf>> {
+        let dir = Self::config_dir()?;
+        for name in GLOBAL_CONFIG_NAMES {
+            let path = dir.join(name);
+            if path.exists() {
+                return Ok(Some(path));
+            }
+        }
+        Ok(None)
+    }
+
+    /// Merge a config file into a figment, auto-detecting format by extension
+    fn merge_file(figment: Figment, path: &Path) -> Figment {
+        match ConfigFormat::from_path(path) {
+            ConfigFormat::Toml => {
+                figment.merge(figment::providers::Toml::file(path))
+            }
+            ConfigFormat::Yaml => {
+                figment.merge(figment::providers::Yaml::file(path))
+            }
+        }
+    }
+
+    /// Discover config files and build layered figment config.
+    ///
+    /// Merge order (low to high priority):
+    /// 1. Programmatic defaults (ClaudexConfig::default())
+    /// 2. Global config file (~/.config/claudex/config.toml or .yaml)
+    /// 3. Project config file (claudex.toml/yaml in CWD or parent dirs, or $CLAUDEX_CONFIG)
+    /// 4. Environment variables (CLAUDEX_ prefix, __ as nesting separator)
+    pub fn discover_config() -> Result<(Self, PathBuf)> {
+        // Phase 1: find config file paths
+        let global_path = Self::find_global_config()?;
+        let (project_path, source_path) = Self::discover_project_config()?;
+
+        // Phase 2: build figment layers
+        let mut figment = Figment::from(Serialized::defaults(ClaudexConfig::default()));
+
+        // Layer 2: global config
+        if let Some(ref gp) = global_path {
+            figment = Self::merge_file(figment, gp);
+        }
+
+        // Layer 3: project config (or $CLAUDEX_CONFIG)
+        if let Some(ref pp) = project_path {
+            figment = Self::merge_file(figment, pp);
+        }
+
+        // Layer 4: environment variables
+        figment = figment.merge(Env::prefixed("CLAUDEX_").split("__"));
+
+        // Determine the "source" path for display/save
+        let effective_source = source_path
+            .or(project_path)
+            .or(global_path.clone());
+
+        match effective_source {
+            Some(source) => {
+                let mut config: ClaudexConfig = figment.extract().context("failed to parse config")?;
+                config.resolve_api_keys()?;
+                config.config_source = Some(source.clone());
+                config.config_format = ConfigFormat::from_path(&source);
+                Ok((config, source))
+            }
+            None => {
+                // No config files found anywhere: create default global config
+                let default_config = Self::create_default_global()?;
+                let path = Self::config_path()?;
+                Ok((default_config, path))
+            }
+        }
+    }
+
+    /// Discover project-level config file.
+    /// Returns (config_path, source_override).
+    /// source_override is set when $CLAUDEX_CONFIG is used.
+    fn discover_project_config() -> Result<(Option<PathBuf>, Option<PathBuf>)> {
+        // $CLAUDEX_CONFIG environment variable
         if let Ok(env_path) = std::env::var("CLAUDEX_CONFIG") {
             let path = PathBuf::from(&env_path);
-            searched.push(path.clone());
             if path.exists() {
-                let config = Self::load_from(&path)?;
-                return Ok((config, path));
+                return Ok((Some(path.clone()), Some(path)));
             }
         }
 
-        // 2-4. Current directory and parent traversal
+        // CWD and parent traversal
         if let Ok(cwd) = std::env::current_dir() {
             let mut dir = Some(cwd.as_path());
             let mut depth = 0;
@@ -246,23 +348,21 @@ impl ClaudexConfig {
                     break;
                 }
 
-                // Check claudex.toml in this directory
+                // Check claudex.toml / claudex.yaml / claudex.yml
                 for name in CONFIG_FILE_NAMES {
                     let path = current.join(name);
-                    searched.push(path.clone());
                     if path.exists() {
-                        let config = Self::load_from(&path)?;
-                        return Ok((config, path));
+                        return Ok((Some(path), None));
                     }
                 }
 
-                // Check .claudex/config.toml in this directory
-                for (dir_name, file_name) in CONFIG_DIR_NAMES {
-                    let path = current.join(dir_name).join(file_name);
-                    searched.push(path.clone());
-                    if path.exists() {
-                        let config = Self::load_from(&path)?;
-                        return Ok((config, path));
+                // Check .claudex/config.toml etc.
+                for (dir_name, file_names) in CONFIG_DIR_NAMES {
+                    for file_name in *file_names {
+                        let path = current.join(dir_name).join(file_name);
+                        if path.exists() {
+                            return Ok((Some(path), None));
+                        }
                     }
                 }
 
@@ -271,17 +371,7 @@ impl ClaudexConfig {
             }
         }
 
-        // 5. Global: ~/.config/claudex/config.toml
-        let global_path = Self::config_path()?;
-        searched.push(global_path.clone());
-        if global_path.exists() {
-            let config = Self::load_from(&global_path)?;
-            return Ok((config, global_path));
-        }
-
-        // Nothing found: create default global config
-        let default_config = Self::create_default_global()?;
-        Ok((default_config, global_path))
+        Ok((None, None))
     }
 
     /// Print search results for diagnostics
@@ -342,31 +432,50 @@ enabled = false
         println!("Edit it to add your API keys and profiles.");
         println!("Full example: https://github.com/StringKe/claudex/blob/main/config.example.toml");
 
-        let mut config: ClaudexConfig =
-            toml::from_str(minimal).context("failed to parse default config")?;
+        let figment = Figment::from(Serialized::defaults(ClaudexConfig::default()))
+            .merge(figment::providers::Toml::string(minimal));
+        let mut config: ClaudexConfig = figment.extract().context("failed to parse default config")?;
         config.config_source = Some(path);
+        config.config_format = ConfigFormat::Toml;
         Ok(config)
     }
 
     /// Initialize config in the current directory
-    pub fn init_local() -> Result<PathBuf> {
-        let path = std::env::current_dir()?.join("claudex.toml");
-        if path.exists() {
-            anyhow::bail!("claudex.toml already exists in current directory");
+    pub fn init_local(yaml: bool) -> Result<PathBuf> {
+        if yaml {
+            let path = std::env::current_dir()?.join("claudex.yaml");
+            if path.exists() {
+                anyhow::bail!("claudex.yaml already exists in current directory");
+            }
+            let example_toml = include_str!("../config.example.toml");
+            // Parse TOML example, then serialize as YAML
+            let figment = Figment::from(Serialized::defaults(ClaudexConfig::default()))
+                .merge(figment::providers::Toml::string(example_toml));
+            let config: ClaudexConfig = figment.extract().context("failed to parse example config")?;
+            let yaml_content = serde_yaml::to_string(&config).context("failed to serialize to YAML")?;
+            std::fs::write(&path, yaml_content)?;
+            println!("Created: {}", path.display());
+            Ok(path)
+        } else {
+            let path = std::env::current_dir()?.join("claudex.toml");
+            if path.exists() {
+                anyhow::bail!("claudex.toml already exists in current directory");
+            }
+            let example = include_str!("../config.example.toml");
+            std::fs::write(&path, example)?;
+            println!("Created: {}", path.display());
+            Ok(path)
         }
-        let example = include_str!("../config.example.toml");
-        std::fs::write(&path, example)?;
-        println!("Created: {}", path.display());
-        Ok(path)
     }
 
     fn load_from(path: &Path) -> Result<Self> {
-        let content = std::fs::read_to_string(path)
-            .with_context(|| format!("failed to read config: {}", path.display()))?;
-        let mut config: ClaudexConfig =
-            toml::from_str(&content).with_context(|| "failed to parse config.toml")?;
+        let figment = Figment::from(Serialized::defaults(ClaudexConfig::default()));
+        let figment = Self::merge_file(figment, path);
+        let mut config: ClaudexConfig = figment.extract()
+            .with_context(|| format!("failed to parse config: {}", path.display()))?;
         config.resolve_api_keys()?;
         config.config_source = Some(path.to_path_buf());
+        config.config_format = ConfigFormat::from_path(path);
         Ok(config)
     }
 
@@ -384,7 +493,12 @@ enabled = false
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        let content = toml::to_string_pretty(self)?;
+        let content = match self.config_format {
+            ConfigFormat::Yaml => serde_yaml::to_string(self)
+                .context("failed to serialize config to YAML")?,
+            ConfigFormat::Toml => toml::to_string_pretty(self)
+                .context("failed to serialize config to TOML")?,
+        };
         std::fs::write(&path, content)?;
         Ok(())
     }
@@ -429,6 +543,7 @@ impl Default for ClaudexConfig {
             context: ContextEngineConfig::default(),
             hyperlinks: HyperlinksConfig::default(),
             config_source: None,
+            config_format: ConfigFormat::Toml,
         }
     }
 }
@@ -793,5 +908,180 @@ mod tests {
         assert!(!config.context.rag.enabled);
         assert_eq!(config.context.rag.profile, "openrouter");
         assert_eq!(config.context.rag.model, "openai/text-embedding-3-small");
+    }
+
+    // ───── figment 新增测试 ─────
+
+    #[test]
+    fn test_figment_yaml_parsing() {
+        let yaml_str = r#"
+proxy_port: 8888
+proxy_host: "0.0.0.0"
+log_level: "warn"
+hyperlinks: "auto"
+profiles:
+  - name: "test-yaml"
+    provider_type: "OpenAICompatible"
+    base_url: "http://localhost:8080"
+    default_model: "gpt-4"
+    enabled: true
+    priority: 100
+"#;
+        let figment = Figment::from(Serialized::defaults(ClaudexConfig::default()))
+            .merge(figment::providers::Yaml::string(yaml_str));
+        let config: ClaudexConfig = figment.extract().unwrap();
+        assert_eq!(config.proxy_port, 8888);
+        assert_eq!(config.proxy_host, "0.0.0.0");
+        assert_eq!(config.log_level, "warn");
+        assert_eq!(config.profiles.len(), 1);
+        assert_eq!(config.profiles[0].name, "test-yaml");
+    }
+
+    #[test]
+    fn test_figment_layered_merge_defaults_lt_file() {
+        // File values override defaults
+        let toml_str = r#"
+            proxy_port = 7777
+            log_level = "error"
+        "#;
+        let figment = Figment::from(Serialized::defaults(ClaudexConfig::default()))
+            .merge(figment::providers::Toml::string(toml_str));
+        let config: ClaudexConfig = figment.extract().unwrap();
+        assert_eq!(config.proxy_port, 7777);
+        assert_eq!(config.log_level, "error");
+        // Defaults remain for unset fields
+        assert_eq!(config.proxy_host, "127.0.0.1");
+        assert_eq!(config.claude_binary, "claude");
+    }
+
+    #[test]
+    fn test_figment_env_overrides_file() {
+        let toml_str = r#"
+            proxy_port = 7777
+            log_level = "info"
+        "#;
+        // Simulate env override
+        std::env::set_var("CLAUDEX_PROXY_PORT", "9999");
+        std::env::set_var("CLAUDEX_LOG_LEVEL", "trace");
+
+        let figment = Figment::from(Serialized::defaults(ClaudexConfig::default()))
+            .merge(figment::providers::Toml::string(toml_str))
+            .merge(Env::prefixed("CLAUDEX_").split("__"));
+        let config: ClaudexConfig = figment.extract().unwrap();
+        assert_eq!(config.proxy_port, 9999);
+        assert_eq!(config.log_level, "trace");
+
+        std::env::remove_var("CLAUDEX_PROXY_PORT");
+        std::env::remove_var("CLAUDEX_LOG_LEVEL");
+    }
+
+    #[test]
+    fn test_figment_nested_env_override() {
+        std::env::set_var("CLAUDEX_ROUTER__ENABLED", "true");
+
+        let figment = Figment::from(Serialized::defaults(ClaudexConfig::default()))
+            .merge(Env::prefixed("CLAUDEX_").split("__"));
+        let config: ClaudexConfig = figment.extract().unwrap();
+        assert!(config.router.enabled);
+
+        std::env::remove_var("CLAUDEX_ROUTER__ENABLED");
+    }
+
+    #[test]
+    fn test_figment_toml_save_load_roundtrip() {
+        let mut config = ClaudexConfig::default();
+        config.proxy_port = 5555;
+        config.log_level = "warn".to_string();
+        config.config_format = ConfigFormat::Toml;
+
+        let toml_content = toml::to_string_pretty(&config).unwrap();
+        let figment = Figment::from(Serialized::defaults(ClaudexConfig::default()))
+            .merge(figment::providers::Toml::string(&toml_content));
+        let loaded: ClaudexConfig = figment.extract().unwrap();
+        assert_eq!(loaded.proxy_port, 5555);
+        assert_eq!(loaded.log_level, "warn");
+    }
+
+    #[test]
+    fn test_figment_yaml_save_load_roundtrip() {
+        let mut config = ClaudexConfig::default();
+        config.proxy_port = 6666;
+        config.log_level = "error".to_string();
+        config.config_format = ConfigFormat::Yaml;
+
+        let yaml_content = serde_yaml::to_string(&config).unwrap();
+        let figment = Figment::from(Serialized::defaults(ClaudexConfig::default()))
+            .merge(figment::providers::Yaml::string(&yaml_content));
+        let loaded: ClaudexConfig = figment.extract().unwrap();
+        assert_eq!(loaded.proxy_port, 6666);
+        assert_eq!(loaded.log_level, "error");
+    }
+
+    #[test]
+    fn test_figment_hyperlinks_through_pipeline() {
+        // Test that HyperlinksConfig's custom serde(from) works with figment
+        let toml_str = r#"hyperlinks = true"#;
+        let figment = Figment::from(Serialized::defaults(ClaudexConfig::default()))
+            .merge(figment::providers::Toml::string(toml_str));
+        let config: ClaudexConfig = figment.extract().unwrap();
+        assert_eq!(config.hyperlinks, HyperlinksConfig::Enabled);
+
+        let toml_str = r#"hyperlinks = "off""#;
+        let figment = Figment::from(Serialized::defaults(ClaudexConfig::default()))
+            .merge(figment::providers::Toml::string(toml_str));
+        let config: ClaudexConfig = figment.extract().unwrap();
+        assert_eq!(config.hyperlinks, HyperlinksConfig::Disabled);
+    }
+
+    #[test]
+    fn test_figment_config_example_toml() {
+        let example = include_str!("../config.example.toml");
+        let figment = Figment::from(Serialized::defaults(ClaudexConfig::default()))
+            .merge(figment::providers::Toml::string(example));
+        let config: ClaudexConfig = figment.extract().unwrap();
+        assert!(!config.profiles.is_empty());
+        assert_eq!(config.proxy_port, 13456);
+    }
+
+    #[test]
+    fn test_config_format_from_path() {
+        assert_eq!(ConfigFormat::from_path(Path::new("config.toml")), ConfigFormat::Toml);
+        assert_eq!(ConfigFormat::from_path(Path::new("config.yaml")), ConfigFormat::Yaml);
+        assert_eq!(ConfigFormat::from_path(Path::new("config.yml")), ConfigFormat::Yaml);
+        assert_eq!(ConfigFormat::from_path(Path::new("config")), ConfigFormat::Toml);
+        assert_eq!(ConfigFormat::from_path(Path::new("/foo/bar.yaml")), ConfigFormat::Yaml);
+    }
+
+    #[test]
+    fn test_figment_global_then_project_merge() {
+        // Simulate global config with base settings
+        let global_toml = r#"
+            proxy_port = 13456
+            log_level = "info"
+            [[profiles]]
+            name = "global-profile"
+            base_url = "http://global"
+            default_model = "global-model"
+        "#;
+
+        // Project config overrides port and adds a profile
+        // Note: profiles are replaced (not appended) by figment merge
+        let project_toml = r#"
+            proxy_port = 9000
+            [[profiles]]
+            name = "project-profile"
+            base_url = "http://project"
+            default_model = "project-model"
+        "#;
+
+        let figment = Figment::from(Serialized::defaults(ClaudexConfig::default()))
+            .merge(figment::providers::Toml::string(global_toml))
+            .merge(figment::providers::Toml::string(project_toml));
+        let config: ClaudexConfig = figment.extract().unwrap();
+        assert_eq!(config.proxy_port, 9000);
+        assert_eq!(config.log_level, "info"); // from global, not overridden
+        // profiles from project override global (figment merge replaces arrays)
+        assert_eq!(config.profiles.len(), 1);
+        assert_eq!(config.profiles[0].name, "project-profile");
     }
 }

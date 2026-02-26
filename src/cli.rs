@@ -45,9 +45,12 @@ pub enum Commands {
 
     /// Show current configuration
     Config {
-        /// Initialize claudex.toml in the current directory
+        /// Initialize config in the current directory
         #[arg(long)]
         init: bool,
+        /// Use YAML format (with --init)
+        #[arg(long)]
+        yaml: bool,
     },
 
     /// Self-update claudex binary
