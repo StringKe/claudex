@@ -100,10 +100,16 @@ pub async fn handle_messages(
     let metrics = state.metrics.get_or_create(&resolved_profile_name);
     drop(config);
 
-    // OAuth token lazy refresh
+    // OAuth token lazy refresh via TokenManager
     if profile.auth_type == AuthType::OAuth {
-        if let Err(e) = crate::oauth::providers::ensure_valid_token(&mut profile).await {
-            return (StatusCode::UNAUTHORIZED, format!("OAuth token error: {e}")).into_response();
+        match state.token_manager.get_token(&profile).await {
+            Ok(token) => {
+                crate::oauth::manager::apply_token_to_profile(&mut profile, &token);
+            }
+            Err(e) => {
+                return (StatusCode::UNAUTHORIZED, format!("OAuth token error: {e}"))
+                    .into_response();
+            }
         }
     }
 
@@ -124,8 +130,38 @@ pub async fn handle_messages(
 
     // --- Circuit Breaker + Failover ---
     // Try primary provider
-    let primary_result =
+    let mut primary_result =
         try_with_circuit_breaker(&state, &profile, &headers, &body_value, is_streaming).await;
+
+    // 401 retry: OAuth profile 的 token 可能已过期，清除缓存重试一次
+    if let Ok(ref response) = primary_result {
+        if response.status() == StatusCode::UNAUTHORIZED && profile.auth_type == AuthType::OAuth {
+            tracing::info!(
+                profile = %profile.name,
+                "got 401, invalidating token cache and retrying"
+            );
+            match state.token_manager.invalidate_and_retry(&profile).await {
+                Ok(new_token) => {
+                    crate::oauth::manager::apply_token_to_profile(&mut profile, &new_token);
+                    primary_result = try_with_circuit_breaker(
+                        &state,
+                        &profile,
+                        &headers,
+                        &body_value,
+                        is_streaming,
+                    )
+                    .await;
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        profile = %profile.name,
+                        error = %e,
+                        "token refresh after 401 failed"
+                    );
+                }
+            }
+        }
+    }
 
     let result = match primary_result {
         Ok(response) => Ok(response),

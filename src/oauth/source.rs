@@ -68,8 +68,7 @@ pub fn load_keyring(profile_name: &str) -> Result<OAuthToken> {
     let json = entry
         .get_password()
         .context("no OAuth token found in keyring")?;
-    let token: OAuthToken =
-        serde_json::from_str(&json).context("failed to parse stored token")?;
+    let token: OAuthToken = serde_json::from_str(&json).context("failed to parse stored token")?;
     Ok(token)
 }
 
@@ -195,11 +194,7 @@ pub fn read_codex_credentials() -> Result<RawCredential> {
 pub fn read_copilot_config() -> Result<RawCredential> {
     let config_dir = std::env::var("XDG_CONFIG_HOME")
         .map(std::path::PathBuf::from)
-        .unwrap_or_else(|_| {
-            dirs::home_dir()
-                .unwrap_or_default()
-                .join(".config")
-        });
+        .unwrap_or_else(|_| dirs::home_dir().unwrap_or_default().join(".config"));
     let copilot_dir = config_dir.join("github-copilot");
 
     // 优先尝试 apps.json (key 格式: "github.com:CLIENT_ID")
@@ -249,7 +244,10 @@ pub fn read_copilot_config() -> Result<RawCredential> {
         }
     }
 
-    anyhow::bail!("no GitHub Copilot credentials found in {}", copilot_dir.display())
+    anyhow::bail!(
+        "no GitHub Copilot credentials found in {}",
+        copilot_dir.display()
+    )
 }
 
 /// 读取 Gemini CLI 的 credentials
@@ -439,10 +437,7 @@ pub fn extract_jwt_claim(token: &str, namespace: &str, field: &str) -> Option<St
 /// 从 id_token 或 access_token 中提取 ChatGPT account_id
 pub fn extract_account_id(token_response: &serde_json::Value) -> Option<String> {
     // 优先从 id_token 提取
-    if let Some(id_token) = token_response
-        .get("id_token")
-        .and_then(|v| v.as_str())
-    {
+    if let Some(id_token) = token_response.get("id_token").and_then(|v| v.as_str()) {
         if let Some(aid) = extract_jwt_claim(
             id_token,
             "https://api.openai.com/auth",
@@ -452,10 +447,7 @@ pub fn extract_account_id(token_response: &serde_json::Value) -> Option<String> 
         }
     }
     // 回退到 access_token
-    if let Some(access_token) = token_response
-        .get("access_token")
-        .and_then(|v| v.as_str())
-    {
+    if let Some(access_token) = token_response.get("access_token").and_then(|v| v.as_str()) {
         if let Some(aid) = extract_jwt_claim(
             access_token,
             "https://api.openai.com/auth",
@@ -588,14 +580,10 @@ mod tests {
 
     #[test]
     fn test_normalize_openai_to_chatgpt() {
-        assert_eq!(
-            load_credential_chain(&OAuthProvider::Openai).err().is_some()
-                || load_credential_chain(&OAuthProvider::Chatgpt).err().is_some(),
-            true
-        );
-        // 验证 normalize 逻辑
         assert_eq!(OAuthProvider::Openai.normalize(), OAuthProvider::Chatgpt);
         assert_eq!(OAuthProvider::Claude.normalize(), OAuthProvider::Claude);
+        assert_eq!(OAuthProvider::Github.normalize(), OAuthProvider::Github);
+        assert_eq!(OAuthProvider::Chatgpt.normalize(), OAuthProvider::Chatgpt);
     }
 
     #[test]

@@ -99,8 +99,8 @@ impl OAuthProviderHandler for ChatgptHandler {
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<OAuthToken>> + Send + '_>> {
         let refresh_tok = token.refresh_token.clone();
         Box::pin(async move {
-            let refresh_tok = refresh_tok
-                .ok_or_else(|| anyhow::anyhow!("no refresh_token, please re-login"))?;
+            let refresh_tok =
+                refresh_tok.ok_or_else(|| anyhow::anyhow!("no refresh_token, please re-login"))?;
             let client = reqwest::Client::new();
             super::exchange::refresh_chatgpt_token(&client, &refresh_tok).await
         })
@@ -270,14 +270,35 @@ mod tests {
 
     #[test]
     fn test_factory_returns_correct_provider() {
-        assert_eq!(for_provider(&OAuthProvider::Claude).provider(), OAuthProvider::Claude);
-        assert_eq!(for_provider(&OAuthProvider::Chatgpt).provider(), OAuthProvider::Chatgpt);
+        assert_eq!(
+            for_provider(&OAuthProvider::Claude).provider(),
+            OAuthProvider::Claude
+        );
+        assert_eq!(
+            for_provider(&OAuthProvider::Chatgpt).provider(),
+            OAuthProvider::Chatgpt
+        );
         // Openai normalizes to Chatgpt handler
-        assert_eq!(for_provider(&OAuthProvider::Openai).provider(), OAuthProvider::Chatgpt);
-        assert_eq!(for_provider(&OAuthProvider::Google).provider(), OAuthProvider::Google);
-        assert_eq!(for_provider(&OAuthProvider::Qwen).provider(), OAuthProvider::Qwen);
-        assert_eq!(for_provider(&OAuthProvider::Kimi).provider(), OAuthProvider::Kimi);
-        assert_eq!(for_provider(&OAuthProvider::Github).provider(), OAuthProvider::Github);
+        assert_eq!(
+            for_provider(&OAuthProvider::Openai).provider(),
+            OAuthProvider::Chatgpt
+        );
+        assert_eq!(
+            for_provider(&OAuthProvider::Google).provider(),
+            OAuthProvider::Google
+        );
+        assert_eq!(
+            for_provider(&OAuthProvider::Qwen).provider(),
+            OAuthProvider::Qwen
+        );
+        assert_eq!(
+            for_provider(&OAuthProvider::Kimi).provider(),
+            OAuthProvider::Kimi
+        );
+        assert_eq!(
+            for_provider(&OAuthProvider::Github).provider(),
+            OAuthProvider::Github
+        );
     }
 
     #[test]

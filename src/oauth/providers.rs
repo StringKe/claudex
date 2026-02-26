@@ -218,8 +218,7 @@ async fn login_chatgpt_browser(profile_name: &str) -> Result<()> {
     let port = super::server::find_available_port()?;
     let state = uuid::Uuid::new_v4().to_string();
 
-    let authorize_url =
-        super::exchange::build_chatgpt_authorize_url(port, &pkce, &state);
+    let authorize_url = super::exchange::build_chatgpt_authorize_url(port, &pkce, &state);
 
     println!("Opening browser for ChatGPT login...");
     println!("If the browser doesn't open, visit:");
@@ -304,7 +303,9 @@ async fn login_github(profile_name: &str) -> Result<()> {
                     return Ok(());
                 }
                 Err(e) => {
-                    tracing::warn!("existing Copilot token invalid: {e}, falling back to device code");
+                    tracing::warn!(
+                        "existing Copilot token invalid: {e}, falling back to device code"
+                    );
                 }
             }
         }
@@ -606,18 +607,15 @@ pub async fn refresh(config: &ClaudexConfig, profile_name: &str) -> Result<()> {
             );
         }
         OAuthProvider::Chatgpt | OAuthProvider::Openai => {
-            let cred = super::source::read_codex_credentials()
-                .context("cannot read Codex credentials")?;
+            let cred =
+                super::source::read_codex_credentials().context("cannot read Codex credentials")?;
             let token = cred.into_oauth_token();
             let refresh_tok = token.refresh_token.as_ref().ok_or_else(|| {
-                anyhow::anyhow!(
-                    "no refresh_token in Codex credentials, please re-login"
-                )
+                anyhow::anyhow!("no refresh_token in Codex credentials, please re-login")
             })?;
 
             let client = reqwest::Client::new();
-            let new_token =
-                super::exchange::refresh_chatgpt_token(&client, refresh_tok).await?;
+            let new_token = super::exchange::refresh_chatgpt_token(&client, refresh_tok).await?;
             super::source::store_keyring(profile_name, &new_token)?;
             println!("Token refreshed for profile '{profile_name}'.");
         }
@@ -643,8 +641,8 @@ pub async fn refresh(config: &ClaudexConfig, profile_name: &str) -> Result<()> {
             println!("GitHub Copilot token refreshed for profile '{profile_name}'.");
         }
         OAuthProvider::Qwen => {
-            let token =
-                super::source::load_keyring(profile_name).context("no existing token to refresh")?;
+            let token = super::source::load_keyring(profile_name)
+                .context("no existing token to refresh")?;
             let refresh_token = token
                 .refresh_token
                 .as_ref()

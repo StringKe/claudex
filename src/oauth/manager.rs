@@ -163,12 +163,13 @@ impl TokenManager {
 
     /// GitHub: 加载 GitHub token + 交换为 Copilot bearer token
     async fn load_github_token(&self, profile: &ProfileConfig) -> Result<OAuthToken> {
-        let cred = super::source::load_credential_chain(&OAuthProvider::Github).with_context(|| {
-            format!(
+        let cred =
+            super::source::load_credential_chain(&OAuthProvider::Github).with_context(|| {
+                format!(
                 "GitHub token not available for '{}'. Run `claudex auth login github --profile {}`",
                 profile.name, profile.name
             )
-        })?;
+            })?;
 
         let github_token = &cred.access_token;
 
@@ -275,7 +276,10 @@ mod tests {
         };
         let result = manager.get_token(&profile).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("no oauth_provider"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("no oauth_provider"));
     }
 
     #[tokio::test]

@@ -4,8 +4,8 @@
 
 use anyhow::{Context, Result};
 
-use super::OAuthToken;
 use super::source;
+use super::OAuthToken;
 
 // ── Constants ────────────────────────────────────────────────────────────
 
@@ -203,9 +203,7 @@ pub struct DeviceAuthResponse {
 }
 
 /// 请求 ChatGPT device auth code
-pub async fn chatgpt_device_auth_request(
-    client: &reqwest::Client,
-) -> Result<DeviceAuthResponse> {
+pub async fn chatgpt_device_auth_request(client: &reqwest::Client) -> Result<DeviceAuthResponse> {
     let resp = client
         .post(format!("{CHATGPT_ISSUER}/api/accounts/deviceauth/usercode"))
         .json(&serde_json::json!({"client_id": CHATGPT_CLIENT_ID}))
@@ -229,10 +227,7 @@ pub async fn chatgpt_device_auth_request(
             .and_then(|v| v.as_str())
             .context("missing user_code")?
             .to_string(),
-        interval: body
-            .get("interval")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(5),
+        interval: body.get("interval").and_then(|v| v.as_u64()).unwrap_or(5),
     })
 }
 

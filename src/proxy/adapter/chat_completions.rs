@@ -38,6 +38,22 @@ impl ProviderAdapter for ChatCompletionsAdapter {
         }
     }
 
+    fn apply_extra_headers(
+        &self,
+        mut builder: RequestBuilder,
+        profile: &ProfileConfig,
+    ) -> RequestBuilder {
+        // GitHub Copilot: 添加伪装 headers
+        if profile.extra_env.contains_key("COPILOT_AUTH")
+            || profile.base_url.contains("githubcopilot.com")
+        {
+            for (k, v) in crate::oauth::exchange::copilot_extra_headers() {
+                builder = builder.header(k, v);
+            }
+        }
+        builder
+    }
+
     fn translate_response(&self, body: &Value, tool_name_map: &ToolNameMap) -> Result<Value> {
         crate::proxy::translate::chat_completions::openai_to_anthropic(body, tool_name_map)
     }

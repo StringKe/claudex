@@ -72,6 +72,8 @@ pub async fn start_proxy(config: ClaudexConfig, port_override: Option<u16>) -> R
         None
     };
 
+    let token_manager = crate::oauth::manager::TokenManager::new(http_client.clone());
+
     let state = Arc::new(ProxyState {
         config: Arc::new(RwLock::new(config)),
         metrics: MetricsStore::new(),
@@ -80,6 +82,7 @@ pub async fn start_proxy(config: ClaudexConfig, port_override: Option<u16>) -> R
         circuit_breakers: fallback::new_circuit_breaker_map(),
         shared_context: SharedContext::new(),
         rag_index,
+        token_manager,
     });
 
     health::spawn_health_checker(state.clone());
