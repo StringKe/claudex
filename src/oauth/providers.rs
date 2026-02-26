@@ -214,10 +214,13 @@ async fn login_chatgpt(profile_name: &str, force: bool, headless: bool) -> Resul
     }
 }
 
+/// Codex CLI 默认回调端口（OAuth app 注册的 redirect_uri 使用此端口）
+const CHATGPT_CALLBACK_PORT: u16 = 1455;
+
 /// ChatGPT Browser PKCE login
 async fn login_chatgpt_browser(profile_name: &str) -> Result<()> {
     let pkce = super::server::PkceChallenge::generate();
-    let port = super::server::find_available_port()?;
+    let port = CHATGPT_CALLBACK_PORT;
     let state = uuid::Uuid::new_v4().to_string();
 
     let authorize_url = super::exchange::build_chatgpt_authorize_url(port, &pkce, &state);

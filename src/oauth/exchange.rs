@@ -50,7 +50,7 @@ pub async fn refresh_chatgpt_token(
         .header("Content-Type", "application/x-www-form-urlencoded")
         .body(format!(
             "grant_type=refresh_token&refresh_token={}&client_id={}",
-            urlencoded(refresh_token),
+            encode(refresh_token),
             CHATGPT_CLIENT_ID
         ))
         .send()
@@ -125,15 +125,26 @@ pub fn build_chatgpt_authorize_url(
     pkce: &super::server::PkceChallenge,
     state: &str,
 ) -> String {
-    format!(
-        "{}/oauth/authorize?response_type=code&client_id={}&redirect_uri={}&scope={}&code_challenge_method=S256&code_challenge={}&state={}&codex_cli_simplified_flow=true&id_token_add_organizations=true",
-        CHATGPT_ISSUER,
-        CHATGPT_CLIENT_ID,
-        urlencoded(&format!("http://localhost:{redirect_port}/auth/callback")),
-        urlencoded("openid profile email offline_access"),
-        pkce.code_challenge,
-        urlencoded(state),
-    )
+    let params = [
+        ("response_type", "code".to_string()),
+        ("client_id", CHATGPT_CLIENT_ID.to_string()),
+        (
+            "redirect_uri",
+            format!("http://localhost:{redirect_port}/auth/callback"),
+        ),
+        ("scope", "openid profile email offline_access".to_string()),
+        ("code_challenge", pkce.code_challenge.clone()),
+        ("code_challenge_method", "S256".to_string()),
+        ("id_token_add_organizations", "true".to_string()),
+        ("codex_cli_simplified_flow", "true".to_string()),
+        ("state", state.to_string()),
+    ];
+    let qs = params
+        .iter()
+        .map(|(k, v)| format!("{k}={}", encode(v)))
+        .collect::<Vec<_>>()
+        .join("&");
+    format!("{CHATGPT_ISSUER}/oauth/authorize?{qs}")
 }
 
 /// 用 authorization_code + code_verifier 换取 ChatGPT tokens
@@ -148,10 +159,10 @@ pub async fn exchange_chatgpt_code(
         .header("Content-Type", "application/x-www-form-urlencoded")
         .body(format!(
             "grant_type=authorization_code&code={}&redirect_uri={}&client_id={}&code_verifier={}",
-            urlencoded(code),
-            urlencoded(redirect_uri),
+            encode(code),
+            encode(redirect_uri),
             CHATGPT_CLIENT_ID,
-            urlencoded(code_verifier),
+            encode(code_verifier),
         ))
         .send()
         .await
@@ -253,7 +264,8 @@ pub async fn chatgpt_device_auth_poll(
         tokio::select! {
             _ = tokio::time::sleep(interval) => {}
             _ = tokio::signal::ctrl_c() => {
-                anyhow::bail!("interrupted by user (Ctrl+C)");
+                eprintln!("\nInterrupted.");
+                std::process::exit(130);
             }
         }
 
@@ -286,7 +298,7 @@ pub async fn chatgpt_device_auth_poll(
                 .and_then(|v| v.as_str())
                 .context("missing code_verifier in device auth response")?;
 
-            let redirect_uri = format!("{CHATGPT_ISSUER}/api/accounts/deviceauth/callback");
+            let redirect_uri = format!("{CHATGPT_ISSUER}/deviceauth/callback");
             let token =
                 exchange_chatgpt_code(client, auth_code, &redirect_uri, code_verifier).await?;
 
@@ -379,25 +391,98 @@ pub fn copilot_extra_headers() -> Vec<(&'static str, &'static str)> {
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
-fn urlencoded(s: &str) -> String {
-    url::form_urlencoded::byte_serialize(s.as_bytes()).collect()
+fn encode(s: &str) -> String {
+    urlencoding::encode(s).into_owned()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    // ── encode ────────────────────────────────────────────────
+
+    #[test]
+    fn test_encode_spaces_as_percent20() {
+        // urlencoding::encode 编码空格为 %20（与 Codex CLI 一致）
+        assert_eq!(encode("openid profile"), "openid%20profile");
+        // 不应该编码为 +
+        assert!(!encode("a b").contains('+'));
+    }
+
+    #[test]
+    fn test_encode_special_chars() {
+        assert_eq!(
+            encode("http://localhost:1455/auth/callback"),
+            "http%3A%2F%2Flocalhost%3A1455%2Fauth%2Fcallback"
+        );
+    }
+
+    #[test]
+    fn test_encode_passthrough_safe_chars() {
+        assert_eq!(encode("abc-123_test.value~ok"), "abc-123_test.value~ok");
+    }
+
+    // ── authorize URL ────────────────────────────────────────
+
     #[test]
     fn test_build_chatgpt_authorize_url() {
         let pkce = super::super::server::PkceChallenge::generate();
         let url = build_chatgpt_authorize_url(1455, &pkce, "test-state");
-        assert!(url.starts_with("https://auth.openai.com/oauth/authorize"));
+        assert!(url.starts_with("https://auth.openai.com/oauth/authorize?"));
         assert!(url.contains("client_id=app_EMoamEEZ73f0CkXaXp7hrann"));
-        assert!(url.contains("redirect_uri="));
-        assert!(url.contains("code_challenge="));
-        assert!(url.contains("state=test-state"));
         assert!(url.contains("codex_cli_simplified_flow=true"));
+        assert!(url.contains("state=test-state"));
     }
+
+    #[test]
+    fn test_authorize_url_redirect_uri_format() {
+        let pkce = super::super::server::PkceChallenge::generate();
+        let url = build_chatgpt_authorize_url(1455, &pkce, "s");
+        // redirect_uri 应该 percent-encode 为 http%3A%2F%2Flocalhost%3A1455%2Fauth%2Fcallback
+        assert!(url.contains("redirect_uri=http%3A%2F%2Flocalhost%3A1455%2Fauth%2Fcallback"));
+    }
+
+    #[test]
+    fn test_authorize_url_scope_uses_percent20() {
+        let pkce = super::super::server::PkceChallenge::generate();
+        let url = build_chatgpt_authorize_url(1455, &pkce, "s");
+        // scope 中空格应编码为 %20
+        assert!(url.contains("scope=openid%20profile%20email%20offline_access"));
+        // 不应含有 + 编码
+        assert!(!url.contains("openid+profile"));
+    }
+
+    #[test]
+    fn test_authorize_url_dynamic_port() {
+        let pkce = super::super::server::PkceChallenge::generate();
+        let url = build_chatgpt_authorize_url(53020, &pkce, "s");
+        assert!(url.contains("localhost%3A53020"));
+    }
+
+    // ── device auth redirect_uri ─────────────────────────────
+
+    #[test]
+    fn test_device_auth_redirect_uri_no_api_accounts() {
+        // device code 的 redirect_uri 应该是 {ISSUER}/deviceauth/callback
+        // 不是 {ISSUER}/api/accounts/deviceauth/callback
+        let expected = format!("{CHATGPT_ISSUER}/deviceauth/callback");
+        assert_eq!(expected, "https://auth.openai.com/deviceauth/callback");
+        assert!(!expected.contains("/api/accounts/"));
+    }
+
+    // ── constants ────────────────────────────────────────────
+
+    #[test]
+    fn test_chatgpt_client_id_matches_codex_cli() {
+        assert_eq!(CHATGPT_CLIENT_ID, "app_EMoamEEZ73f0CkXaXp7hrann");
+    }
+
+    #[test]
+    fn test_github_copilot_client_id_is_official() {
+        assert_eq!(GITHUB_COPILOT_CLIENT_ID, "Iv1.b507a08c87ecfe98");
+    }
+
+    // ── copilot headers ──────────────────────────────────────
 
     #[test]
     fn test_copilot_headers() {
@@ -413,6 +498,8 @@ mod tests {
             .iter()
             .any(|(k, v)| *k == "Openai-Intent" && *v == "conversation-edits"));
     }
+
+    // ── refresh error ────────────────────────────────────────
 
     #[test]
     fn test_refresh_error_display() {

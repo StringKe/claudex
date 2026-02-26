@@ -95,6 +95,7 @@ self_update = { version = "0.42", features = ["rustls"], default-features = fals
 sha2 = "0.10"
 base64 = "0.22"
 rand = "0.10"
+urlencoding = "2.1.3"
 
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.31", features = ["term", "poll", "signal", "process", "fs"] }

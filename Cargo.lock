@@ -436,6 +436,7 @@ dependencies = [
  "tracing-subscriber",
  "tui-logger",
  "url",
+ "urlencoding",
  "uuid",
  "which",
  "wiremock",

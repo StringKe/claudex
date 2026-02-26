@@ -96,7 +96,8 @@ pub async fn start_callback_server(port: u16) -> Result<String> {
         }
         _ = tokio::signal::ctrl_c() => {
             server_handle.abort();
-            anyhow::bail!("interrupted by user (Ctrl+C)");
+            eprintln!("\nInterrupted.");
+            std::process::exit(130);
         }
     };
 
@@ -120,7 +121,8 @@ pub async fn poll_device_code(
         tokio::select! {
             _ = tokio::time::sleep(interval) => {}
             _ = tokio::signal::ctrl_c() => {
-                anyhow::bail!("interrupted by user (Ctrl+C)");
+                eprintln!("\nInterrupted.");
+                std::process::exit(130);
             }
         }
 
