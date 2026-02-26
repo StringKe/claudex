@@ -22,6 +22,38 @@ gpt4o = "gpt-4o"
 ds3 = "deepseek-chat"
 claude = "claude-sonnet-4-20250514"
 
+# ─── Profile Advanced Options Reference ────────────────
+#
+# All profile fields (most are optional with sensible defaults):
+#
+#   name            = "profile-name"           # (required) unique identifier
+#   provider_type   = "OpenAICompatible"       # DirectAnthropic | OpenAICompatible | OpenAIResponses
+#   base_url        = "https://..."            # (required) API endpoint
+#   api_key         = "sk-..."                 # API key (or use api_key_keyring)
+#   api_key_keyring = "keyring-entry"          # load api_key from system keyring
+#   default_model   = "model-name"             # (required) default model for this profile
+#   enabled         = true                     # enable/disable profile (default: true)
+#   priority        = 100                      # fallback priority, higher = preferred (default: 100)
+#   backup_providers = ["other-profile"]       # fallback profile names on failure
+#   auth_type       = "api_key"                # "api_key" (default) | "oauth"
+#   oauth_provider  = "openai"                 # required when auth_type = "oauth"
+#   max_tokens      = 16384                    # cap max output tokens sent to provider (optional)
+#   strip_params    = "auto"                   # "auto" | "none" | ["temperature", "top_p"] (default: "auto")
+#
+#   [profiles.models]                          # model slot mapping for Claude Code /model command
+#   haiku  = "fast-model"                      # maps Claude haiku slot to this model
+#   sonnet = "balanced-model"                  # maps Claude sonnet slot
+#   opus   = "powerful-model"                  # maps Claude opus slot
+#
+#   [profiles.custom_headers]                  # extra HTTP headers per request
+#   X-Custom-Header = "value"
+#
+#   [profiles.extra_env]                       # extra env vars passed to claude process
+#   SOME_VAR = "value"
+#
+#   [profiles.query_params]                    # URL query params (e.g. Azure api-version)
+#   api-version = "2024-12-01-preview"
+
 # ─── Profiles ───────────────────────────────────────────
 
 # Anthropic (native, no translation needed)

@@ -25,3 +25,7 @@ config.toml
 .claude/todos/
 .claude/statsig/
 .claude/*.jsonl
+
+# Internal docs and scripts (local only)
+docs/
+scripts/

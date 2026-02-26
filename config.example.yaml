@@ -1,0 +1,335 @@
+# Claudex Configuration (YAML format)
+# Copy this file to ~/.config/claudex/config.yaml and edit
+# Or place as claudex.yaml in your project root
+
+# Path to claude binary (default: "claude" from PATH)
+# claude_binary: /usr/local/bin/claude
+
+# Proxy settings
+proxy_port: 13456
+proxy_host: 127.0.0.1
+
+# Log level: trace, debug, info, warn, error
+log_level: info
+
+# Terminal hyperlinks (OSC 8): auto | true | false
+# auto detects terminal support; true/false force on/off
+hyperlinks: auto
+
+# Model aliases (shorthand -> full model name)
+model_aliases:
+  grok3: grok-3-beta
+  gpt4o: gpt-4o
+  ds3: deepseek-chat
+  claude: claude-sonnet-4-20250514
+
+# ─── Profile Advanced Options Reference ────────────────
+#
+# All profile fields (most are optional with sensible defaults):
+#
+#   name: profile-name              # (required) unique identifier
+#   provider_type: OpenAICompatible # DirectAnthropic | OpenAICompatible | OpenAIResponses
+#   base_url: https://...           # (required) API endpoint
+#   api_key: sk-...                 # API key (or use api_key_keyring)
+#   api_key_keyring: keyring-entry  # load api_key from system keyring
+#   default_model: model-name       # (required) default model for this profile
+#   enabled: true                   # enable/disable profile (default: true)
+#   priority: 100                   # fallback priority, higher = preferred (default: 100)
+#   backup_providers: [other]       # fallback profile names on failure
+#   auth_type: api_key              # api_key (default) | oauth
+#   oauth_provider: openai          # required when auth_type = oauth
+#   max_tokens: 16384               # cap max output tokens sent to provider (optional)
+#   strip_params: auto              # auto | none | [temperature, top_p] (default: auto)
+#
+#   models:                         # model slot mapping for Claude Code /model command
+#     haiku: fast-model             # maps Claude haiku slot to this model
+#     sonnet: balanced-model        # maps Claude sonnet slot
+#     opus: powerful-model          # maps Claude opus slot
+#
+#   custom_headers:                 # extra HTTP headers per request
+#     X-Custom-Header: value
+#
+#   extra_env:                      # extra env vars passed to claude process
+#     SOME_VAR: value
+#
+#   query_params:                   # URL query params (e.g. Azure api-version)
+#     api-version: "2024-12-01-preview"
+
+# ─── Profiles ─────────────────────────────────────────
+
+profiles:
+  # Anthropic (native, no translation needed)
+  - name: anthropic
+    provider_type: DirectAnthropic
+    base_url: https://api.anthropic.com
+    api_key: YOUR_ANTHROPIC_KEY  # or use api_key_keyring: anthropic
+    default_model: claude-sonnet-4-20250514
+    enabled: true
+    priority: 100
+
+  # MiniMax (Anthropic-compatible)
+  - name: minimax
+    provider_type: DirectAnthropic
+    base_url: https://api.minimax.io/anthropic
+    api_key: YOUR_API_KEY
+    default_model: claude-sonnet-4-20250514
+    backup_providers: [anthropic]
+    enabled: true
+    priority: 90
+
+  # OpenRouter (needs translation)
+  - name: openrouter
+    provider_type: OpenAICompatible
+    base_url: https://openrouter.ai/api/v1
+    api_key: YOUR_OPENROUTER_KEY
+    default_model: anthropic/claude-sonnet-4
+    enabled: true
+    priority: 80
+
+  # Grok (xAI, needs translation)
+  - name: grok
+    provider_type: OpenAICompatible
+    base_url: https://api.x.ai/v1
+    api_key: YOUR_XAI_KEY
+    default_model: grok-3-beta
+    backup_providers: [deepseek]
+    enabled: true
+    priority: 100
+
+  # OpenAI (needs translation)
+  - name: chatgpt
+    provider_type: OpenAICompatible
+    base_url: https://api.openai.com/v1
+    api_key: YOUR_API_KEY
+    default_model: gpt-4o
+    enabled: true
+    priority: 90
+
+  # DeepSeek (needs translation)
+  - name: deepseek
+    provider_type: OpenAICompatible
+    base_url: https://api.deepseek.com
+    api_key: YOUR_API_KEY
+    default_model: deepseek-chat
+    backup_providers: [grok]
+    enabled: true
+    priority: 100
+
+  # Kimi / Moonshot (needs translation)
+  - name: kimi
+    provider_type: OpenAICompatible
+    base_url: https://api.moonshot.ai/v1
+    api_key: YOUR_API_KEY
+    default_model: kimi-k2-0905-preview
+    enabled: true
+    priority: 70
+
+  # GLM / 智谱 (needs translation)
+  - name: glm
+    provider_type: OpenAICompatible
+    base_url: https://api.z.ai/api/paas/v4
+    api_key: YOUR_API_KEY
+    default_model: glm-4.6
+    enabled: true
+    priority: 70
+
+  # ─── OAuth Subscription Profiles ────────────────────
+  # Login first: claudex auth login <provider> --profile <name>
+
+  # Claude Max (via Claude Code's own OAuth)
+  - name: claude-max
+    provider_type: DirectAnthropic
+    base_url: https://api.claude.ai
+    default_model: claude-sonnet-4-20250514
+    auth_type: oauth
+    oauth_provider: claude
+    enabled: false
+
+  # ChatGPT Plus/Pro / Codex subscription (via OpenAI OAuth -> Responses API)
+  # Supported models: gpt-5.3-codex, gpt-5.1-codex, codex-mini-latest
+  # Note: gpt-4o is NOT supported on the Codex ChatGPT endpoint
+  # strip_params: auto will auto-detect chatgpt.com and strip temperature/top_p/top_k
+  - name: codex-sub
+    provider_type: OpenAIResponses
+    base_url: https://chatgpt.com/backend-api/codex
+    default_model: gpt-5.3-codex
+    auth_type: oauth
+    oauth_provider: openai
+    enabled: false
+    # ChatGPT-Account-ID is auto-extracted from Codex CLI's auth.json
+    # Or set manually:
+    # custom_headers:
+    #   ChatGPT-Account-ID: your-account-id
+
+  # Gemini Pro (via Google OAuth)
+  - name: gemini-sub
+    provider_type: OpenAICompatible
+    base_url: https://generativelanguage.googleapis.com/v1beta/openai
+    default_model: gemini-2.5-pro
+    auth_type: oauth
+    oauth_provider: google
+    enabled: false
+
+  # GitHub Copilot (via GitHub Device Code Flow)
+  - name: copilot
+    provider_type: OpenAICompatible
+    base_url: https://api.githubcopilot.com
+    default_model: gpt-4o
+    auth_type: oauth
+    oauth_provider: github
+    enabled: false
+
+  # GitLab Duo (via GITLAB_TOKEN env)
+  # Login: claudex auth login gitlab --profile gitlab-duo
+  # Requires: export GITLAB_TOKEN=glpat-...
+  - name: gitlab-duo
+    provider_type: OpenAICompatible
+    base_url: https://gitlab.com/api/v4/ai/llm/proxy
+    default_model: claude-sonnet-4-20250514
+    auth_type: oauth
+    oauth_provider: gitlab
+    enabled: false
+
+  # ─── Cloud Providers (API Key) ──────────────────────
+
+  # Azure OpenAI (uses api-key header + query_params for api-version)
+  # Auto-detected by base_url containing "openai.azure.com"
+  - name: azure-openai
+    provider_type: OpenAICompatible
+    base_url: https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT
+    api_key: YOUR_AZURE_KEY
+    default_model: gpt-4o
+    enabled: false
+    priority: 80
+    query_params:
+      api-version: "2024-12-01-preview"
+
+  # Google Vertex AI (DirectAnthropic endpoint)
+  # Refresh token: gcloud auth print-access-token
+  - name: vertex-ai
+    provider_type: DirectAnthropic
+    base_url: https://us-east5-aiplatform.googleapis.com/v1/projects/YOUR_PROJECT/locations/us-east5/publishers/anthropic/models
+    api_key: YOUR_GCLOUD_TOKEN
+    default_model: claude-sonnet-4@20250514
+    enabled: false
+    priority: 80
+
+  # Groq (fast inference)
+  - name: groq
+    provider_type: OpenAICompatible
+    base_url: https://api.groq.com/openai/v1
+    api_key: YOUR_GROQ_KEY
+    default_model: llama-3.3-70b-versatile
+    enabled: false
+    priority: 70
+
+  # Mistral AI
+  - name: mistral
+    provider_type: OpenAICompatible
+    base_url: https://api.mistral.ai/v1
+    api_key: YOUR_MISTRAL_KEY
+    default_model: mistral-large-latest
+    enabled: false
+    priority: 70
+
+  # Together AI
+  - name: together
+    provider_type: OpenAICompatible
+    base_url: https://api.together.xyz/v1
+    api_key: YOUR_TOGETHER_KEY
+    default_model: meta-llama/Llama-3.3-70B-Instruct-Turbo
+    enabled: false
+    priority: 70
+
+  # Perplexity (online search + LLM)
+  - name: perplexity
+    provider_type: OpenAICompatible
+    base_url: https://api.perplexity.ai
+    api_key: YOUR_PPLX_KEY
+    default_model: sonar-pro
+    enabled: false
+    priority: 60
+
+  # Cerebras (fast inference)
+  - name: cerebras
+    provider_type: OpenAICompatible
+    base_url: https://api.cerebras.ai/v1
+    api_key: YOUR_CEREBRAS_KEY
+    default_model: llama-3.3-70b
+    enabled: false
+    priority: 70
+
+  # ─── Local Models (via Ollama / vLLM / LM Studio) ───
+
+  # Ollama
+  - name: local-qwen
+    provider_type: OpenAICompatible
+    base_url: http://localhost:11434/v1
+    api_key: ""
+    default_model: qwen2.5:72b
+    enabled: false
+    priority: 50
+
+  # LM Studio
+  - name: lm-studio
+    provider_type: OpenAICompatible
+    base_url: http://localhost:1234/v1
+    api_key: lm-studio
+    default_model: local-model
+    enabled: false
+    priority: 50
+
+  # vLLM / llama.cpp server
+  - name: local-llama
+    provider_type: OpenAICompatible
+    base_url: http://localhost:8000/v1
+    api_key: ""
+    default_model: llama-3.3-70b
+    enabled: false
+    priority: 50
+
+  # Bedrock via LiteLLM proxy
+  # Run: litellm --model bedrock/anthropic.claude-sonnet-4-20250514-v2:0
+  # See: https://docs.litellm.ai/docs/providers/bedrock
+  # - name: bedrock
+  #   provider_type: OpenAICompatible
+  #   base_url: http://localhost:4000/v1
+  #   api_key: sk-litellm
+  #   default_model: bedrock/anthropic.claude-sonnet-4-20250514-v2:0
+  #   enabled: false
+
+# ─── Smart Router (optional) ───────────────────────────
+
+router:
+  enabled: false
+  profile: local-qwen            # reuse a profile's base_url + api_key for classification
+  model: qwen2.5:3b              # override model (optional, defaults to profile's default_model)
+  rules:
+    code: deepseek
+    analysis: grok
+    creative: chatgpt
+    search: kimi
+    math: deepseek
+    default: grok
+
+# ─── Context Engine (optional) ─────────────────────────
+
+context:
+  compression:
+    enabled: false
+    threshold_tokens: 50000
+    keep_recent: 10
+    profile: local-qwen          # reuse a profile's base_url + api_key for summarization
+    model: qwen2.5:3b            # override model (optional)
+  sharing:
+    enabled: false
+    max_context_size: 2000
+  rag:
+    enabled: false
+    index_paths:
+      - ./src
+      - ./docs
+    profile: local-qwen          # reuse a profile's base_url + api_key for embeddings
+    model: nomic-embed-text      # embedding model
+    chunk_size: 512
+    top_k: 5
