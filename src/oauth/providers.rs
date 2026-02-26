@@ -425,7 +425,9 @@ async fn login_gitlab(profile_name: &str) -> Result<()> {
         }
         Err(_) => {
             println!("No GITLAB_TOKEN or GL_TOKEN found.");
-            println!("Set one of these environment variables with your GitLab Personal Access Token:");
+            println!(
+                "Set one of these environment variables with your GitLab Personal Access Token:"
+            );
             println!("  export GITLAB_TOKEN=glpat-...");
             println!("Then run this command again.");
             anyhow::bail!("GitLab token not configured")
