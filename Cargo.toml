@@ -89,7 +89,7 @@ which = "7"
 open = "5"
 
 # Self-update
-self_update = { version = "0.42", features = ["rustls"], default-features = false }
+self_update = { version = "0.42", features = ["rustls", "archive-tar", "archive-zip"], default-features = false }
 
 # OAuth PKCE
 sha2 = "0.10"
