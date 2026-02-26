@@ -32,7 +32,13 @@ impl ProviderAdapter for ChatCompletionsAdapter {
 
     fn apply_auth(&self, builder: RequestBuilder, profile: &ProfileConfig) -> RequestBuilder {
         if !profile.api_key.is_empty() {
-            builder.header("Authorization", format!("Bearer {}", profile.api_key))
+            if profile.extra_env.contains_key("AZURE_AUTH")
+                || profile.base_url.contains("openai.azure.com")
+            {
+                builder.header("api-key", &profile.api_key)
+            } else {
+                builder.header("Authorization", format!("Bearer {}", profile.api_key))
+            }
         } else {
             builder
         }

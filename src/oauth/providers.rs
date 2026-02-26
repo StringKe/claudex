@@ -80,6 +80,17 @@ fn provider_defaults(provider: &OAuthProvider) -> ProviderDefaults {
             },
             max_tokens: None,
         },
+        OAuthProvider::Gitlab => ProviderDefaults {
+            provider_type: ProviderType::OpenAICompatible,
+            base_url: "https://gitlab.com/api/v4/ai/llm/proxy",
+            default_model: "claude-sonnet-4-20250514",
+            models: ProfileModels {
+                haiku: Some("claude-haiku-4-5-20251001".to_string()),
+                sonnet: Some("claude-sonnet-4-20250514".to_string()),
+                opus: Some("claude-opus-4-6-20250610".to_string()),
+            },
+            max_tokens: None,
+        },
     }
 }
 
@@ -135,10 +146,11 @@ pub async fn login(
     profile_name: &str,
     force: bool,
     headless: bool,
+    enterprise_url: Option<&str>,
 ) -> Result<()> {
     let provider = OAuthProvider::from_str(provider_str).ok_or_else(|| {
         anyhow::anyhow!(
-            "unknown provider '{}'. Supported: claude, chatgpt/openai, google, qwen, kimi, github/copilot",
+            "unknown provider '{}'. Supported: claude, chatgpt/openai, google, qwen, kimi, github/copilot, gitlab",
             provider_str
         )
     })?;
@@ -153,7 +165,8 @@ pub async fn login(
         OAuthProvider::Google => login_google(profile_name).await,
         OAuthProvider::Qwen => login_device_code(profile_name, &OAuthProvider::Qwen).await,
         OAuthProvider::Kimi => login_kimi(profile_name).await,
-        OAuthProvider::Github => login_github(profile_name, force).await,
+        OAuthProvider::Github => login_github(profile_name, force, enterprise_url).await,
+        OAuthProvider::Gitlab => login_gitlab(profile_name).await,
     }
 }
 
@@ -282,10 +295,10 @@ async fn login_chatgpt_headless(profile_name: &str) -> Result<()> {
 }
 
 /// GitHub Copilot login
-async fn login_github(profile_name: &str, force: bool) -> Result<()> {
+async fn login_github(profile_name: &str, force: bool, enterprise_url: Option<&str>) -> Result<()> {
     // 非 force 模式: 优先从 ~/.config/github-copilot/ 读取已有 token
     if !force {
-        match super::source::read_copilot_config() {
+        match super::source::read_copilot_config_with_host(enterprise_url) {
             Ok(cred) => {
                 println!("Found existing GitHub Copilot credentials, verifying...");
 
@@ -323,11 +336,13 @@ async fn login_github(profile_name: &str, force: bool) -> Result<()> {
     }
 
     // Device code flow
-    println!("Starting GitHub device code flow...");
+    let github_host = enterprise_url.unwrap_or("github.com");
+    println!("Starting GitHub device code flow ({github_host})...");
 
     let client = reqwest::Client::new();
+    let device_code_url = format!("https://{github_host}/login/device/code");
     let resp = client
-        .post("https://github.com/login/device/code")
+        .post(&device_code_url)
         .header("Accept", "application/json")
         .form(&[
             ("client_id", super::exchange::GITHUB_COPILOT_CLIENT_ID),
@@ -361,9 +376,10 @@ async fn login_github(profile_name: &str, force: bool) -> Result<()> {
 
     let _ = open_browser(verification_uri);
 
+    let token_url = format!("https://{github_host}/login/oauth/access_token");
     let token_resp = super::server::poll_device_code(
         &client,
-        "https://github.com/login/oauth/access_token",
+        &token_url,
         device_code,
         super::exchange::GITHUB_COPILOT_CLIENT_ID,
         interval,
@@ -394,6 +410,27 @@ async fn login_github(profile_name: &str, force: bool) -> Result<()> {
     super::source::store_keyring(profile_name, &token)?;
     println!("GitHub Copilot token stored for profile '{profile_name}'.");
     Ok(())
+}
+
+/// GitLab Duo: 从环境变量读取 token
+async fn login_gitlab(profile_name: &str) -> Result<()> {
+    println!("Reading GitLab token from environment...");
+
+    match super::source::load_credential_chain(&OAuthProvider::Gitlab) {
+        Ok(cred) => {
+            let token = cred.into_oauth_token();
+            super::source::store_keyring(profile_name, &token)?;
+            println!("GitLab token stored for profile '{profile_name}'.");
+            Ok(())
+        }
+        Err(_) => {
+            println!("No GITLAB_TOKEN or GL_TOKEN found.");
+            println!("Set one of these environment variables with your GitLab Personal Access Token:");
+            println!("  export GITLAB_TOKEN=glpat-...");
+            println!("Then run this command again.");
+            anyhow::bail!("GitLab token not configured")
+        }
+    }
 }
 
 /// 检测是否有 tty
@@ -605,7 +642,7 @@ pub async fn refresh(config: &ClaudexConfig, profile_name: &str) -> Result<()> {
             super::source::store_keyring(profile_name, &token)?;
             println!("Refreshed Claude token from ~/.claude/.credentials.json");
         }
-        OAuthProvider::Google | OAuthProvider::Kimi => {
+        OAuthProvider::Google | OAuthProvider::Kimi | OAuthProvider::Gitlab => {
             let cred = super::source::load_credential_chain(provider)?;
             let token = cred.into_oauth_token();
             super::source::store_keyring(profile_name, &token)?;

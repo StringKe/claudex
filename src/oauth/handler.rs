@@ -35,6 +35,9 @@ pub fn for_provider(provider: &OAuthProvider) -> Box<dyn OAuthProviderHandler> {
             provider: OAuthProvider::Qwen,
         }),
         OAuthProvider::Github => Box::new(GithubHandler),
+        OAuthProvider::Gitlab => Box::new(ExternalCliHandler {
+            provider: OAuthProvider::Gitlab,
+        }),
     }
 }
 

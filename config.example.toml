@@ -156,6 +156,95 @@ auth_type = "oauth"
 oauth_provider = "github"
 enabled = false
 
+# GitLab Duo (via GITLAB_TOKEN env)
+# Login: claudex auth login gitlab --profile gitlab-duo
+# Requires: export GITLAB_TOKEN=glpat-...
+[[profiles]]
+name = "gitlab-duo"
+provider_type = "OpenAICompatible"
+base_url = "https://gitlab.com/api/v4/ai/llm/proxy"
+default_model = "claude-sonnet-4-20250514"
+auth_type = "oauth"
+oauth_provider = "gitlab"
+enabled = false
+
+# ─── Cloud Providers (API Key) ────────────────────────
+
+# Azure OpenAI (uses api-key header + query_params for api-version)
+# Auto-detected by base_url containing "openai.azure.com"
+[[profiles]]
+name = "azure-openai"
+provider_type = "OpenAICompatible"
+base_url = "https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT"
+api_key = "YOUR_AZURE_KEY"
+default_model = "gpt-4o"
+enabled = false
+priority = 80
+[profiles.query_params]
+api-version = "2024-12-01-preview"
+
+# Google Vertex AI (DirectAnthropic endpoint, use gcloud auth print-access-token)
+# base_url format: https://REGION-aiplatform.googleapis.com/v1/projects/PROJECT/locations/REGION/publishers/anthropic/models
+# Refresh token: gcloud auth print-access-token
+[[profiles]]
+name = "vertex-ai"
+provider_type = "DirectAnthropic"
+base_url = "https://us-east5-aiplatform.googleapis.com/v1/projects/YOUR_PROJECT/locations/us-east5/publishers/anthropic/models"
+api_key = "YOUR_GCLOUD_TOKEN"
+default_model = "claude-sonnet-4@20250514"
+enabled = false
+priority = 80
+
+# Groq (fast inference)
+[[profiles]]
+name = "groq"
+provider_type = "OpenAICompatible"
+base_url = "https://api.groq.com/openai/v1"
+api_key = "YOUR_GROQ_KEY"
+default_model = "llama-3.3-70b-versatile"
+enabled = false
+priority = 70
+
+# Mistral AI
+[[profiles]]
+name = "mistral"
+provider_type = "OpenAICompatible"
+base_url = "https://api.mistral.ai/v1"
+api_key = "YOUR_MISTRAL_KEY"
+default_model = "mistral-large-latest"
+enabled = false
+priority = 70
+
+# Together AI
+[[profiles]]
+name = "together"
+provider_type = "OpenAICompatible"
+base_url = "https://api.together.xyz/v1"
+api_key = "YOUR_TOGETHER_KEY"
+default_model = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+enabled = false
+priority = 70
+
+# Perplexity (online search + LLM)
+[[profiles]]
+name = "perplexity"
+provider_type = "OpenAICompatible"
+base_url = "https://api.perplexity.ai"
+api_key = "YOUR_PPLX_KEY"
+default_model = "sonar-pro"
+enabled = false
+priority = 60
+
+# Cerebras (fast inference)
+[[profiles]]
+name = "cerebras"
+provider_type = "OpenAICompatible"
+base_url = "https://api.cerebras.ai/v1"
+api_key = "YOUR_CEREBRAS_KEY"
+default_model = "llama-3.3-70b"
+enabled = false
+priority = 70
+
 # ─── Local Models (via Ollama / vLLM / LM Studio) ──────
 
 # Ollama
@@ -168,7 +257,17 @@ default_model = "qwen2.5:72b"
 enabled = false
 priority = 50
 
-# vLLM / llama.cpp server / LM Studio
+# LM Studio
+[[profiles]]
+name = "lm-studio"
+provider_type = "OpenAICompatible"
+base_url = "http://localhost:1234/v1"
+api_key = "lm-studio"
+default_model = "local-model"
+enabled = false
+priority = 50
+
+# vLLM / llama.cpp server
 [[profiles]]
 name = "local-llama"
 provider_type = "OpenAICompatible"
@@ -177,6 +276,17 @@ api_key = ""
 default_model = "llama-3.3-70b"
 enabled = false
 priority = 50
+
+# Bedrock via LiteLLM proxy
+# Run: litellm --model bedrock/anthropic.claude-sonnet-4-20250514-v2:0
+# See: https://docs.litellm.ai/docs/providers/bedrock
+# [[profiles]]
+# name = "bedrock"
+# provider_type = "OpenAICompatible"
+# base_url = "http://localhost:4000/v1"
+# api_key = "sk-litellm"
+# default_model = "bedrock/anthropic.claude-sonnet-4-20250514-v2:0"
+# enabled = false
 
 # ─── Smart Router (optional) ───────────────────────────
 

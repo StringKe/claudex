@@ -32,6 +32,7 @@ pub enum OAuthProvider {
     Qwen,
     Kimi,
     Github,
+    Gitlab,
 }
 
 impl OAuthProvider {
@@ -44,6 +45,7 @@ impl OAuthProvider {
             "qwen" => Some(Self::Qwen),
             "kimi" | "moonshot" => Some(Self::Kimi),
             "github" | "copilot" => Some(Self::Github),
+            "gitlab" => Some(Self::Gitlab),
             _ => None,
         }
     }
@@ -57,6 +59,7 @@ impl OAuthProvider {
             Self::Qwen => "Qwen",
             Self::Kimi => "Kimi",
             Self::Github => "GitHub",
+            Self::Gitlab => "GitLab",
         }
     }
 
@@ -64,6 +67,7 @@ impl OAuthProvider {
     pub fn normalize(&self) -> Self {
         match self {
             Self::Openai => Self::Chatgpt,
+            Self::Gitlab => Self::Gitlab,
             other => other.clone(),
         }
     }
@@ -261,6 +265,10 @@ mod tests {
             OAuthProvider::from_str("copilot"),
             Some(OAuthProvider::Github)
         );
+        assert_eq!(
+            OAuthProvider::from_str("gitlab"),
+            Some(OAuthProvider::Gitlab)
+        );
         assert_eq!(OAuthProvider::from_str("unknown"), None);
     }
 
@@ -385,6 +393,7 @@ mod tests {
             (OAuthProvider::Qwen, "\"qwen\""),
             (OAuthProvider::Kimi, "\"kimi\""),
             (OAuthProvider::Github, "\"github\""),
+            (OAuthProvider::Gitlab, "\"gitlab\""),
         ];
         for (variant, expected_json) in cases {
             let json = serde_json::to_string(&variant).unwrap();
@@ -414,6 +423,7 @@ mod tests {
         assert_eq!(OAuthProvider::Qwen.display_name(), "Qwen");
         assert_eq!(OAuthProvider::Kimi.display_name(), "Kimi");
         assert_eq!(OAuthProvider::Github.display_name(), "GitHub");
+        assert_eq!(OAuthProvider::Gitlab.display_name(), "GitLab");
     }
 
     // ── OAuthProvider::from_str 大小写 ────────────────────────

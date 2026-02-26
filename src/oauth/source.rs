@@ -191,20 +191,26 @@ pub fn read_codex_credentials() -> Result<RawCredential> {
 
 /// 读取 GitHub Copilot 的已有配置
 /// 支持 ~/.config/github-copilot/hosts.json 和 apps.json
+/// enterprise_host: 可选企业版 host (如 "company.ghe.com")，用于搜索 apps.json
 pub fn read_copilot_config() -> Result<RawCredential> {
+    read_copilot_config_with_host(None)
+}
+
+pub fn read_copilot_config_with_host(enterprise_host: Option<&str>) -> Result<RawCredential> {
     let config_dir = std::env::var("XDG_CONFIG_HOME")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|_| dirs::home_dir().unwrap_or_default().join(".config"));
     let copilot_dir = config_dir.join("github-copilot");
 
-    // 优先尝试 apps.json (key 格式: "github.com:CLIENT_ID")
+    let host_pattern = enterprise_host.unwrap_or("github.com");
+
+    // 优先尝试 apps.json (key 格式: "github.com:CLIENT_ID" 或 "enterprise.ghe.com:CLIENT_ID")
     let apps_path = copilot_dir.join("apps.json");
     if let Ok(content) = std::fs::read_to_string(&apps_path) {
         if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
             if let Some(obj) = json.as_object() {
-                // 寻找包含 github.com 的 key
                 for (key, value) in obj {
-                    if key.contains("github.com") {
+                    if key.contains(host_pattern) {
                         if let Some(token) = value.get("oauth_token").and_then(|v| v.as_str()) {
                             return Ok(RawCredential {
                                 access_token: token.to_string(),
@@ -227,7 +233,7 @@ pub fn read_copilot_config() -> Result<RawCredential> {
         if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
             if let Some(obj) = json.as_object() {
                 for (key, value) in obj {
-                    if key.contains("github.com") {
+                    if key.contains(host_pattern) {
                         if let Some(token) = value.get("oauth_token").and_then(|v| v.as_str()) {
                             return Ok(RawCredential {
                                 access_token: token.to_string(),
@@ -390,6 +396,24 @@ pub fn load_credential_chain(provider: &OAuthProvider) -> Result<RawCredential> 
                 }
             }
             read_copilot_config()
+        }
+        OAuthProvider::Gitlab => {
+            // env GITLAB_TOKEN > GL_TOKEN
+            for var in &["GITLAB_TOKEN", "GL_TOKEN"] {
+                if let Ok(key) = std::env::var(var) {
+                    if !key.is_empty() {
+                        return Ok(RawCredential {
+                            access_token: key,
+                            refresh_token: None,
+                            expires_at: None,
+                            token_type: Some("Bearer".to_string()),
+                            extra: None,
+                            source: CredentialSource::EnvVar(var.to_string()),
+                        });
+                    }
+                }
+            }
+            anyhow::bail!("no GitLab token found. Set GITLAB_TOKEN or GL_TOKEN environment variable, or run `claudex auth login gitlab`")
         }
         OAuthProvider::Qwen => {
             anyhow::bail!("Qwen does not support credential chain loading; use config api_key or device code login")

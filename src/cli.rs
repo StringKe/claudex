@@ -99,7 +99,7 @@ pub enum ProfileAction {
 
 #[derive(Subcommand)]
 pub enum AuthAction {
-    /// Login to an OAuth provider (claude, chatgpt/openai, google, qwen, kimi, github/copilot)
+    /// Login to an OAuth provider (claude, chatgpt/openai, google, qwen, kimi, github/copilot, gitlab)
     Login {
         /// Provider name
         provider: String,
@@ -112,6 +112,9 @@ pub enum AuthAction {
         /// Use headless device code flow (for SSH/no-browser environments)
         #[arg(long)]
         headless: bool,
+        /// GitHub Enterprise host (e.g. company.ghe.com) for Copilot Enterprise
+        #[arg(long, value_name = "DOMAIN")]
+        enterprise_url: Option<String>,
     },
     /// Show OAuth token status
     Status {

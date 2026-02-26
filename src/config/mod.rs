@@ -124,6 +124,9 @@ pub struct ProfileConfig {
     /// 设为 "auto" 时根据 base_url 自动推断
     #[serde(default)]
     pub strip_params: StripParams,
+    /// 追加到请求 URL 的 query 参数（如 Azure OpenAI 的 api-version）
+    #[serde(default)]
+    pub query_params: HashMap<String, String>,
 }
 
 /// 参数剥离配置
@@ -216,6 +219,7 @@ impl Default for ProfileConfig {
             models: ProfileModels::default(),
             max_tokens: None,
             strip_params: StripParams::default(),
+            query_params: HashMap::new(),
         }
     }
 }
@@ -839,6 +843,7 @@ mod tests {
             ("qwen", "OpenAICompatible"),
             ("kimi", "OpenAICompatible"),
             ("github", "OpenAICompatible"),
+            ("gitlab", "OpenAICompatible"),
         ];
         for (provider_str, provider_type) in providers {
             let toml_str = format!(

@@ -11,29 +11,40 @@
 </p>
 
 <p align="center">
-  <a href="https://stringke.github.io/claudex/">文档站</a> |
-  <a href="./README.md">English</a>
+  <a href="https://stringke.github.io/claudex/zh-CN/">文档</a>
+</p>
+
+<p align="center">
+  <a href="./README.md">English</a> |
+  简体中文 |
+  <a href="./README.zh-TW.md">繁體中文</a> |
+  <a href="./README.ja.md">日本語</a> |
+  <a href="./README.ko.md">한국어</a> |
+  <a href="./README.ru.md">Русский</a> |
+  <a href="./README.fr.md">Français</a> |
+  <a href="./README.pt-BR.md">Português do Brasil</a> |
+  <a href="./README.es.md">Español</a> |
+  <a href="./README.it.md">Italiano</a> |
+  <a href="./README.de.md">Deutsch</a> |
+  <a href="./README.pl.md">Polski</a>
 </p>
 
 ---
 
-Claudex 是一个统一代理，让 [Claude Code](https://docs.anthropic.com/en/docs/claude-code) 无缝接入多个 AI 提供商 — Grok、ChatGPT、DeepSeek、MiniMax、Kimi、GLM、Ollama 等 — 通过自动 Anthropic-to-OpenAI 协议翻译实现透明转发。
+Claudex 是一个统一代理，通过自动协议翻译让 [Claude Code](https://docs.anthropic.com/en/docs/claude-code) 无缝对接多种 AI 提供商。
 
 ## 功能特性
 
-- **多提供商代理** — DirectAnthropic 直通（Anthropic、MiniMax）+ 自动 Anthropic <-> OpenAI 翻译（Grok、OpenAI、DeepSeek、Kimi、GLM）+ Anthropic <-> Responses API 翻译（ChatGPT/Codex 订阅）
-- **流式翻译** — 完整 SSE 流翻译，支持 tool call
-- **断路器 + 故障转移** — 失败时自动切换到备用提供商，可配置阈值
-- **智能路由** — 基于意图的自动路由，通过本地分类器将 code/analysis/creative/search/math 映射到最优 profile
-- **上下文引擎** — 对话压缩、跨 profile 上下文共享、本地 RAG 向量检索
-- **TUI 仪表盘** — 实时 profile 健康状态、指标、日志和快速启动
-- **配置发现** — 从当前目录向上自动搜索配置文件
-- **自更新** — `claudex update` 从 GitHub 下载最新版本
-- **本地模型支持** — Ollama、vLLM、LM Studio 或任何 OpenAI 兼容服务
-- **OAuth 订阅认证** — 通过 `claudex auth login` 使用已有 CLI 订阅（ChatGPT Plus via Codex CLI、Claude Max 等）
-- **模型 slot 映射** — 通过 `[profiles.models]` 配置 Claude Code `/model` 切换器对应的模型名
-- **非交互模式** — `claudex run <profile> "prompt" --print` 一次性执行
-- **工具名兼容** — 自动截断超过 OpenAI 64 字符限制的工具名并透明还原
+- **多提供商代理** — DirectAnthropic 直通 + Anthropic <-> OpenAI Chat Completions 翻译 + Anthropic <-> Responses API 翻译
+- **20+ 提供商** — Anthropic、OpenRouter、Grok、OpenAI、DeepSeek、Kimi、GLM、Groq、Mistral、Together AI、Perplexity、Cerebras、Azure OpenAI、Google Vertex AI、Ollama、LM Studio 等
+- **流式翻译** — 完整 SSE 流式翻译，支持工具调用
+- **断路器 + 故障转移** — 自动切换备用提供商，阈值可配置
+- **智能路由** — 基于意图的自动路由，使用本地分类器
+- **上下文引擎** — 对话压缩、跨 profile 共享、带向量嵌入的本地 RAG
+- **OAuth 订阅** — ChatGPT/Codex、Claude Max、GitHub Copilot、GitLab Duo、Google Gemini、Qwen、Kimi
+- **配置集** — 从 git 仓库安装和管理可复用的 Claude Code 配置集
+- **TUI 仪表盘** — 实时 profile 健康状态、指标、日志及快速启动
+- **自动更新** — `claudex update` 从 GitHub 下载最新版本
 
 ## 安装
 
@@ -41,7 +52,7 @@ Claudex 是一个统一代理，让 [Claude Code](https://docs.anthropic.com/en/
 # 一键安装（Linux / macOS）
 curl -fsSL https://raw.githubusercontent.com/StringKe/claudex/main/install.sh | bash
 
-# 从源码安装
+# 从源码构建
 cargo install --git https://github.com/StringKe/claudex
 
 # 或从 GitHub Releases 下载
@@ -52,15 +63,15 @@ cargo install --git https://github.com/StringKe/claudex
 
 - macOS（Intel / Apple Silicon）或 Linux（x86_64 / ARM64）
 - 已安装 [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
-- Windows：从 [Releases](https://github.com/StringKe/claudex/releases) 下载预编译二进制文件
+- Windows：从 [Releases](https://github.com/StringKe/claudex/releases) 下载预构建二进制文件
 
-## 快速开始
+## 快速上手
 
 ```bash
 # 1. 初始化配置
-claudex config --init
+claudex config init
 
-# 2. 交互式添加提供商 Profile
+# 2. 交互式添加提供商 profile
 claudex profile add
 
 # 3. 测试连通性
@@ -69,7 +80,7 @@ claudex profile test all
 # 4. 使用指定提供商运行 Claude Code
 claudex run grok
 
-# 5. 或使用智能路由自动选择最优提供商
+# 5. 或使用智能路由自动选择最佳提供商
 claudex run auto
 ```
 
@@ -78,94 +89,117 @@ claudex run auto
 ```
 claudex run openrouter-claude
     │
-    ├── 启动代理（如果未运行）→ 127.0.0.1:13456
+    ├── 启动代理（如未运行）→ 127.0.0.1:13456
     │
-    └── 执行 claude，设置环境变量：
+    └── 携带环境变量执行 claude：
         ANTHROPIC_BASE_URL=http://127.0.0.1:13456/proxy/openrouter-claude
-        ANTHROPIC_AUTH_TOKEN=claudex-passthrough   (Gateway 模式，不与 claude.ai 冲突)
+        ANTHROPIC_AUTH_TOKEN=claudex-passthrough
         ANTHROPIC_MODEL=anthropic/claude-sonnet-4
+        ANTHROPIC_DEFAULT_HAIKU_MODEL=...
+        ANTHROPIC_DEFAULT_SONNET_MODEL=...
+        ANTHROPIC_DEFAULT_OPUS_MODEL=...
 ```
 
-代理拦截请求并透明处理协议翻译：
+代理拦截请求并处理协议翻译：
 
-- **DirectAnthropic** 提供商（Anthropic、MiniMax）→ 替换 header 直接转发
-- **OpenAICompatible** 提供商（Grok、OpenAI、DeepSeek 等）→ Anthropic → OpenAI Chat Completions 翻译 → 转发 → 翻译响应
-- **OpenAIResponses** 提供商（ChatGPT/Codex 订阅）→ Anthropic → OpenAI Responses API 翻译 → 转发 → 翻译响应
+- **DirectAnthropic**（Anthropic、MiniMax、Vertex AI）→ 附加正确请求头后直接转发
+- **OpenAICompatible**（Grok、OpenAI、DeepSeek 等）→ Anthropic → OpenAI Chat Completions → 翻译响应返回
+- **OpenAIResponses**（ChatGPT/Codex 订阅）→ Anthropic → Responses API → 翻译响应返回
 
 ## 提供商兼容性
 
-| 提供商 | 类型 | 翻译 | 示例模型 |
-|--------|------|------|----------|
-| Anthropic | `DirectAnthropic` | 无 | `claude-sonnet-4-20250514` |
-| MiniMax | `DirectAnthropic` | 无 | `claude-sonnet-4-20250514` |
-| OpenRouter | `OpenAICompatible` | Anthropic <-> OpenAI | `anthropic/claude-sonnet-4` |
-| Grok (xAI) | `OpenAICompatible` | Anthropic <-> OpenAI | `grok-3-beta` |
-| OpenAI | `OpenAICompatible` | Anthropic <-> OpenAI | `gpt-4o` |
-| DeepSeek | `OpenAICompatible` | Anthropic <-> OpenAI | `deepseek-chat` |
-| Kimi | `OpenAICompatible` | Anthropic <-> OpenAI | `moonshot-v1-128k` |
-| GLM（智谱） | `OpenAICompatible` | Anthropic <-> OpenAI | `glm-4-plus` |
-| Ollama | `OpenAICompatible` | Anthropic <-> OpenAI | `qwen2.5:72b` |
-| ChatGPT/Codex 订阅 | `OpenAIResponses` | Anthropic <-> Responses | `gpt-4o` |
+| 提供商 | 类型 | 翻译方式 | 认证 | 示例模型 |
+|--------|------|----------|------|----------|
+| Anthropic | DirectAnthropic | 无 | API Key | `claude-sonnet-4-20250514` |
+| MiniMax | DirectAnthropic | 无 | API Key | `claude-sonnet-4-20250514` |
+| OpenRouter | OpenAICompatible | Anthropic <-> OpenAI | API Key | `anthropic/claude-sonnet-4` |
+| Grok (xAI) | OpenAICompatible | Anthropic <-> OpenAI | API Key | `grok-3-beta` |
+| OpenAI | OpenAICompatible | Anthropic <-> OpenAI | API Key | `gpt-4o` |
+| DeepSeek | OpenAICompatible | Anthropic <-> OpenAI | API Key | `deepseek-chat` |
+| Kimi | OpenAICompatible | Anthropic <-> OpenAI | API Key | `kimi-k2-0905-preview` |
+| GLM（智谱）| OpenAICompatible | Anthropic <-> OpenAI | API Key | `glm-4-plus` |
+| Groq | OpenAICompatible | Anthropic <-> OpenAI | API Key | `llama-3.3-70b` |
+| Mistral | OpenAICompatible | Anthropic <-> OpenAI | API Key | `mistral-large-latest` |
+| Together AI | OpenAICompatible | Anthropic <-> OpenAI | API Key | `meta-llama/...` |
+| Perplexity | OpenAICompatible | Anthropic <-> OpenAI | API Key | `sonar-pro` |
+| Cerebras | OpenAICompatible | Anthropic <-> OpenAI | API Key | `llama-3.3-70b` |
+| Azure OpenAI | OpenAICompatible | Anthropic <-> OpenAI | api-key header | `gpt-4o` |
+| Google Vertex AI | DirectAnthropic | 无 | Bearer (gcloud) | `claude-sonnet-4@...` |
+| Ollama | OpenAICompatible | Anthropic <-> OpenAI | 无 | `qwen2.5:72b` |
+| LM Studio | OpenAICompatible | Anthropic <-> OpenAI | 无 | 本地模型 |
+| ChatGPT/Codex 订阅 | OpenAIResponses | Anthropic <-> Responses | OAuth (PKCE/Device) | `gpt-5.3-codex` |
+| Claude Max 订阅 | DirectAnthropic | 无 | OAuth (file) | `claude-sonnet-4` |
+| GitHub Copilot | OpenAICompatible | Anthropic <-> OpenAI | OAuth (Device+Bearer) | `gpt-4o` |
+| GitLab Duo | OpenAICompatible | Anthropic <-> OpenAI | GITLAB_TOKEN | `claude-sonnet-4` |
 
 ## 配置
 
-Claudex 按以下顺序搜索配置文件：
+Claudex 按以下顺序查找配置文件：
 
 1. `$CLAUDEX_CONFIG` 环境变量
-2. `./claudex.toml`（当前目录）
+2. `./claudex.toml` 或 `./claudex.yaml`（当前目录）
 3. `./.claudex/config.toml`
-4. 父目录（最多向上 10 级）
-5. `~/.config/claudex/config.toml`（XDG，推荐）
-6. 平台配置目录（macOS `~/Library/Application Support/claudex/config.toml`）
+4. 父级目录（最多向上 10 层）
+5. `~/.config/claudex/config.toml`（全局，推荐）
 
-```bash
-# 查看加载的配置和搜索路径
-claudex config
-
-# 在当前目录创建本地配置
-claudex config --init
-```
-
-完整配置参考请查看 [`config.example.toml`](./config.example.toml)，或访问[文档站](https://stringke.github.io/claudex/)获取详细指南。
+支持 TOML 和 YAML 格式。完整参考见 [`config.example.toml`](./config.example.toml)。
 
 ## CLI 命令参考
 
 | 命令 | 说明 |
 |------|------|
 | `claudex run <profile>` | 使用指定提供商运行 Claude Code |
-| `claudex run auto` | 智能路由 — 自动选择最优提供商 |
-| `claudex run <profile> -m <model>` | 临时覆盖模型 |
+| `claudex run auto` | 智能路由，自动选择最佳提供商 |
+| `claudex run <profile> -m <model>` | 为本次会话覆盖模型 |
 | `claudex profile list` | 列出所有已配置的 profile |
-| `claudex profile add` | 交互式 profile 设置向导 |
-| `claudex profile show <name>` | 查看 profile 详情 |
+| `claudex profile add` | 交互式 profile 配置向导 |
+| `claudex profile show <name>` | 显示 profile 详情 |
 | `claudex profile remove <name>` | 删除 profile |
 | `claudex profile test <name\|all>` | 测试提供商连通性 |
-| `claudex proxy start [-p port] [-d]` | 启动代理服务器（可选守护进程模式） |
+| `claudex proxy start [-p port] [-d]` | 启动代理（可选后台守护进程模式）|
 | `claudex proxy stop` | 停止代理守护进程 |
-| `claudex proxy status` | 查看代理状态 |
+| `claudex proxy status` | 显示代理状态 |
 | `claudex dashboard` | 启动 TUI 仪表盘 |
-| `claudex config [--init]` | 查看或初始化配置 |
-| `claudex update [--check]` | 从 GitHub Releases 自更新 |
-| `claudex auth login <provider>` | OAuth 登录（claude/openai/google/qwen/kimi/github） |
-| `claudex auth status` | 查看 OAuth token 状态 |
+| `claudex config show [--raw] [--json]` | 显示已加载的配置 |
+| `claudex config init [--yaml]` | 在当前目录创建配置文件 |
+| `claudex config edit [--global]` | 用 $EDITOR 打开配置文件 |
+| `claudex config validate [--connectivity]` | 校验配置 |
+| `claudex config get <key>` | 获取配置值 |
+| `claudex config set <key> <value>` | 设置配置值 |
+| `claudex config export --format <fmt>` | 导出配置（json/toml/yaml）|
+| `claudex update [--check]` | 从 GitHub Releases 自动更新 |
+| `claudex auth login <provider>` | OAuth 登录 |
+| `claudex auth login github --enterprise-url <domain>` | GitHub Enterprise Copilot |
+| `claudex auth status` | 显示 OAuth token 状态 |
 | `claudex auth logout <profile>` | 删除 OAuth token |
 | `claudex auth refresh <profile>` | 强制刷新 OAuth token |
+| `claudex sets add <source> [--global]` | 安装配置集 |
+| `claudex sets remove <name>` | 删除配置集 |
+| `claudex sets list [--global]` | 列出已安装的配置集 |
+| `claudex sets update [name]` | 将配置集更新到最新版本 |
 
-## 非交互模式
+## OAuth 订阅
 
-一次性执行，输出结果后退出：
-
-```bash
-claudex run openrouter-claude "解释这段代码" --print --dangerously-skip-permissions
-```
-
-## OAuth 订阅认证
-
-使用已有 CLI 订阅（如 Codex CLI 的 ChatGPT Plus）：
+使用现有订阅替代 API Key：
 
 ```bash
-# 从 Codex CLI 读取 token（~/.codex/auth.json）
-claudex auth login openai --profile codex-sub
+# ChatGPT 订阅（自动检测已有 Codex CLI 凭证）
+claudex auth login chatgpt --profile codex-sub
+
+# ChatGPT 强制浏览器登录
+claudex auth login chatgpt --profile codex-sub --force
+
+# ChatGPT 无头模式（SSH / 无浏览器环境）
+claudex auth login chatgpt --profile codex-sub --force --headless
+
+# GitHub Copilot
+claudex auth login github --profile copilot
+
+# GitHub Copilot Enterprise
+claudex auth login github --profile copilot-ent --enterprise-url company.ghe.com
+
+# GitLab Duo（读取 GITLAB_TOKEN 环境变量）
+claudex auth login gitlab --profile gitlab-duo
 
 # 查看状态
 claudex auth status
@@ -174,17 +208,18 @@ claudex auth status
 claudex run codex-sub
 ```
 
-支持的提供商：`claude`（读 `~/.claude`）、`openai`（读 `~/.codex`）、`google`、`qwen`、`kimi`、`github`
+支持的提供商：`claude`、`chatgpt`/`openai`、`google`、`qwen`、`kimi`、`github`/`copilot`、`gitlab`
 
-> **注意**：`openai` 提供商需要先安装 [Codex CLI](https://github.com/openai/codex) 并完成认证（`codex auth`）。Claudex 从 `~/.codex/auth.json` 读取 token，使用 `OpenAIResponses` 类型通过 Responses API 通信。
+## 模型槽位映射
 
-## 模型 Slot 映射
-
-通过 `[profiles.models]` 配置 Claude Code `/model` 切换器：
+将 Claude Code 的 `/model` 切换器（haiku/sonnet/opus）映射到任意提供商的模型：
 
 ```toml
 [[profiles]]
 name = "openrouter-deepseek"
+provider_type = "OpenAICompatible"
+base_url = "https://openrouter.ai/api/v1"
+api_key = "sk-or-..."
 default_model = "deepseek/deepseek-chat-v3-0324"
 
 [profiles.models]
@@ -197,36 +232,73 @@ opus = "deepseek/deepseek-r1"
 
 ```
 src/
-├── main.rs              # 入口 + CLI 分发
-├── cli.rs               # clap 命令定义
-├── config.rs            # 配置发现 + 解析 + keyring
-├── profile.rs           # Profile 增删改查 + 连通性测试
-├── launch.rs            # Claude 进程启动器
-├── daemon.rs            # PID 文件 + 进程管理
-├── metrics.rs           # 请求指标（原子计数器）
-├── update.rs            # 通过 GitHub Releases 自更新
-├── oauth/               # OAuth 订阅认证
-│   ├── mod.rs           # AuthType、OAuthProvider、OAuthToken 类型
-│   ├── token.rs         # 外部 CLI token 读取（Codex/Claude/Gemini）
-│   ├── server.rs        # 本地回调服务器 + Device Code 轮询
-│   └── providers.rs     # 各平台登录/状态逻辑
-├── proxy/               # 翻译代理
-│   ├── handler.rs       # 请求路由 + 断路器 + OAuth token 刷新
-│   ├── translation.rs   # Anthropic <-> OpenAI 协议翻译（含工具名截断）
-│   ├── streaming.rs     # SSE 流式翻译（状态机）
-│   ├── fallback.rs      # 断路器实现
-│   ├── health.rs        # 后台健康检查
-│   └── models.rs        # /v1/models 聚合端点
-├── router/              # 智能路由
-│   └── classifier.rs    # 通过本地 LLM 进行意图分类
-├── context/             # 上下文引擎
-│   ├── compression.rs   # 对话压缩
-│   ├── sharing.rs       # 跨 profile 上下文共享
-│   └── rag.rs           # 本地 RAG 向量检索
-└── tui/                 # TUI 仪表盘
-    ├── dashboard.rs     # 仪表盘渲染
-    ├── input.rs         # 键盘输入
-    └── widgets.rs       # UI 组件
+├── main.rs
+├── cli.rs
+├── update.rs
+├── util.rs
+├── config/
+│   ├── mod.rs          # 配置发现与解析（figment）
+│   ├── cmd.rs          # config get/set/export/validate 子命令
+│   └── profile.rs      # Profile CRUD + 连通性测试
+├── process/
+│   ├── mod.rs
+│   ├── launch.rs       # Claude 进程启动器
+│   └── daemon.rs       # PID 文件 + 进程管理
+├── oauth/
+│   ├── mod.rs          # AuthType、OAuthProvider、OAuthToken
+│   ├── source.rs       # 第一层：凭证来源（env/file/keyring）
+│   ├── exchange.rs     # 第二层：token 换取（PKCE/device code/refresh）
+│   ├── manager.rs      # 第三层：缓存 + 并发去重 + 401 重试
+│   ├── handler.rs      # OAuthProviderHandler trait
+│   ├── providers.rs    # 登录/刷新/状态 CLI 逻辑
+│   ├── server.rs       # OAuth 回调服务器 + device code 轮询
+│   └── token.rs        # 重导出
+├── proxy/
+│   ├── mod.rs          # Axum 服务器 + ProxyState
+│   ├── handler.rs      # 请求路由 + 断路器 + 401 重试
+│   ├── adapter/        # 各提供商适配器
+│   │   ├── mod.rs      # ProviderAdapter trait + 工厂
+│   │   ├── direct.rs   # DirectAnthropic（直通）
+│   │   ├── chat_completions.rs  # OpenAI Chat Completions
+│   │   └── responses.rs         # OpenAI Responses API
+│   ├── translate/      # 协议翻译
+│   │   ├── chat_completions.rs
+│   │   ├── chat_completions_stream.rs
+│   │   ├── responses.rs
+│   │   └── responses_stream.rs
+│   ├── context_engine.rs
+│   ├── fallback.rs     # 断路器
+│   ├── health.rs
+│   ├── metrics.rs
+│   ├── models.rs
+│   ├── error.rs
+│   └── util.rs
+├── router/
+│   ├── mod.rs
+│   └── classifier.rs
+├── context/
+│   ├── mod.rs
+│   ├── compression.rs
+│   ├── sharing.rs
+│   └── rag.rs
+├── sets/               # 配置集管理
+│   ├── mod.rs
+│   ├── schema.rs
+│   ├── source.rs
+│   ├── install.rs
+│   ├── lock.rs
+│   ├── conflict.rs
+│   └── mcp.rs
+├── terminal/           # 终端检测 + 超链接
+│   ├── mod.rs
+│   ├── detect.rs
+│   ├── osc8.rs
+│   └── pty.rs
+└── tui/
+    ├── mod.rs
+    ├── dashboard.rs
+    ├── input.rs
+    └── widgets.rs
 ```
 
 ## 许可证

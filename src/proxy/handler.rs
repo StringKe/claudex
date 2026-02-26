@@ -343,11 +343,24 @@ async fn try_forward(
     let mut translated = adapter.translate_request(body, profile)?;
     adapter.filter_translated_body(&mut translated.body, profile);
 
-    let url = format!(
+    let mut url = format!(
         "{}{}",
         profile.base_url.trim_end_matches('/'),
         adapter.endpoint_path()
     );
+    if !profile.query_params.is_empty() {
+        let qs: String = profile
+            .query_params
+            .iter()
+            .map(|(k, v)| format!("{}={}", urlencoding::encode(k), urlencoding::encode(v)))
+            .collect::<Vec<_>>()
+            .join("&");
+        url = if url.contains('?') {
+            format!("{url}&{qs}")
+        } else {
+            format!("{url}?{qs}")
+        };
+    }
     let key_preview = super::util::format_key_preview(&profile.api_key);
 
     tracing::info!(

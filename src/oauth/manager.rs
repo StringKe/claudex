@@ -125,6 +125,7 @@ impl TokenManager {
             OAuthProvider::Google => self.load_simple_token(provider, profile).await,
             OAuthProvider::Kimi => self.load_simple_token(provider, profile).await,
             OAuthProvider::Qwen => self.load_simple_token(provider, profile).await,
+            OAuthProvider::Gitlab => self.load_simple_token(provider, profile).await,
         }
     }
 

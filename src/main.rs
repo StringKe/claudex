@@ -182,10 +182,18 @@ async fn main() -> Result<()> {
                 profile,
                 force,
                 headless,
+                enterprise_url,
             } => {
                 let profile_name = profile.unwrap_or_else(|| provider.clone());
-                oauth::providers::login(&mut config, &provider, &profile_name, force, headless)
-                    .await?;
+                oauth::providers::login(
+                    &mut config,
+                    &provider,
+                    &profile_name,
+                    force,
+                    headless,
+                    enterprise_url.as_deref(),
+                )
+                .await?;
             }
             AuthAction::Status { profile } => {
                 oauth::providers::status(&config, profile.as_deref()).await?;
