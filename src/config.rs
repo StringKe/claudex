@@ -231,10 +231,8 @@ fn default_enabled() -> bool {
 
 /// Config file names to search for in project directories
 const CONFIG_FILE_NAMES: &[&str] = &["claudex.toml", "claudex.yaml", "claudex.yml"];
-const CONFIG_DIR_NAMES: &[(&str, &[&str])] = &[(
-    ".claudex",
-    &["config.toml", "config.yaml", "config.yml"],
-)];
+const CONFIG_DIR_NAMES: &[(&str, &[&str])] =
+    &[(".claudex", &["config.toml", "config.yaml", "config.yml"])];
 const MAX_PARENT_TRAVERSAL: usize = 10;
 
 /// Global config file names (in ~/.config/claudex/)
@@ -267,12 +265,8 @@ impl ClaudexConfig {
     /// Merge a config file into a figment, auto-detecting format by extension
     fn merge_file(figment: Figment, path: &Path) -> Figment {
         match ConfigFormat::from_path(path) {
-            ConfigFormat::Toml => {
-                figment.merge(figment::providers::Toml::file(path))
-            }
-            ConfigFormat::Yaml => {
-                figment.merge(figment::providers::Yaml::file(path))
-            }
+            ConfigFormat::Toml => figment.merge(figment::providers::Toml::file(path)),
+            ConfigFormat::Yaml => figment.merge(figment::providers::Yaml::file(path)),
         }
     }
 
@@ -305,13 +299,12 @@ impl ClaudexConfig {
         figment = figment.merge(Env::prefixed("CLAUDEX_").split("__"));
 
         // Determine the "source" path for display/save
-        let effective_source = source_path
-            .or(project_path)
-            .or(global_path.clone());
+        let effective_source = source_path.or(project_path).or(global_path.clone());
 
         match effective_source {
             Some(source) => {
-                let mut config: ClaudexConfig = figment.extract().context("failed to parse config")?;
+                let mut config: ClaudexConfig =
+                    figment.extract().context("failed to parse config")?;
                 config.resolve_api_keys()?;
                 config.config_source = Some(source.clone());
                 config.config_format = ConfigFormat::from_path(&source);
@@ -434,7 +427,9 @@ enabled = false
 
         let figment = Figment::from(Serialized::defaults(ClaudexConfig::default()))
             .merge(figment::providers::Toml::string(minimal));
-        let mut config: ClaudexConfig = figment.extract().context("failed to parse default config")?;
+        let mut config: ClaudexConfig = figment
+            .extract()
+            .context("failed to parse default config")?;
         config.config_source = Some(path);
         config.config_format = ConfigFormat::Toml;
         Ok(config)
@@ -451,8 +446,11 @@ enabled = false
             // Parse TOML example, then serialize as YAML
             let figment = Figment::from(Serialized::defaults(ClaudexConfig::default()))
                 .merge(figment::providers::Toml::string(example_toml));
-            let config: ClaudexConfig = figment.extract().context("failed to parse example config")?;
-            let yaml_content = serde_yaml::to_string(&config).context("failed to serialize to YAML")?;
+            let config: ClaudexConfig = figment
+                .extract()
+                .context("failed to parse example config")?;
+            let yaml_content =
+                serde_yaml::to_string(&config).context("failed to serialize to YAML")?;
             std::fs::write(&path, yaml_content)?;
             println!("Created: {}", path.display());
             Ok(path)
@@ -471,7 +469,8 @@ enabled = false
     fn load_from(path: &Path) -> Result<Self> {
         let figment = Figment::from(Serialized::defaults(ClaudexConfig::default()));
         let figment = Self::merge_file(figment, path);
-        let mut config: ClaudexConfig = figment.extract()
+        let mut config: ClaudexConfig = figment
+            .extract()
             .with_context(|| format!("failed to parse config: {}", path.display()))?;
         config.resolve_api_keys()?;
         config.config_source = Some(path.to_path_buf());
@@ -494,10 +493,12 @@ enabled = false
             std::fs::create_dir_all(parent)?;
         }
         let content = match self.config_format {
-            ConfigFormat::Yaml => serde_yaml::to_string(self)
-                .context("failed to serialize config to YAML")?,
-            ConfigFormat::Toml => toml::to_string_pretty(self)
-                .context("failed to serialize config to TOML")?,
+            ConfigFormat::Yaml => {
+                serde_yaml::to_string(self).context("failed to serialize config to YAML")?
+            }
+            ConfigFormat::Toml => {
+                toml::to_string_pretty(self).context("failed to serialize config to TOML")?
+            }
         };
         std::fs::write(&path, content)?;
         Ok(())
@@ -1045,11 +1046,26 @@ profiles:
 
     #[test]
     fn test_config_format_from_path() {
-        assert_eq!(ConfigFormat::from_path(Path::new("config.toml")), ConfigFormat::Toml);
-        assert_eq!(ConfigFormat::from_path(Path::new("config.yaml")), ConfigFormat::Yaml);
-        assert_eq!(ConfigFormat::from_path(Path::new("config.yml")), ConfigFormat::Yaml);
-        assert_eq!(ConfigFormat::from_path(Path::new("config")), ConfigFormat::Toml);
-        assert_eq!(ConfigFormat::from_path(Path::new("/foo/bar.yaml")), ConfigFormat::Yaml);
+        assert_eq!(
+            ConfigFormat::from_path(Path::new("config.toml")),
+            ConfigFormat::Toml
+        );
+        assert_eq!(
+            ConfigFormat::from_path(Path::new("config.yaml")),
+            ConfigFormat::Yaml
+        );
+        assert_eq!(
+            ConfigFormat::from_path(Path::new("config.yml")),
+            ConfigFormat::Yaml
+        );
+        assert_eq!(
+            ConfigFormat::from_path(Path::new("config")),
+            ConfigFormat::Toml
+        );
+        assert_eq!(
+            ConfigFormat::from_path(Path::new("/foo/bar.yaml")),
+            ConfigFormat::Yaml
+        );
     }
 
     #[test]
@@ -1080,7 +1096,7 @@ profiles:
         let config: ClaudexConfig = figment.extract().unwrap();
         assert_eq!(config.proxy_port, 9000);
         assert_eq!(config.log_level, "info"); // from global, not overridden
-        // profiles from project override global (figment merge replaces arrays)
+                                              // profiles from project override global (figment merge replaces arrays)
         assert_eq!(config.profiles.len(), 1);
         assert_eq!(config.profiles[0].name, "project-profile");
     }
