@@ -70,6 +70,9 @@ pub struct McpServer {
     pub env: HashMap<String, String>,
     #[serde(default)]
     pub description: Option<String>,
+    /// 安装指引，stdio command 不可用时展示给用户
+    #[serde(default)]
+    pub setup: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::io::{self, Write};
 use std::path::Path;
 
 use anyhow::{Context, Result};
@@ -7,12 +8,70 @@ use super::conflict;
 use super::lock::Scope;
 use super::schema::{McpServer, McpServerType};
 
+/// 检测 command 是否存在于 PATH 中
+fn check_command_available(command: &str) -> bool {
+    std::process::Command::new("which")
+        .arg(command)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+/// stdio command 不可用时的安装决策
+#[derive(Debug, PartialEq)]
+pub enum CommandAction {
+    InstallAnyway,
+    Skip,
+    Retry,
+}
+
+/// 交互式询问用户如何处理不可用的 command
+fn prompt_command_action(server: &McpServer) -> Result<CommandAction> {
+    let command = server.command.as_deref().unwrap_or("unknown");
+    println!("  Warning: command '{}' not found in PATH", command);
+    if let Some(ref setup) = server.setup {
+        println!("    Setup: {}", setup);
+    }
+    print!("    [1] Install anyway  [2] Skip  [3] Retry: ");
+    io::stdout().flush()?;
+    let mut input = String::new();
+    io::stdin().read_line(&mut input)?;
+    match input.trim() {
+        "1" => Ok(CommandAction::InstallAnyway),
+        "3" => Ok(CommandAction::Retry),
+        _ => Ok(CommandAction::Skip),
+    }
+}
+
 /// 将 MCP server 写入 claude.json
 pub fn install_mcp_server(
     server: &McpServer,
     scope: Scope,
     env_values: &HashMap<String, String>,
-) -> Result<bool> {
+) -> Result<InstallMcpResult> {
+    // stdio 类型检测 command 可用性
+    let mut command_missing = false;
+    if server.server_type == McpServerType::Stdio {
+        if let Some(ref command) = server.command {
+            loop {
+                if check_command_available(command) {
+                    break;
+                }
+                let action = prompt_command_action(server)?;
+                match action {
+                    CommandAction::InstallAnyway => {
+                        command_missing = true;
+                        break;
+                    }
+                    CommandAction::Skip => return Ok(InstallMcpResult::Skipped),
+                    CommandAction::Retry => continue,
+                }
+            }
+        }
+    }
+
     let json_path = super::lock::SetsLockFile::claude_json_path(scope)?;
     let mut doc = read_claude_json(&json_path)?;
 
@@ -30,7 +89,7 @@ pub fn install_mcp_server(
     if servers_map.contains_key(&server.name) {
         let resolution = conflict::resolve_mcp_conflict(&server.name)?;
         if resolution == conflict::ConflictResolution::Skip {
-            return Ok(false);
+            return Ok(InstallMcpResult::Skipped);
         }
     }
 
@@ -39,7 +98,20 @@ pub fn install_mcp_server(
     servers_map.insert(server.name.clone(), server_value);
 
     write_claude_json(&json_path, &doc)?;
-    Ok(true)
+
+    if command_missing {
+        Ok(InstallMcpResult::InstalledCommandMissing)
+    } else {
+        Ok(InstallMcpResult::Installed)
+    }
+}
+
+/// MCP 安装结果
+#[derive(Debug, PartialEq)]
+pub enum InstallMcpResult {
+    Installed,
+    InstalledCommandMissing,
+    Skipped,
 }
 
 /// 从 claude.json 移除 MCP server

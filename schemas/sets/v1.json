@@ -147,6 +147,10 @@
               "description": {
                 "type": "string",
                 "description": "服务器用途说明"
+              },
+              "setup": {
+                "type": "string",
+                "description": "stdio 类型命令的安装指引，command 不可用时展示给用户"
               }
             },
             "if": {
