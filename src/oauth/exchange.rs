@@ -164,6 +164,11 @@ pub async fn exchange_chatgpt_code(
         .context("invalid JSON from ChatGPT code exchange")?;
 
     if !status.is_success() {
+        tracing::error!(
+            status = %status,
+            body = %body,
+            "ChatGPT code exchange failed"
+        );
         let error = body
             .get("error")
             .and_then(|v| v.as_str())
@@ -232,16 +237,19 @@ pub async fn chatgpt_device_auth_request(client: &reqwest::Client) -> Result<Dev
 }
 
 /// 轮询 ChatGPT device auth token
-/// 成功返回 (authorization_code, code_verifier)，再用这些换 token
+/// Codex CLI 协议: HTTP 200 = 成功 (返回 authorization_code + code_verifier)
+///                  HTTP 403/404 = 等待中
+///                  其他 = 错误
 pub async fn chatgpt_device_auth_poll(
     client: &reqwest::Client,
     device_auth_id: &str,
     user_code: &str,
 ) -> Result<OAuthToken> {
     let interval = std::time::Duration::from_secs(5);
+    let max_wait = std::time::Duration::from_secs(15 * 60);
+    let start = std::time::Instant::now();
 
     loop {
-        // 等待间隔，可被 Ctrl+C 中断
         tokio::select! {
             _ = tokio::time::sleep(interval) => {}
             _ = tokio::signal::ctrl_c() => {
@@ -251,6 +259,7 @@ pub async fn chatgpt_device_auth_poll(
 
         let resp = client
             .post(format!("{CHATGPT_ISSUER}/api/accounts/deviceauth/token"))
+            .header("Content-Type", "application/json")
             .json(&serde_json::json!({
                 "device_auth_id": device_auth_id,
                 "user_code": user_code,
@@ -259,49 +268,44 @@ pub async fn chatgpt_device_auth_poll(
             .await
             .context("ChatGPT device auth poll failed")?;
 
-        let body: serde_json::Value = resp
-            .json()
-            .await
-            .context("invalid JSON from ChatGPT device auth poll")?;
+        let http_status = resp.status();
 
-        // 检查是否获得了 authorization_code
-        if let Some(auth_code) = body.get("authorization_code").and_then(|v| v.as_str()) {
+        if http_status.is_success() {
+            // 200: 用户已授权，解析 authorization_code + code_verifier
+            let body: serde_json::Value = resp
+                .json()
+                .await
+                .context("invalid JSON from device auth success response")?;
+
+            let auth_code = body
+                .get("authorization_code")
+                .and_then(|v| v.as_str())
+                .context("missing authorization_code in device auth response")?;
             let code_verifier = body
                 .get("code_verifier")
                 .and_then(|v| v.as_str())
                 .context("missing code_verifier in device auth response")?;
 
-            // 用 authorization_code + code_verifier 换 token
-            let token = exchange_chatgpt_code(
-                client,
-                auth_code,
-                &format!("{CHATGPT_ISSUER}/api/accounts/deviceauth/callback"),
-                code_verifier,
-            )
-            .await?;
+            let redirect_uri = format!("{CHATGPT_ISSUER}/api/accounts/deviceauth/callback");
+            let token =
+                exchange_chatgpt_code(client, auth_code, &redirect_uri, code_verifier).await?;
 
             return Ok(token);
         }
 
-        // 检查错误状态
-        let status = body
-            .get("status")
-            .or_else(|| body.get("error"))
-            .and_then(|v| v.as_str())
-            .unwrap_or("authorization_pending");
-
-        match status {
-            "authorization_pending" | "pending" => continue,
-            "slow_down" => {
-                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                continue;
+        if http_status == reqwest::StatusCode::FORBIDDEN
+            || http_status == reqwest::StatusCode::NOT_FOUND
+        {
+            // 403/404: 用户尚未授权，继续等待
+            if start.elapsed() >= max_wait {
+                anyhow::bail!("device auth timed out after 15 minutes");
             }
-            "expired_token" | "expired" => anyhow::bail!("device code expired, please try again"),
-            "access_denied" | "denied" => {
-                anyhow::bail!("user denied the authorization request")
-            }
-            _ => anyhow::bail!("device auth error: {status}"),
+            continue;
         }
+
+        // 其他错误
+        let err_text = resp.text().await.unwrap_or_default();
+        anyhow::bail!("device auth poll failed (HTTP {http_status}): {err_text}");
     }
 }
 
