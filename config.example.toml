@@ -121,11 +121,13 @@ oauth_provider = "claude"
 enabled = false
 
 # ChatGPT Plus/Pro / Codex subscription (via OpenAI OAuth → Responses API)
+# Supported models: gpt-5.1-codex, gpt-5.1-codex-mini, codex-mini-latest
+# Note: gpt-4o is NOT supported on the Codex ChatGPT endpoint
 [[profiles]]
 name = "codex-sub"
 provider_type = "OpenAIResponses"
 base_url = "https://chatgpt.com/backend-api/codex"
-default_model = "gpt-4o"
+default_model = "gpt-5.1-codex"
 auth_type = "oauth"
 oauth_provider = "openai"
 enabled = false
