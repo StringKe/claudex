@@ -1,0 +1,198 @@
+---
+title: OAuth-подписки
+description: Использование существующих подписок провайдеров с Claude Code через OAuth-аутентификацию
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Claudex поддерживает OAuth-аутентификацию для 7 провайдеров, позволяя использовать существующие подписки (Claude Max, ChatGPT Plus, GitHub Copilot и т.д.) без отдельных API-ключей.
+
+## Обзор
+
+Вместо указания `api_key` вы настраиваете `auth_type = "oauth"` и указываете `oauth_provider`. Claudex управляет полной цепочкой учётных данных: чтение токенов из нативных конфигураций CLI, выполнение device code flow, хранение токенов в системной связке ключей и автоматическое обновление до истечения срока.
+
+```toml
+[[profiles]]
+name = "codex-sub"
+provider_type = "OpenAIResponses"
+base_url = "https://chatgpt.com/backend-api/codex"
+default_model = "gpt-5.3-codex"
+auth_type = "oauth"
+oauth_provider = "openai"
+```
+
+## Поддерживаемые провайдеры
+
+| Провайдер | `oauth_provider` | Метод входа | Запасной вариант |
+|-----------|-----------------|-------------|-----------------|
+| Claude | `claude` | Читает `~/.claude/.credentials.json` | — |
+| ChatGPT/Codex | `openai` | Browser PKCE или Device Code | `~/.codex/auth.json` (Codex CLI) |
+| Google Gemini | `google` | Читает учётные данные Gemini CLI | — |
+| Kimi | `kimi` | Читает учётные данные Kimi CLI | — |
+| Qwen | `qwen` | Device Code flow | — |
+| GitHub Copilot | `github` | Device Code flow | `~/.config/github-copilot/` |
+| GitLab Duo | `gitlab` | Переменная окружения `GITLAB_TOKEN` | — |
+
+## Цепочка учётных данных
+
+Каждый провайдер следует паттерну цепочки учётных данных:
+
+1. **Проверка системной связки ключей** на наличие ранее сохранённого токена
+2. **Чтение из нативной конфигурации CLI** (пути, специфичные для провайдера)
+3. **Инициация OAuth-потока** (browser PKCE или device code), если токен не найден
+
+Полученные токены сохраняются в системной связке ключей для последующего использования.
+
+## Управление токенами
+
+### Структура токена
+
+```
+OAuthToken {
+    access_token: String,
+    refresh_token: Option<String>,
+    expires_at: Option<i64>,       // Unix milliseconds
+    token_type: Option<String>,
+    scopes: Option<Vec<String>>,
+    extra: Option<Value>,          // данные, специфичные для провайдера
+}
+```
+
+### Автоматическое обновление
+
+Прокси проверяет срок действия токена перед каждым запросом. Если до истечения токена осталось менее 60 секунд:
+
+1. Попытка обновления с использованием `refresh_token` (если доступен)
+2. При успешном обновлении связка ключей обновляется
+3. Если обновление не удалось, токен инвалидируется, и при следующем использовании запрашивается повторный вход
+
+### Повтор при 401
+
+Когда провайдер возвращает HTTP 401, прокси:
+
+1. Инвалидирует текущий токен
+2. Пытается загрузить свежий токен из цепочки учётных данных
+3. Повторяет запрос один раз с новым токеном
+4. Если повторный запрос неуспешен, возвращает ошибку в Claude Code
+
+## Подробности по провайдерам
+
+### Claude
+
+OAuth-профили Claude особенные: **прокси полностью пропускается**. Когда вы запускаете OAuth-профиль Claude, Claudex запускает Claude Code напрямую без установки `ANTHROPIC_BASE_URL`. Claude Code использует собственную встроенную OAuth-сессию из `~/.claude/.credentials.json`.
+
+```toml
+[[profiles]]
+name = "claude-max"
+provider_type = "DirectAnthropic"
+base_url = "https://api.claude.ai"
+default_model = "claude-sonnet-4-20250514"
+auth_type = "oauth"
+oauth_provider = "claude"
+```
+
+Шаг `claudex auth login` не требуется. Если вы уже вошли в Claude Code, всё работает сразу.
+
+### ChatGPT / Codex
+
+Поддерживаются два OAuth-потока:
+
+1. **Browser PKCE**: открывает окно браузера для входа в OpenAI, получает токен через локальный сервер обратного вызова
+2. **Device Code**: для headless-сред отображает код для ввода по URL
+
+Claudex также читает токены из конфигурации Codex CLI по пути `~/.codex/auth.json` как запасной вариант. Заголовок `ChatGPT-Account-ID` автоматически извлекается из файла авторизации Codex CLI.
+
+```bash
+# Browser flow (по умолчанию)
+claudex auth login openai --profile codex-sub
+
+# Device code flow (headless)
+claudex auth login openai --profile codex-sub --headless
+```
+
+### GitHub Copilot
+
+Использует Device Code flow GitHub:
+
+1. `claudex auth login github` отображает device code
+2. Откройте `https://github.com/login/device` и введите код
+3. Токен сохраняется в системной связке ключей
+
+Запасной вариант: чтение существующих токенов из `~/.config/github-copilot/`, если доступны.
+
+### GitLab Duo
+
+Использует Personal Access Token через переменную окружения `GITLAB_TOKEN`:
+
+```bash
+export GITLAB_TOKEN=glpat-...
+claudex auth login gitlab --profile gitlab-duo
+```
+
+Для self-hosted инстансов GitLab:
+
+```bash
+claudex auth login gitlab --enterprise-url https://gitlab.mycompany.com --profile gitlab-duo
+```
+
+### Google Gemini
+
+Читает учётные данные из конфигурации Gemini CLI. Сначала установите и аутентифицируйтесь в Gemini CLI, затем `claudex auth login google` прочитает сохранённый токен.
+
+### Qwen
+
+Использует OAuth Device Code flow. Claudex отображает код и URL для аутентификации:
+
+```bash
+claudex auth login qwen --profile qwen-oauth
+# Отображает: Go to https://... and enter code: XXXX-XXXX
+```
+
+### Kimi
+
+Читает учётные данные из конфигурации Kimi CLI, аналогично потоку Google Gemini.
+
+## Режим Gateway Auth
+
+При запуске Claude Code с OAuth-профилем (кроме Claude) Claudex устанавливает:
+
+```
+ANTHROPIC_AUTH_TOKEN=claudex-passthrough
+```
+
+Это использует заголовок `Authorization: Bearer` вместо `X-Api-Key`, предотвращая конфликты с собственным механизмом `ANTHROPIC_API_KEY` в Claude Code. Прокси затем заменяет passthrough-токен на реальный OAuth-токен.
+
+## Команды CLI
+
+```bash
+# Вход к провайдеру
+claudex auth login <PROVIDER> [--profile <NAME>] [--enterprise-url <URL>] [--headless]
+
+# Проверка статуса аутентификации для всех OAuth-профилей
+claudex auth status
+
+# Проверка конкретного провайдера
+claudex auth status openai
+
+# Ручное обновление токена
+claudex auth refresh <PROVIDER>
+
+# Удаление сохранённых токенов
+claudex auth logout <PROVIDER>
+```
+
+## Значения по умолчанию для провайдеров
+
+При создании профиля с `auth_type = "oauth"` каждый провайдер имеет встроенные значения по умолчанию для `base_url`, `provider_type` и `default_model`:
+
+| Провайдер | base_url по умолчанию | provider_type по умолчанию | Модель по умолчанию |
+|-----------|----------------------|---------------------------|-------------------|
+| Claude | `https://api.claude.ai` | DirectAnthropic | `claude-sonnet-4-20250514` |
+| ChatGPT | `https://chatgpt.com/backend-api/codex` | OpenAIResponses | `gpt-5.3-codex` |
+| GitHub | `https://api.githubcopilot.com` | OpenAICompatible | `gpt-4o` |
+| GitLab | `https://gitlab.com/api/v4/ai/llm/proxy` | OpenAICompatible | `claude-sonnet-4-20250514` |
+| Google | `https://generativelanguage.googleapis.com/v1beta/openai` | OpenAICompatible | `gemini-2.5-pro` |
+| Qwen | `https://chat.qwen.ai/api` | OpenAICompatible | `qwen3-235b-a22b` |
+| Kimi | `https://api.moonshot.cn/v1` | OpenAICompatible | `kimi-k2-0905-preview` |
+
+Эти значения по умолчанию используются, если вы не указали `base_url` или `default_model` в конфигурации профиля.

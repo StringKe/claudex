@@ -5,14 +5,14 @@ description: Claudex で各 AI プロバイダーを設定するためのステ�
 
 import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
-このガイドでは、API キープロバイダー、OAuth サブスクリプション、ローカルモデルを含む Claudex がサポートするすべてのプロバイダーの詳細なセットアップ手順を説明します。
+このガイドでは、API キープロバイダー、OAuth サブスクリプション、クラウドプラットフォーム、ローカルモデルを含む、Claudex がサポートするすべてのプロバイダーの詳細なセットアップ手順を説明します。
 
 ## API キープロバイダー
 
 ### Anthropic
 
 1. [console.anthropic.com](https://console.anthropic.com/) でサインアップ
-2. **API Keys** に移動して新しいキーを作成 (形式: `sk-ant-*`)
+2. **API Keys** に移動して新しいキーを作成（形式: `sk-ant-*`）
 
 ```toml
 [[profiles]]
@@ -130,9 +130,9 @@ claudex profile test deepseek
 [[profiles]]
 name = "kimi"
 provider_type = "OpenAICompatible"
-base_url = "https://api.moonshot.cn/v1"
+base_url = "https://api.moonshot.ai/v1"
 api_key = "sk-..."
-default_model = "moonshot-v1-128k"
+default_model = "kimi-k2-0905-preview"
 ```
 
 ```bash
@@ -148,30 +148,200 @@ claudex profile test kimi
 [[profiles]]
 name = "glm"
 provider_type = "OpenAICompatible"
-base_url = "https://open.bigmodel.cn/api/paas/v4"
+base_url = "https://api.z.ai/api/paas/v4"
 api_key = "..."
-default_model = "glm-4-plus"
+default_model = "glm-4.6"
 ```
 
 ```bash
 claudex profile test glm
 ```
 
+### Groq
+
+1. [console.groq.com](https://console.groq.com/) でサインアップ
+2. **Settings > API Keys** で API キーを作成
+
+```toml
+[[profiles]]
+name = "groq"
+provider_type = "OpenAICompatible"
+base_url = "https://api.groq.com/openai/v1"
+api_key = "gsk_..."
+default_model = "llama-3.3-70b-versatile"
+```
+
+```bash
+claudex profile test groq
+```
+
+<Aside type="tip">
+  Groq はオープンソースモデルの超高速推論を提供します。人気モデルには `llama-3.3-70b-versatile`、`mixtral-8x7b-32768`、`gemma2-9b-it` があります。
+</Aside>
+
+### Mistral AI
+
+1. [console.mistral.ai](https://console.mistral.ai/) でサインアップ
+2. コンソールで API キーを作成
+
+```toml
+[[profiles]]
+name = "mistral"
+provider_type = "OpenAICompatible"
+base_url = "https://api.mistral.ai/v1"
+api_key = "..."
+default_model = "mistral-large-latest"
+```
+
+```bash
+claudex profile test mistral
+```
+
+### Together AI
+
+1. [api.together.ai](https://api.together.ai/) でサインアップ
+2. ダッシュボードで API キーを作成
+
+```toml
+[[profiles]]
+name = "together"
+provider_type = "OpenAICompatible"
+base_url = "https://api.together.xyz/v1"
+api_key = "..."
+default_model = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+```
+
+```bash
+claudex profile test together
+```
+
+### Perplexity
+
+1. [perplexity.ai](https://www.perplexity.ai/) でサインアップ
+2. [perplexity.ai/settings/api](https://www.perplexity.ai/settings/api) で API キーを作成
+
+```toml
+[[profiles]]
+name = "perplexity"
+provider_type = "OpenAICompatible"
+base_url = "https://api.perplexity.ai"
+api_key = "pplx-..."
+default_model = "sonar-pro"
+```
+
+```bash
+claudex profile test perplexity
+```
+
+<Aside type="note">
+  Perplexity のモデルにはウェブ検索機能が組み込まれています。リサーチ指向のタスクに便利です。
+</Aside>
+
+### Cerebras
+
+1. [cloud.cerebras.ai](https://cloud.cerebras.ai/) でサインアップ
+2. ダッシュボードで API キーを作成
+
+```toml
+[[profiles]]
+name = "cerebras"
+provider_type = "OpenAICompatible"
+base_url = "https://api.cerebras.ai/v1"
+api_key = "..."
+default_model = "llama-3.3-70b"
+```
+
+```bash
+claudex profile test cerebras
+```
+
+## クラウドプラットフォーム
+
+### Azure OpenAI
+
+1. [Azure Portal](https://portal.azure.com/) で Azure OpenAI リソースを作成
+2. モデルをデプロイし、リソース名とデプロイメント名をメモ
+3. **Keys and Endpoint** から API キーを取得
+
+```toml
+[[profiles]]
+name = "azure-openai"
+provider_type = "OpenAICompatible"
+base_url = "https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT"
+api_key = "YOUR_AZURE_KEY"
+default_model = "gpt-4o"
+
+[profiles.query_params]
+api-version = "2024-12-01-preview"
+```
+
+```bash
+claudex profile test azure-openai
+```
+
+<Aside type="note">
+  Azure OpenAI は `base_url` に `openai.azure.com` が含まれることで自動検出されます。認証は `Authorization: Bearer` の代わりに `api-key` ヘッダーを使用します。`api-version` クエリパラメータは必須です。
+</Aside>
+
+### Google Vertex AI
+
+1. GCP プロジェクトで Vertex AI API を有効化
+2. `gcloud auth print-access-token` でアクセストークンを生成
+
+```toml
+[[profiles]]
+name = "vertex-ai"
+provider_type = "DirectAnthropic"
+base_url = "https://us-east5-aiplatform.googleapis.com/v1/projects/YOUR_PROJECT/locations/us-east5/publishers/anthropic/models"
+api_key = "YOUR_GCLOUD_TOKEN"
+default_model = "claude-sonnet-4@20250514"
+```
+
+```bash
+claudex profile test vertex-ai
+```
+
+<Aside type="caution">
+  `gcloud auth print-access-token` の出力は約 1 時間で期限切れになります。本番環境では、トークンリフレッシュ自動化付きのサービスアカウントを検討してください。
+</Aside>
+
+### AWS Bedrock（LiteLLM 経由）
+
+AWS Bedrock は LiteLLM プロキシ経由でサポートされます:
+
+1. LiteLLM をインストール: `pip install litellm`
+2. プロキシを起動:
+
+```bash
+litellm --model bedrock/anthropic.claude-sonnet-4-20250514-v2:0
+```
+
+3. Claudex を設定:
+
+```toml
+[[profiles]]
+name = "bedrock"
+provider_type = "OpenAICompatible"
+base_url = "http://localhost:4000/v1"
+api_key = "sk-litellm"
+default_model = "bedrock/anthropic.claude-sonnet-4-20250514-v2:0"
+```
+
 ## OAuth サブスクリプション
 
-OAuth 認証により、別途 API キーを取得せず既存のプロバイダーサブスクリプション (ChatGPT Plus、Claude Max など) を使用できます。
+OAuth 認証により、別途 API キーを取得せず既存のプロバイダーサブスクリプション（ChatGPT Plus、Claude Max など）を使用できます。
 
 ### Claude Max / Pro
 
 Claude Code のネイティブ OAuth セッションを通じて既存の Claude サブスクリプションを使用します。
 
-**前提条件**: Claude Code がインストールされてログイン済み (`claude` コマンドが正常に動作すること)
+**前提条件**: Claude Code がインストールされてログイン済み（`claude` コマンドが正常に動作すること）
 
 ```toml
 [[profiles]]
-name = "claude-sub"
+name = "claude-max"
 provider_type = "DirectAnthropic"
-base_url = "https://api.anthropic.com"
+base_url = "https://api.claude.ai"
 default_model = "claude-sonnet-4-20250514"
 auth_type = "oauth"
 oauth_provider = "claude"
@@ -183,10 +353,8 @@ opus = "claude-opus-4-20250514"
 ```
 
 <Aside type="note">
-  Claude OAuth プロファイルは特別なゲートウェイ認証モードを使用します。Claudex は Claude Code 自身のサブスクリプションログインとの競合を避けるため、`ANTHROPIC_API_KEY` ではなく `ANTHROPIC_AUTH_TOKEN` を設定します。Claude サブスクリプションプロファイルではプロキシはスキップされます。
+  Claude OAuth プロファイルは特別なゲートウェイ認証モードを使用します。Claudex はプロキシをスキップし、Claude Code が自身の OAuth を直接使用できるようにします。別途 `claudex auth login` の手順は不要です。
 </Aside>
-
-別途 `claudex auth login` の手順は不要です。Claudex は `~/.claude` から既存のセッションを読み取ります。
 
 ### ChatGPT Plus / Codex CLI
 
@@ -198,7 +366,7 @@ Codex CLI トークンを通じて ChatGPT Plus または Pro サブスクリプ
 # Codex CLI をインストール
 npm install -g @openai/codex
 
-# 認証 (ブラウザが開きます)
+# 認証（ブラウザが開きます）
 codex auth
 ```
 
@@ -209,14 +377,14 @@ codex auth
 name = "codex-sub"
 provider_type = "OpenAIResponses"
 base_url = "https://chatgpt.com/backend-api/codex"
-default_model = "gpt-4o"
+default_model = "gpt-5.3-codex"
 auth_type = "oauth"
 oauth_provider = "openai"
 
 [profiles.models]
-haiku = "gpt-4o-mini"
-sonnet = "gpt-4o"
-opus = "o1-pro"
+haiku = "codex-mini-latest"
+sonnet = "gpt-5.3-codex"
+opus = "gpt-5.3-codex"
 ```
 
 ```bash
@@ -231,16 +399,16 @@ claudex run codex-sub
 ```
 
 <Aside type="tip">
-  `openai` OAuth プロバイダーはプロバイダータイプとして `OpenAIResponses` を使用します。これは Chat Completions API (`/chat/completions`) ではなく OpenAI Responses API (`/responses` エンドポイント) を通じて通信します。
+  Codex エンドポイントで対応しているモデル: `gpt-5.3-codex`、`gpt-5.1-codex`、`codex-mini-latest`。`gpt-4o` は `chatgpt.com` の Codex エンドポイントでは対応していません。`strip_params = "auto"` により、このエンドポイントを自動検出して `temperature`/`top_p`/`top_k` を除去します。
 </Aside>
 
 ### Google Gemini
 
-OAuth デバイスコードフローを通じて Google アカウントを使用します。
+Gemini CLI のクレデンシャル経由で Google アカウントを使用します。
 
 ```toml
 [[profiles]]
-name = "gemini"
+name = "gemini-sub"
 provider_type = "OpenAICompatible"
 base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
 default_model = "gemini-2.5-pro"
@@ -254,8 +422,8 @@ opus = "gemini-2.5-pro"
 ```
 
 ```bash
-# デバイスコードフローを開始 (Google ログイン用のブラウザが開きます)
-claudex auth login google --profile gemini
+# Gemini CLI のクレデンシャルから読み取ってログイン
+claudex auth login google --profile gemini-sub
 
 # 確認
 claudex auth status
@@ -269,8 +437,8 @@ OAuth デバイスコードフローを通じて Qwen アカウントを使用�
 [[profiles]]
 name = "qwen-oauth"
 provider_type = "OpenAICompatible"
-base_url = "https://chat.qwenlm.ai/api/chat/v1"
-default_model = "qwen-max"
+base_url = "https://chat.qwen.ai/api"
+default_model = "qwen3-235b-a22b"
 auth_type = "oauth"
 oauth_provider = "qwen"
 ```
@@ -283,9 +451,9 @@ claudex auth login qwen --profile qwen-oauth
 claudex auth status
 ```
 
-### Kimi / Moonshot (OAuth)
+### Kimi / Moonshot（OAuth）
 
-OAuth デバイスコードフローを通じて Kimi アカウントを使用します。
+Kimi CLI のクレデンシャル経由で Kimi アカウントを使用します。
 
 ```toml
 [[profiles]]
@@ -298,7 +466,7 @@ oauth_provider = "kimi"
 ```
 
 ```bash
-# デバイスコードフローを開始
+# Kimi CLI のクレデンシャルから読み取ってログイン
 claudex auth login kimi --profile kimi-oauth
 
 # 確認
@@ -311,7 +479,7 @@ OAuth デバイスコードフローを通じて GitHub Copilot サブスクリ�
 
 ```toml
 [[profiles]]
-name = "github-copilot"
+name = "copilot"
 provider_type = "OpenAICompatible"
 base_url = "https://api.githubcopilot.com"
 default_model = "gpt-4o"
@@ -320,12 +488,41 @@ oauth_provider = "github"
 ```
 
 ```bash
-# デバイスコードフローを開始 (GitHub ログイン用のブラウザが開きます)
-claudex auth login github --profile github-copilot
+# デバイスコードフローを開始（GitHub ログイン用のブラウザが開きます）
+claudex auth login github --profile copilot
 
 # 確認
 claudex auth status
 ```
+
+### GitLab Duo
+
+パーソナルアクセストークンを通じて GitLab Duo サブスクリプションを使用します。
+
+```toml
+[[profiles]]
+name = "gitlab-duo"
+provider_type = "OpenAICompatible"
+base_url = "https://gitlab.com/api/v4/ai/llm/proxy"
+default_model = "claude-sonnet-4-20250514"
+auth_type = "oauth"
+oauth_provider = "gitlab"
+```
+
+```bash
+# GitLab トークンを環境変数として設定
+export GITLAB_TOKEN=glpat-...
+
+# ログイン
+claudex auth login gitlab --profile gitlab-duo
+
+# 確認
+claudex auth status
+```
+
+<Aside type="note">
+  GitLab Duo には `ai_features` スコープを持つパーソナルアクセストークンの `GITLAB_TOKEN` 環境変数が必要です。セルフホスト GitLab インスタンスの場合は `base_url` を適宜更新してください。
+</Aside>
 
 ## ローカルモデル
 
@@ -380,20 +577,20 @@ default_model = "meta-llama/Llama-3.3-70B-Instruct"
 ### LM Studio
 
 1. [lmstudio.ai](https://lmstudio.ai/) から LM Studio をダウンロード
-2. モデルをロードしてローカルサーバーを起動 (デフォルトポート: 1234)
+2. モデルをロードしてローカルサーバーを起動（デフォルトポート: 1234）
 
 ```toml
 [[profiles]]
 name = "lm-studio"
 provider_type = "OpenAICompatible"
 base_url = "http://localhost:1234/v1"
-api_key = ""
-default_model = "loaded-model-name"
+api_key = "lm-studio"
+default_model = "local-model"
 ```
 
 ## セットアップの確認
 
-任意のプロバイダーを設定したら、接続を確認してください:
+プロバイダーを設定したら、接続を確認してください:
 
 ```bash
 # 特定のプロファイルをテスト

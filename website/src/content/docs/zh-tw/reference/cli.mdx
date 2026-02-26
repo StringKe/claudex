@@ -6,8 +6,14 @@ description: Claudex CLI 完整指令參考
 ## 全域用法
 
 ```
-claudex [COMMAND]
+claudex [OPTIONS] [COMMAND]
 ```
+
+| 選項 | 說明 |
+|------|------|
+| `--config <PATH>` | 覆寫設定檔路徑 |
+| `--version` | 印出版本 |
+| `--help` | 印出說明 |
 
 不帶指令執行時，若已設定 profile，Claudex 會啟動 TUI 儀表板；若無 profile，則顯示歡迎訊息。
 
@@ -18,17 +24,18 @@ claudex [COMMAND]
 以特定提供商 profile 執行 Claude Code。
 
 ```bash
-claudex run <PROFILE> [PROMPT] [-m MODEL] [--print] [--dangerously-skip-permissions] [ARGS...]
+claudex run <PROFILE> [PROMPT] [OPTIONS] [-- ARGS...]
 ```
 
-| 引數 | 說明 |
-|------|------|
+| 引數 / 選項 | 說明 |
+|-------------|------|
 | `PROFILE` | Profile 名稱，或 `auto` 以使用智慧路由 |
 | `PROMPT` | 選用的提示詞，用於非互動（一次性）執行 |
 | `-m, --model MODEL` | 覆寫此工作階段的預設模型 |
-| `--print` | 列印回應後退出（非互動模式） |
+| `--hyperlinks` | 強制啟用 OSC 8 終端超連結 |
+| `--print` | 印出回應後退出（非互動模式） |
 | `--dangerously-skip-permissions` | 跳過所有權限提示（與 `--print` 搭配用於 CI/CD） |
-| `ARGS...` | 傳遞給 `claude` 的額外引數 |
+| `ARGS...` | 傳遞給 `claude` 的額外引數（`--` 之後） |
 
 ```bash
 # 使用 Grok（互動模式）
@@ -39,6 +46,9 @@ claudex run grok -m grok-3-mini-beta
 
 # 智慧路由
 claudex run auto
+
+# 強制終端超連結
+claudex run grok --hyperlinks
 
 # 非互動一次性執行
 claudex run grok "Explain this codebase" --print
@@ -60,7 +70,7 @@ claudex run grok -- --verbose
 claudex profile list
 ```
 
-列出所有已設定的 profile 及其狀態。
+列出所有已設定的 profile 及其狀態、提供商類型和模型。
 
 #### `profile add`
 
@@ -68,7 +78,7 @@ claudex profile list
 claudex profile add
 ```
 
-互動式精靈，用於新增 profile。引導完成提供商選擇、API 金鑰輸入（支援 keyring 儲存）、模型選擇和連線測試。
+互動式精靈，用於新增 profile。引導完成提供商選擇、API 金鑰輸入（支援金鑰鏈儲存）、模型選擇和連線測試。
 
 #### `profile show`
 
@@ -76,7 +86,7 @@ claudex profile add
 claudex profile show <NAME>
 ```
 
-顯示特定 profile 的詳細資訊。
+顯示特定 profile 的詳細資訊，包括所有設定欄位。
 
 #### `profile remove`
 
@@ -92,7 +102,7 @@ claudex profile remove <NAME>
 claudex profile test <NAME|all>
 ```
 
-測試特定 profile 或所有 profile 的連線。
+測試特定 profile 或所有 profile 的連線。向提供商的 `/models` 端點發送輕量請求。
 
 ### `auth`
 
@@ -101,22 +111,32 @@ claudex profile test <NAME|all>
 #### `auth login`
 
 ```bash
-claudex auth login <PROVIDER>
+claudex auth login <PROVIDER> [OPTIONS]
 ```
 
-使用 OAuth 登入提供商。支援的提供商：`claude`、`openai`、`google`、`qwen`、`kimi`、`github`。
+| 選項 | 說明 |
+|------|------|
+| `--profile <NAME>` | 關聯到特定 profile |
+| `--enterprise-url <URL>` | 自訂企業伺服器 URL（用於自行管理的 GitLab 等） |
+| `--headless` | 使用無頭（Device Code）流程，跳過瀏覽器啟動 |
 
-對於 **OpenAI**，Claudex 從 Codex CLI 設定（`~/.codex/auth.json`）讀取 token。對於 **Claude**，從 `~/.claude` 讀取。其他提供商使用本地回呼伺服器或裝置碼流程。
+使用 OAuth 登入提供商。支援的提供商：`claude`、`openai`、`google`、`qwen`、`kimi`、`github`、`gitlab`。
 
 ```bash
 # 登入 OpenAI（從 Codex CLI 讀取）
-claudex auth login openai
+claudex auth login openai --profile codex-sub
 
 # 登入 Claude（從 ~/.claude 讀取）
 claudex auth login claude
 
 # 登入 Google
-claudex auth login google
+claudex auth login google --profile gemini-sub
+
+# 登入 GitLab 並指定企業 URL
+claudex auth login gitlab --enterprise-url https://gitlab.mycompany.com
+
+# 無頭模式（不開啟瀏覽器，僅 Device Code）
+claudex auth login github --headless
 ```
 
 #### `auth status`
@@ -149,7 +169,7 @@ claudex auth refresh <PROVIDER>
 claudex auth logout <PROVIDER>
 ```
 
-移除提供商的已儲存 OAuth token。
+從系統金鑰鏈中移除提供商的已儲存 OAuth token。
 
 ### `proxy`
 
@@ -158,12 +178,12 @@ claudex auth logout <PROVIDER>
 #### `proxy start`
 
 ```bash
-claudex proxy start [-p PORT] [-d]
+claudex proxy start [OPTIONS]
 ```
 
 | 旗標 | 說明 |
 |------|------|
-| `-p, --port PORT` | 覆寫代理埠（預設：來自設定） |
+| `-p, --port PORT` | 覆寫代理連接埠（預設：來自設定） |
 | `-d, --daemon` | 以背景程式執行 |
 
 #### `proxy stop`
@@ -172,7 +192,7 @@ claudex proxy start [-p PORT] [-d]
 claudex proxy stop
 ```
 
-停止代理背景程式（傳送 SIGTERM）。
+停止代理背景程式（透過 PID 檔案傳送 SIGTERM）。
 
 #### `proxy status`
 
@@ -180,7 +200,7 @@ claudex proxy stop
 claudex proxy status
 ```
 
-顯示代理是否正在執行及使用的埠。
+顯示代理是否正在執行及使用的連接埠。
 
 ### `dashboard`
 
@@ -192,24 +212,132 @@ claudex dashboard
 
 ### `config`
 
+管理設定檔。
+
+#### `config show`
+
 ```bash
-claudex config [--init]
+claudex config show
 ```
 
-| 旗標 | 說明 |
-|------|------|
-| `--init` | 在目前目錄建立新的設定檔 |
+顯示載入的設定檔路徑、搜尋順序和目前的設定值。
 
-不帶 `--init` 時，顯示載入的設定檔路徑和搜尋順序。
+#### `config path`
+
+```bash
+claudex config path
+```
+
+僅印出解析後的設定檔路徑。
+
+#### `config init`
+
+```bash
+claudex config init
+```
+
+從內建範本在當前目錄建立新設定檔。
+
+#### `config recreate`
+
+```bash
+claudex config recreate
+```
+
+從 `config.example.toml` 重建設定檔，覆寫現有設定。
+
+#### `config edit`
+
+```bash
+claudex config edit
+```
+
+用 `$EDITOR`（或 `$VISUAL`）開啟設定檔。
+
+#### `config validate`
+
+```bash
+claudex config validate
+```
+
+驗證設定語法、profile 參照（backup_providers、router 規則）和 OAuth 提供商設定。回報錯誤和警告。
+
+#### `config get`
+
+```bash
+claudex config get <KEY>
+```
+
+透過鍵路徑取得特定設定值（例如 `proxy_port`、`profiles.0.name`）。
+
+#### `config set`
+
+```bash
+claudex config set <KEY> <VALUE>
+```
+
+透過鍵路徑設定特定設定值。
+
+#### `config export`
+
+```bash
+claudex config export
+```
+
+以 TOML 格式將目前合併的設定匯出到 stdout。
+
+### `sets`
+
+管理設定集（可安裝的規則、技能和 MCP 伺服器套件包）。
+
+#### `sets add`
+
+```bash
+claudex sets add <PATH>
+```
+
+從包含 `manifest.json`（或 `manifest.yaml`）的本地目錄安裝設定集。
+
+#### `sets remove`
+
+```bash
+claudex sets remove <NAME>
+```
+
+依名稱移除已安裝的設定集。
+
+#### `sets list`
+
+```bash
+claudex sets list
+```
+
+列出所有已安裝的設定集及其版本、說明和組件摘要。
+
+#### `sets update`
+
+```bash
+claudex sets update <NAME> <PATH>
+```
+
+從新的 manifest 路徑更新現有設定集。
+
+#### `sets show`
+
+```bash
+claudex sets show <NAME>
+```
+
+顯示已安裝設定集的詳細資訊，包括所有組件。
 
 ### `update`
 
 ```bash
-claudex update [--check]
+claudex update [OPTIONS]
 ```
 
 | 旗標 | 說明 |
 |------|------|
 | `--check` | 僅檢查更新，不安裝 |
 
-不帶 `--check` 時，下載並安裝最新版本。
+不帶 `--check` 時，從 GitHub Releases 下載並安裝最新版本。

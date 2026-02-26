@@ -1,13 +1,13 @@
 ---
-title: 제공자 설정 가이드
-description: Claudex와 함께 각 AI 제공자를 구성하기 위한 단계별 안내
+title: 프로바이더 설정 가이드
+description: Claudex에서 각 AI 프로바이더를 구성하기 위한 단계별 안내
 ---
 
 import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
-이 가이드는 API 키 제공자, OAuth 구독, 로컬 모델을 포함하여 Claudex가 지원하는 모든 제공자의 자세한 설정 안내를 다룹니다.
+이 가이드는 API 키 프로바이더, OAuth 구독, 클라우드 플랫폼, 로컬 모델을 포함하여 Claudex가 지원하는 모든 프로바이더의 상세 설정 방법을 다룹니다.
 
-## API 키 제공자
+## API 키 프로바이더
 
 ### Anthropic
 
@@ -64,7 +64,7 @@ claudex profile test openrouter
 ```
 
 <Aside type="tip">
-  OpenRouter는 다양한 제공자의 수백 가지 모델을 지원합니다. Claude 모델에는 `anthropic/` 접두사를 사용하세요.
+  OpenRouter는 다양한 프로바이더의 수백 가지 모델을 지원합니다. Claude 모델에는 `anthropic/` 접두사를 사용하세요.
 </Aside>
 
 ### Grok (xAI)
@@ -130,9 +130,9 @@ claudex profile test deepseek
 [[profiles]]
 name = "kimi"
 provider_type = "OpenAICompatible"
-base_url = "https://api.moonshot.cn/v1"
+base_url = "https://api.moonshot.ai/v1"
 api_key = "sk-..."
-default_model = "moonshot-v1-128k"
+default_model = "kimi-k2-0905-preview"
 ```
 
 ```bash
@@ -148,18 +148,188 @@ claudex profile test kimi
 [[profiles]]
 name = "glm"
 provider_type = "OpenAICompatible"
-base_url = "https://open.bigmodel.cn/api/paas/v4"
+base_url = "https://api.z.ai/api/paas/v4"
 api_key = "..."
-default_model = "glm-4-plus"
+default_model = "glm-4.6"
 ```
 
 ```bash
 claudex profile test glm
 ```
 
+### Groq
+
+1. [console.groq.com](https://console.groq.com/)에서 가입
+2. **Settings > API Keys**에서 API 키 생성
+
+```toml
+[[profiles]]
+name = "groq"
+provider_type = "OpenAICompatible"
+base_url = "https://api.groq.com/openai/v1"
+api_key = "gsk_..."
+default_model = "llama-3.3-70b-versatile"
+```
+
+```bash
+claudex profile test groq
+```
+
+<Aside type="tip">
+  Groq은 오픈소스 모델에 대해 극도로 빠른 추론을 제공합니다. 인기 모델로는 `llama-3.3-70b-versatile`, `mixtral-8x7b-32768`, `gemma2-9b-it` 등이 있습니다.
+</Aside>
+
+### Mistral AI
+
+1. [console.mistral.ai](https://console.mistral.ai/)에서 가입
+2. 콘솔에서 API 키 생성
+
+```toml
+[[profiles]]
+name = "mistral"
+provider_type = "OpenAICompatible"
+base_url = "https://api.mistral.ai/v1"
+api_key = "..."
+default_model = "mistral-large-latest"
+```
+
+```bash
+claudex profile test mistral
+```
+
+### Together AI
+
+1. [api.together.ai](https://api.together.ai/)에서 가입
+2. 대시보드에서 API 키 생성
+
+```toml
+[[profiles]]
+name = "together"
+provider_type = "OpenAICompatible"
+base_url = "https://api.together.xyz/v1"
+api_key = "..."
+default_model = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+```
+
+```bash
+claudex profile test together
+```
+
+### Perplexity
+
+1. [perplexity.ai](https://www.perplexity.ai/)에서 가입
+2. [perplexity.ai/settings/api](https://www.perplexity.ai/settings/api)에서 API 키 생성
+
+```toml
+[[profiles]]
+name = "perplexity"
+provider_type = "OpenAICompatible"
+base_url = "https://api.perplexity.ai"
+api_key = "pplx-..."
+default_model = "sonar-pro"
+```
+
+```bash
+claudex profile test perplexity
+```
+
+<Aside type="note">
+  Perplexity 모델에는 웹 검색 기능이 내장되어 있습니다. 리서치 중심 작업에 유용합니다.
+</Aside>
+
+### Cerebras
+
+1. [cloud.cerebras.ai](https://cloud.cerebras.ai/)에서 가입
+2. 대시보드에서 API 키 생성
+
+```toml
+[[profiles]]
+name = "cerebras"
+provider_type = "OpenAICompatible"
+base_url = "https://api.cerebras.ai/v1"
+api_key = "..."
+default_model = "llama-3.3-70b"
+```
+
+```bash
+claudex profile test cerebras
+```
+
+## 클라우드 플랫폼
+
+### Azure OpenAI
+
+1. [Azure Portal](https://portal.azure.com/)에서 Azure OpenAI 리소스 생성
+2. 모델을 배포하고 리소스 이름과 배포 이름을 기록
+3. **Keys and Endpoint**에서 API 키 가져오기
+
+```toml
+[[profiles]]
+name = "azure-openai"
+provider_type = "OpenAICompatible"
+base_url = "https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT"
+api_key = "YOUR_AZURE_KEY"
+default_model = "gpt-4o"
+
+[profiles.query_params]
+api-version = "2024-12-01-preview"
+```
+
+```bash
+claudex profile test azure-openai
+```
+
+<Aside type="note">
+  Azure OpenAI는 `base_url`에 `openai.azure.com`이 포함되면 자동 감지됩니다. `Authorization: Bearer` 대신 `api-key` 헤더로 인증하며, `api-version` 쿼리 파라미터가 필수입니다.
+</Aside>
+
+### Google Vertex AI
+
+1. GCP 프로젝트에서 Vertex AI API 활성화
+2. `gcloud auth print-access-token`으로 액세스 토큰 생성
+
+```toml
+[[profiles]]
+name = "vertex-ai"
+provider_type = "DirectAnthropic"
+base_url = "https://us-east5-aiplatform.googleapis.com/v1/projects/YOUR_PROJECT/locations/us-east5/publishers/anthropic/models"
+api_key = "YOUR_GCLOUD_TOKEN"
+default_model = "claude-sonnet-4@20250514"
+```
+
+```bash
+claudex profile test vertex-ai
+```
+
+<Aside type="caution">
+  `gcloud auth print-access-token` 출력은 약 1시간 후에 만료됩니다. 프로덕션 사용 시에는 토큰 자동 갱신이 가능한 서비스 계정 사용을 고려하세요.
+</Aside>
+
+### AWS Bedrock (LiteLLM 경유)
+
+AWS Bedrock은 LiteLLM 프록시를 통해 지원됩니다:
+
+1. LiteLLM 설치: `pip install litellm`
+2. 프록시 시작:
+
+```bash
+litellm --model bedrock/anthropic.claude-sonnet-4-20250514-v2:0
+```
+
+3. Claudex 설정:
+
+```toml
+[[profiles]]
+name = "bedrock"
+provider_type = "OpenAICompatible"
+base_url = "http://localhost:4000/v1"
+api_key = "sk-litellm"
+default_model = "bedrock/anthropic.claude-sonnet-4-20250514-v2:0"
+```
+
 ## OAuth 구독
 
-OAuth 인증을 통해 별도의 API 키 없이 기존 제공자 구독(ChatGPT Plus, Claude Max 등)을 사용할 수 있습니다.
+OAuth 인증을 통해 별도의 API 키 없이 기존 프로바이더 구독(ChatGPT Plus, Claude Max 등)을 사용할 수 있습니다.
 
 ### Claude Max / Pro
 
@@ -169,9 +339,9 @@ Claude Code의 네이티브 OAuth 세션을 통해 기존 Claude 구독을 사�
 
 ```toml
 [[profiles]]
-name = "claude-sub"
+name = "claude-max"
 provider_type = "DirectAnthropic"
-base_url = "https://api.anthropic.com"
+base_url = "https://api.claude.ai"
 default_model = "claude-sonnet-4-20250514"
 auth_type = "oauth"
 oauth_provider = "claude"
@@ -183,10 +353,8 @@ opus = "claude-opus-4-20250514"
 ```
 
 <Aside type="note">
-  Claude OAuth 프로파일은 특수 게이트웨이 인증 모드를 사용합니다. Claudex는 Claude Code 자체 구독 로그인과의 충돌을 피하기 위해 `ANTHROPIC_API_KEY` 대신 `ANTHROPIC_AUTH_TOKEN`을 설정합니다. Claude 구독 프로파일의 경우 프록시가 건너뜁니다.
+  Claude OAuth 프로파일은 특수 게이트웨이 인증 모드를 사용합니다. Claudex가 프록시를 건너뛰고 Claude Code가 자체 OAuth를 직접 사용하도록 합니다. 별도의 `claudex auth login` 단계가 필요 없습니다.
 </Aside>
-
-별도의 `claudex auth login` 단계가 필요 없습니다. Claudex가 `~/.claude`에서 기존 세션을 읽습니다.
 
 ### ChatGPT Plus / Codex CLI
 
@@ -202,21 +370,21 @@ npm install -g @openai/codex
 codex auth
 ```
 
-그런 다음 Claudex 설정:
+Claudex 설정:
 
 ```toml
 [[profiles]]
 name = "codex-sub"
 provider_type = "OpenAIResponses"
 base_url = "https://chatgpt.com/backend-api/codex"
-default_model = "gpt-4o"
+default_model = "gpt-5.3-codex"
 auth_type = "oauth"
 oauth_provider = "openai"
 
 [profiles.models]
-haiku = "gpt-4o-mini"
-sonnet = "gpt-4o"
-opus = "o1-pro"
+haiku = "codex-mini-latest"
+sonnet = "gpt-5.3-codex"
+opus = "gpt-5.3-codex"
 ```
 
 ```bash
@@ -231,16 +399,16 @@ claudex run codex-sub
 ```
 
 <Aside type="tip">
-  `openai` OAuth 제공자는 `OpenAIResponses`를 제공자 유형으로 사용합니다. 이는 Chat Completions API(`/chat/completions`)가 아닌 OpenAI Responses API(`/responses` 엔드포인트)를 통해 통신합니다.
+  Codex 엔드포인트에서 지원되는 모델: `gpt-5.3-codex`, `gpt-5.1-codex`, `codex-mini-latest`. `gpt-4o`는 `chatgpt.com` Codex 엔드포인트에서 지원되지 않습니다. `strip_params = "auto"`가 이 엔드포인트를 자동 감지하여 `temperature`/`top_p`/`top_k`를 제거합니다.
 </Aside>
 
 ### Google Gemini
 
-OAuth Device Code 플로우를 통해 Google 계정을 사용합니다.
+Gemini CLI 자격 증명을 통해 Google 계정을 사용합니다.
 
 ```toml
 [[profiles]]
-name = "gemini"
+name = "gemini-sub"
 provider_type = "OpenAICompatible"
 base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
 default_model = "gemini-2.5-pro"
@@ -254,8 +422,8 @@ opus = "gemini-2.5-pro"
 ```
 
 ```bash
-# device code 플로우 시작 (Google 로그인을 위해 브라우저 열림)
-claudex auth login google --profile gemini
+# Gemini CLI 자격 증명에서 읽기
+claudex auth login google --profile gemini-sub
 
 # 확인
 claudex auth status
@@ -269,14 +437,14 @@ OAuth Device Code 플로우를 통해 Qwen 계정을 사용합니다.
 [[profiles]]
 name = "qwen-oauth"
 provider_type = "OpenAICompatible"
-base_url = "https://chat.qwenlm.ai/api/chat/v1"
-default_model = "qwen-max"
+base_url = "https://chat.qwen.ai/api"
+default_model = "qwen3-235b-a22b"
 auth_type = "oauth"
 oauth_provider = "qwen"
 ```
 
 ```bash
-# device code 플로우 시작
+# Device code 플로우 시작
 claudex auth login qwen --profile qwen-oauth
 
 # 확인
@@ -285,7 +453,7 @@ claudex auth status
 
 ### Kimi / Moonshot (OAuth)
 
-OAuth Device Code 플로우를 통해 Kimi 계정을 사용합니다.
+Kimi CLI 자격 증명을 통해 Kimi 계정을 사용합니다.
 
 ```toml
 [[profiles]]
@@ -298,7 +466,7 @@ oauth_provider = "kimi"
 ```
 
 ```bash
-# device code 플로우 시작
+# Kimi CLI 자격 증명에서 읽기
 claudex auth login kimi --profile kimi-oauth
 
 # 확인
@@ -311,7 +479,7 @@ OAuth Device Code 플로우를 통해 GitHub Copilot 구독을 사용합니다.
 
 ```toml
 [[profiles]]
-name = "github-copilot"
+name = "copilot"
 provider_type = "OpenAICompatible"
 base_url = "https://api.githubcopilot.com"
 default_model = "gpt-4o"
@@ -320,12 +488,41 @@ oauth_provider = "github"
 ```
 
 ```bash
-# device code 플로우 시작 (GitHub 로그인을 위해 브라우저 열림)
-claudex auth login github --profile github-copilot
+# Device code 플로우 시작 (GitHub 로그인을 위해 브라우저 열림)
+claudex auth login github --profile copilot
 
 # 확인
 claudex auth status
 ```
+
+### GitLab Duo
+
+Personal Access Token을 통해 GitLab Duo 구독을 사용합니다.
+
+```toml
+[[profiles]]
+name = "gitlab-duo"
+provider_type = "OpenAICompatible"
+base_url = "https://gitlab.com/api/v4/ai/llm/proxy"
+default_model = "claude-sonnet-4-20250514"
+auth_type = "oauth"
+oauth_provider = "gitlab"
+```
+
+```bash
+# GitLab 토큰을 환경 변수로 설정
+export GITLAB_TOKEN=glpat-...
+
+# 로그인
+claudex auth login gitlab --profile gitlab-duo
+
+# 확인
+claudex auth status
+```
+
+<Aside type="note">
+  GitLab Duo는 `ai_features` 스코프가 포함된 Personal Access Token이 필요합니다. `GITLAB_TOKEN` 환경 변수로 제공해야 합니다. 자체 호스팅 GitLab 인스턴스의 경우 `base_url`을 적절히 수정하세요.
+</Aside>
 
 ## 로컬 모델
 
@@ -387,13 +584,13 @@ default_model = "meta-llama/Llama-3.3-70B-Instruct"
 name = "lm-studio"
 provider_type = "OpenAICompatible"
 base_url = "http://localhost:1234/v1"
-api_key = ""
-default_model = "loaded-model-name"
+api_key = "lm-studio"
+default_model = "local-model"
 ```
 
 ## 설정 확인
 
-제공자를 설정한 후 연결을 확인하세요:
+프로바이더를 설정한 후 연결을 확인하세요:
 
 ```bash
 # 특정 프로파일 테스트

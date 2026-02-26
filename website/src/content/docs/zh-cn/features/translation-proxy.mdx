@@ -1,31 +1,42 @@
 ---
 title: 翻译代理
-description: 自动 Anthropic-to-OpenAI 协议翻译
+description: 为 20+ 提供商提供自动 Anthropic 与 OpenAI 协议翻译
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-翻译代理是 Claudex 的核心。它位于 Claude Code 和 AI 提供商之间，透明地在 Anthropic Messages API 和 OpenAI Chat Completions API 之间进行转换。
+翻译代理是 Claudex 的核心。它位于 Claude Code 和 AI 提供商之间，透明地在 Anthropic Messages API 和 OpenAI Chat Completions API（或 Responses API）之间进行转换。
 
 ## 工作原理
 
 ```
-Claude Code → Anthropic Messages API 请求
+Claude Code → Anthropic Messages API request
     │
-    └── Claudex 代理 (127.0.0.1:13456)
+    └── Claudex Proxy (127.0.0.1:13456)
         │
-        ├── DirectAnthropic 提供商 → 替换 header 直接转发
+        ├── DirectAnthropic provider → forward with headers
         │
-        ├── OpenAICompatible 提供商
-        │   ├── 翻译请求：Anthropic → OpenAI Chat Completions
-        │   ├── 转发到提供商
-        │   └── 翻译响应：OpenAI → Anthropic
+        ├── OpenAICompatible provider
+        │   ├── Translate request: Anthropic → OpenAI Chat Completions
+        │   ├── Apply query_params, strip_params, custom_headers
+        │   ├── Forward to provider
+        │   └── Translate response: OpenAI → Anthropic
         │
-        └── OpenAIResponses 提供商
-            ├── 翻译请求：Anthropic → OpenAI Responses API
-            ├── 转发到提供商
-            └── 翻译响应：Responses → Anthropic
+        └── OpenAIResponses provider
+            ├── Translate request: Anthropic → OpenAI Responses API
+            ├── Forward to provider
+            └── Translate response: Responses → Anthropic
 ```
+
+## 提供商适配器
+
+Claudex 使用 `ProviderAdapter` trait 处理不同提供商 API 之间的差异。已实现三种适配器：
+
+| 适配器 | 翻译方式 | 使用者 |
+|--------|----------|--------|
+| **DirectAnthropic** | 无（直接透传） | Anthropic、MiniMax、Vertex AI |
+| **ChatCompletions** | 完整的 Anthropic 与 OpenAI 双向翻译 | Grok、OpenAI、DeepSeek、Kimi、GLM、OpenRouter、Groq、Mistral、Together AI、Perplexity、Cerebras、Azure OpenAI、GitHub Copilot、GitLab Duo、Ollama、vLLM、LM Studio |
+| **Responses** | Anthropic 与 OpenAI Responses API 翻译 | ChatGPT/Codex 订阅 |
 
 ## 翻译内容
 
@@ -34,21 +45,32 @@ Claude Code → Anthropic Messages API 请求
 | Anthropic | OpenAI |
 |-----------|--------|
 | `system` 字段 | `messages` 数组中的 system message |
-| `messages[].content` 块（text、image、tool_use） | `messages[].content` + `tool_calls` |
-| `tools` 数组（JSON Schema） | `tools` 数组（function 格式） |
-| `tool_choice` | `tool_choice` |
-| `max_tokens` | `max_tokens` |
-| `temperature`、`top_p` | 直接映射 |
+| `messages[].content` 块（text、image、tool_use、tool_result） | `messages[].content` + `tool_calls` |
+| `tools` 数组（JSON Schema，`input_schema`） | `tools` 数组（function 格式，`parameters`） |
+| `tool_choice`（`auto`、`any`、`{name}`） | `tool_choice`（`auto`、`required`、`{function: {name}}`） |
+| `max_tokens` | `max_tokens`（如果 profile 设置了 `max_tokens` 则取上限） |
+| `temperature`、`top_p` | 直接映射（如果 `strip_params` 匹配则剥离） |
 
 ### 响应翻译（OpenAI → Anthropic）
 
 | OpenAI | Anthropic |
 |--------|-----------|
-| `choices[0].message.content` | `content` 块 |
-| `choices[0].message.tool_calls` | `tool_use` 内容块 |
+| `choices[0].message.content` | `content` 块（type: text） |
+| `choices[0].message.tool_calls` | `content` 块（type: tool_use） |
 | `finish_reason: stop` | `stop_reason: end_turn` |
 | `finish_reason: tool_calls` | `stop_reason: tool_use` |
 | `usage.prompt_tokens` / `completion_tokens` | `usage.input_tokens` / `output_tokens` |
+
+### 工具名称兼容
+
+Claude Code 可能生成超过 64 字符的工具名称（例如 `mcp__server-name__very-long-tool-name-that-exceeds-the-limit`）。OpenAI 及许多提供商强制执行 64 字符限制。
+
+Claudex 自动：
+1. 在发出的请求中截断超过 64 字符的名称
+2. 构建截断名到原始名的映射表
+3. 在提供商响应中恢复原始名称
+
+这一往返过程完全透明。
 
 ## 流式翻译
 
@@ -63,25 +85,54 @@ Claudex 完全支持 SSE（Server-Sent Events）流式传输，将 OpenAI 流块
 
 流式翻译器维护一个状态机，正确处理 tool call 的累积和内容块边界。
 
+## Azure OpenAI 支持
+
+Azure OpenAI 使用不同的认证和 URL 方案：
+
+- **认证**：使用 `api-key` 请求头取代 `Authorization: Bearer`
+- **URL 格式**：`https://{resource}.openai.azure.com/openai/deployments/{deployment}`
+- **API 版本**：通过 `query_params` 必填
+
+Claudex 通过检查 `base_url` 是否包含 `openai.azure.com` 自动检测 Azure 并相应调整认证方式。
+
 ## 支持的提供商
 
 | 提供商 | 类型 | Base URL |
 |--------|------|----------|
 | Anthropic | DirectAnthropic | `https://api.anthropic.com` |
 | MiniMax | DirectAnthropic | `https://api.minimax.io/anthropic` |
+| Google Vertex AI | DirectAnthropic | `https://REGION-aiplatform.googleapis.com/v1/projects/...` |
 | OpenRouter | OpenAICompatible | `https://openrouter.ai/api/v1` |
 | Grok (xAI) | OpenAICompatible | `https://api.x.ai/v1` |
 | OpenAI | OpenAICompatible | `https://api.openai.com/v1` |
 | DeepSeek | OpenAICompatible | `https://api.deepseek.com` |
-| Kimi/Moonshot | OpenAICompatible | `https://api.moonshot.cn/v1` |
-| GLM（智谱） | OpenAICompatible | `https://open.bigmodel.cn/api/paas/v4` |
+| Kimi/Moonshot | OpenAICompatible | `https://api.moonshot.ai/v1` |
+| GLM (智谱) | OpenAICompatible | `https://api.z.ai/api/paas/v4` |
+| Groq | OpenAICompatible | `https://api.groq.com/openai/v1` |
+| Mistral AI | OpenAICompatible | `https://api.mistral.ai/v1` |
+| Together AI | OpenAICompatible | `https://api.together.xyz/v1` |
+| Perplexity | OpenAICompatible | `https://api.perplexity.ai` |
+| Cerebras | OpenAICompatible | `https://api.cerebras.ai/v1` |
+| Azure OpenAI | OpenAICompatible | `https://{resource}.openai.azure.com/...` |
+| GitHub Copilot | OpenAICompatible | `https://api.githubcopilot.com` |
+| GitLab Duo | OpenAICompatible | `https://gitlab.com/api/v4/ai/llm/proxy` |
 | Ollama | OpenAICompatible | `http://localhost:11434/v1` |
 | vLLM | OpenAICompatible | `http://localhost:8000/v1` |
+| LM Studio | OpenAICompatible | `http://localhost:1234/v1` |
 | ChatGPT/Codex 订阅 | OpenAIResponses | `https://chatgpt.com/backend-api/codex` |
 
 <Aside type="tip">
   DirectAnthropic 提供商无需翻译。OpenAIResponses 提供商使用 Responses API（`/responses` 端点），区别于 Chat Completions（`/chat/completions`）。
 </Aside>
+
+## Models 端点
+
+代理暴露 `/v1/models` 端点，列出所有已启用的 profile。每个条目包含自定义字段：
+
+- `x-claudex-profile`：profile 名称
+- `x-claudex-provider`：提供商类型（`anthropic`、`openai-compatible`、`openai-responses`）
+
+Claude Code 查询此端点以发现可用模型。
 
 ## 代理管理
 

@@ -1,5 +1,5 @@
 ---
-title: Atualizacao Automatica
+title: Auto-atualizacao
 description: Mantenha o Claudex atualizado com um unico comando
 ---
 
@@ -25,16 +25,16 @@ Este comando baixa o binario da versao mais recente para sua plataforma, substit
 
 1. Consultar API do GitHub: `https://api.github.com/repos/StringKe/claudex/releases/latest`
 2. Comparar a versao atual com a tag da versao mais recente
-3. Baixar o arquivo especifico da plataforma (ex.: `claudex-v0.2.0-aarch64-apple-darwin.tar.gz`)
+3. Baixar o arquivo especifico da plataforma (ex: `claudex-v0.2.0-aarch64-apple-darwin.tar.gz`)
 4. Extrair e substituir o binario em execucao
 5. Limpar arquivos temporarios
 
 ## Plataformas Suportadas
 
-O mecanismo de atualizacao suporta as mesmas plataformas que os builds de lancamento:
+O mecanismo de atualizacao suporta as mesmas plataformas que os builds de release:
 
-| Plataforma | Alvo |
-|------------|------|
+| Plataforma | Target |
+|------------|--------|
 | macOS Intel | `x86_64-apple-darwin` |
 | macOS Apple Silicon | `aarch64-apple-darwin` |
 | Linux x86_64 | `x86_64-unknown-linux-gnu` |

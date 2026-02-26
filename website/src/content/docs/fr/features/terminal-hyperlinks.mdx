@@ -1,0 +1,111 @@
+---
+title: Hyperliens terminaux
+description: Hyperliens cliquables OSC 8 dans la sortie du terminal avec detection automatique
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Claudex supporte les hyperliens terminaux OSC 8, rendant les chemins de fichiers, URLs et references dans la sortie de Claude Code cliquables dans les terminaux supportes.
+
+## Vue d'ensemble
+
+OSC 8 est un standard de sequence d'echappement de terminal qui integre des hyperliens directement dans la sortie du terminal. Quand le support est disponible, cliquer sur un lien l'ouvre dans le gestionnaire par defaut (navigateur pour les URLs, editeur pour les chemins de fichiers).
+
+Le format de la sequence d'echappement :
+
+```
+\x1b]8;;URL\x07DISPLAY_TEXT\x1b]8;;\x07
+```
+
+## Configuration
+
+```toml
+# Dans config.toml (parametre global)
+hyperlinks = "auto"    # "auto" | true | false
+```
+
+| Valeur | Comportement |
+|--------|-------------|
+| `"auto"` | Detecte automatiquement le support du terminal (defaut) |
+| `true` | Force l'activation des hyperliens |
+| `false` | Force la desactivation des hyperliens |
+
+Vous pouvez aussi activer les hyperliens par session via le flag CLI :
+
+```bash
+claudex run grok --hyperlinks
+```
+
+## Detection du terminal
+
+Quand `hyperlinks = "auto"`, Claudex verifie les elements suivants dans l'ordre :
+
+| Priorite | Verification | Resultat |
+|----------|-------------|----------|
+| 1 | Variable d'env `FORCE_HYPERLINKS=1` | Activer |
+| 2 | Pas un TTY | Desactiver |
+| 3 | Variable d'env `DOMTERM` definie | Activer |
+| 4 | `TERM_PROGRAM` = iTerm.app | Activer |
+| 5 | `TERM_PROGRAM` = WezTerm | Activer |
+| 6 | `TERM_PROGRAM` = vscode | Activer |
+| 7 | `TERM_PROGRAM` = Tabby | Activer |
+| 8 | `TERM_PROGRAM` = Hyper | Activer |
+| 9 | `TERM_PROGRAM` = mintty | Activer |
+| 10 | `TERM_PROGRAM` = WarpTerminal | Activer |
+| 11 | `TERM` = xterm-kitty | Activer |
+| 12 | `TERM` = xterm-ghostty | Activer |
+| 13 | `VTE_VERSION` >= 5000 | Activer |
+| 14 | Variable d'env `WT_SESSION` definie (Windows Terminal) | Activer |
+| 15 | Aucun des precedents | Desactiver (defaut sur) |
+
+<Aside type="note">
+  VTE_VERSION >= 5000 couvre GNOME Terminal (3.68+), xfce4-terminal, et les autres terminaux bases sur VTE.
+</Aside>
+
+## Terminaux supportes
+
+| Terminal | Plateforme | Methode de detection |
+|----------|-----------|---------------------|
+| iTerm2 | macOS | `TERM_PROGRAM` |
+| WezTerm | Multiplateforme | `TERM_PROGRAM` |
+| Kitty | Multiplateforme | `TERM` (xterm-kitty) |
+| Ghostty | Multiplateforme | `TERM` (xterm-ghostty) |
+| VS Code Terminal | Multiplateforme | `TERM_PROGRAM` |
+| Windows Terminal | Windows | `WT_SESSION` |
+| GNOME Terminal | Linux | `VTE_VERSION` |
+| Tabby | Multiplateforme | `TERM_PROGRAM` |
+| Hyper | Multiplateforme | `TERM_PROGRAM` |
+| mintty (Git Bash) | Windows | `TERM_PROGRAM` |
+| WarpTerminal | macOS | `TERM_PROGRAM` |
+| DomTerm | Multiplateforme | `DOMTERM` |
+
+## Mode proxy PTY
+
+Quand les hyperliens sont actives sur les systemes Unix, Claudex lance le processus Claude Code sous un proxy PTY (pseudo-terminal). Cela permet a Claudex d'intercepter et d'enrichir la sortie du terminal avec des hyperliens tout en preservant l'experience complete du terminal (couleurs, mouvement du curseur, etc.).
+
+Le proxy PTY est transparent pour l'utilisateur. Il est active uniquement pour les sessions interactives (le mode non interactif avec `--print` ignore le PTY).
+
+<Aside type="tip">
+  Si vous rencontrez des problemes de rendu du terminal, vous pouvez desactiver les hyperliens avec `hyperlinks = false` dans votre config ou en omettant le flag `--hyperlinks`.
+</Aside>
+
+## Forcer l'activation/desactivation
+
+Pour les terminaux absents de la liste de detection automatique, vous pouvez forcer les hyperliens :
+
+```bash
+# Via variable d'environnement
+FORCE_HYPERLINKS=1 claudex run grok
+
+# Via config
+hyperlinks = true
+
+# Via flag CLI
+claudex run grok --hyperlinks
+```
+
+Pour forcer la desactivation (par ex. lors du piping de la sortie) :
+
+```toml
+hyperlinks = false
+```

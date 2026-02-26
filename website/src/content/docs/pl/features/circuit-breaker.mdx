@@ -1,42 +1,42 @@
 ---
-title: Wyłącznik automatyczny i przełączanie awaryjne
-description: Automatyczne wykrywanie awarii i przełączanie do zapasowego dostawcy
+title: Wylacznik automatyczny i przelaczanie awaryjne
+description: Automatyczne wykrywanie awarii i przelaczanie do zapasowego dostawcy
 ---
 
-Claudex zawiera wbudowany wyłącznik automatyczny dla każdego profilu dostawcy, z automatycznym przełączaniem awaryjnym do dostawców zapasowych po wykryciu awarii.
+Claudex zawiera wbudowany wylacznik automatyczny dla kazdego profilu dostawcy, z automatycznym przelaczaniem awaryjnym do dostawcow zapasowych po wykryciu awarii.
 
-## Stany wyłącznika automatycznego
+## Stany wylacznika automatycznego
 
 ```
          sukces
     ┌──────────────┐
     │              │
     ▼    awaria    │
- Zamknięty ──────► Otwarty
+ Zamkniety ──────► Otwarty
     ▲              │
     │   limit      │
     │   czasu      ▼
-    └─────────── PółOtwarty
+    └─────────── PolOtwarty
                    │
-                awaria → powrót do Otwarty
+                awaria → powrot do Otwarty
 ```
 
 | Stan | Zachowanie |
 |------|-----------|
-| **Zamknięty** | Normalne działanie. Żądania przechodzą. Awarie są liczone. |
-| **Otwarty** | Żądania są blokowane. Wyzwala przełączanie awaryjne do dostawców zapasowych. |
-| **PółOtwarty** | Po upłynięciu limitu czasu odzyskiwania jedno żądanie próbne jest przepuszczane. Sukces → Zamknięty; Awaria → powrót do Otwarty. |
+| **Zamkniety** | Normalne dzialanie. Zadania przechodza. Awarie sa liczone. |
+| **Otwarty** | Zadania sa blokowane. Wyzwala przelaczanie awaryjne do dostawcow zapasowych. |
+| **PolOtwarty** | Po uplynieciu limitu czasu odzyskiwania jedno zadanie probne jest przepuszczane. Sukces → Zamkniety; Awaria → powrot do Otwarty. |
 
-## Domyślne parametry
+## Domyslne parametry
 
-| Parametr | Wartość |
+| Parametr | Wartosc |
 |----------|---------|
-| Próg awarii | 3 kolejne awarie |
+| Prog awarii | 3 kolejne awarie |
 | Limit czasu odzyskiwania | 30 sekund |
 
-## Konfiguracja przełączania awaryjnego
+## Konfiguracja przelaczania awaryjnego
 
-Zdefiniuj dostawców zapasowych w profilu, aby włączyć automatyczne przełączanie awaryjne:
+Zdefiniuj dostawcow zapasowych w profilu, aby wlaczyc automatyczne przelaczanie awaryjne:
 
 ```toml
 [[profiles]]
@@ -45,19 +45,30 @@ provider_type = "OpenAICompatible"
 base_url = "https://api.x.ai/v1"
 api_key = "xai-..."
 default_model = "grok-3-beta"
-backup_providers = ["deepseek", "chatgpt"]   # łańcuch przełączania awaryjnego
+backup_providers = ["deepseek", "chatgpt"]   # lancuch przelaczania awaryjnego
 ```
 
-Gdy `grok` zawiedzie 3 razy z rzędu:
-1. Wyłącznik automatyczny otwiera się dla `grok`
-2. Żądanie jest ponawiane z `deepseek`
-3. Jeśli `deepseek` też zawiedzie, próbuje `chatgpt`
-4. Każdy dostawca zapasowy ma własny niezależny wyłącznik automatyczny
+Gdy `grok` zawiedzie 3 razy z rzedu:
+1. Wylacznik automatyczny otwiera sie dla `grok`
+2. Zadanie jest ponawiane z `deepseek`
+3. Jesli `deepseek` tez zawiedzie, probuje `chatgpt`
+4. Kazdy dostawca zapasowy ma wlasny niezalezny wylacznik automatyczny
+
+## Ponowna proba OAuth 401
+
+Dla profili OAuth odpowiedzi HTTP 401 sa obslugiwane specjalnie:
+
+1. Proxy uniewazniona biezacy token OAuth
+2. Podejmuje probe zaladowania nowego tokenu z lancucha poswiadczen
+3. Ponawia zadanie z nowym tokenem
+4. Liczy sie jako awaria wylacznika automatycznego tylko jesli ponowna proba rowniez sie nie powiedzie
+
+Zapobiega to wywolywaaniu niepotrzebnych przelaczan awaryjnych przez tymczasowe wygasniecie tokenu.
 
 ## Sprawdzanie kondycji
 
-Proces sprawdzania kondycji w tle działa co ~30 sekund, wysyłając lekkie żądania próbne do wszystkich aktywnych profili. Status kondycji jest wyświetlany w pulpicie TUI z kodowaniem kolorami:
+Proces sprawdzania kondycji w tle dziala co ~30 sekund, wysylajac lekkie zadania probne do wszystkich aktywnych profili. Status kondycji jest wyswietlany w pulpicie TUI z kodowaniem kolorami:
 
 - Zielony: zdrowy
-- Żółty: zdegradowany (ostatnie awarie)
-- Czerwony: wyłącznik automatyczny otwarty
+- Zolty: zdegradowany (ostatnie awarie)
+- Czerwony: wylacznik automatyczny otwarty

@@ -1,34 +1,56 @@
 ---
-title: Настройка
+title: Конфигурация
 description: Как настроить профили и параметры Claudex
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-## Поиск файла конфигурации
+## Обнаружение конфигурационных файлов
 
-Claudex ищет файлы конфигурации в следующем порядке:
+Claudex использует [figment](https://docs.rs/figment) для многоуровневой конфигурации. Источники объединяются в следующем порядке (более поздние источники переопределяют более ранние):
 
-1. Переменная окружения `$CLAUDEX_CONFIG`
-2. `./claudex.toml` (текущая директория)
-3. `./.claudex/config.toml` (текущая директория)
-4. Родительские директории (до 10 уровней), проверяются оба варианта
-5. `~/.config/claudex/config.toml` (XDG — проверяется **до** путей, специфичных для платформы)
+1. **Программные значения по умолчанию** (встроенные запасные значения)
+2. **Глобальная конфигурация** (`~/.config/claudex/config.toml` или `config.yaml`)
+3. **Конфигурация проекта** (`claudex.toml` или `claudex.yaml` в текущем каталоге или родительских каталогах до 10 уровней, либо `$CLAUDEX_CONFIG`)
+4. **Переменные окружения** (префикс `CLAUDEX_`, разделитель `__`)
+
+Поддерживаются оба формата: TOML и YAML. Формат файла определяется по расширению (`.toml` или `.yaml`/`.yml`).
 
 <Aside type="note">
-  Путь XDG (`~/.config/claudex/config.toml`) теперь проверяется до путей, специфичных для платформы. Если файл конфигурации нигде не найден, путь XDG используется при создании конфигурации по умолчанию.
+  XDG-путь (`~/.config/claudex/config.toml`) является расположением по умолчанию. Если конфигурационный файл не найден нигде, этот путь используется при создании новой конфигурации.
 </Aside>
 
 ```bash
-# Показать загруженный путь конфигурации и порядок поиска
-claudex config
+# Показать путь к загруженной конфигурации и все места поиска
+claudex config show
 
-# Создать локальную конфигурацию в текущей директории
-claudex config --init
+# Показать только путь к конфигурационному файлу
+claudex config path
+
+# Создать новую конфигурацию в текущем каталоге
+claudex config init
+
+# Пересоздать конфигурацию из config.example.toml
+claudex config recreate
+
+# Открыть конфигурацию в вашем $EDITOR
+claudex config edit
+
+# Проверить синтаксис конфигурации и ссылки профилей
+claudex config validate
+
+# Получить конкретное значение конфигурации
+claudex config get proxy_port
+
+# Установить конкретное значение конфигурации
+claudex config set proxy_port 8080
+
+# Экспортировать текущую конфигурацию в stdout
+claudex config export
 ```
 
 <Aside type="tip">
-  Конфигурация на уровне проекта (`./claudex.toml`) имеет приоритет над глобальной конфигурацией, что позволяет настраивать провайдеров отдельно для каждого проекта.
+  Конфигурация на уровне проекта (`./claudex.toml`) имеет приоритет над глобальной, что позволяет настраивать провайдеров для каждого проекта отдельно.
 </Aside>
 
 ## Глобальные настройки
@@ -44,7 +66,11 @@ proxy_host = "127.0.0.1"
 # Уровень логирования: trace, debug, info, warn, error
 log_level = "info"
 
-# Псевдонимы моделей (сокращение → полное имя модели)
+# Терминальные гиперссылки (OSC 8): "auto" | true | false
+# "auto" автоматически определяет поддержку терминала; true/false принудительно включают/выключают
+hyperlinks = "auto"
+
+# Алиасы моделей (сокращение → полное имя модели)
 [model_aliases]
 grok3 = "grok-3-beta"
 gpt4o = "gpt-4o"
@@ -57,7 +83,7 @@ ds3 = "deepseek-chat"
 
 ### DirectAnthropic
 
-Для провайдеров, которые нативно поддерживают Anthropic Messages API. Запросы пересылаются с минимальными изменениями.
+Для провайдеров, нативно поддерживающих Anthropic Messages API. Запросы пересылаются с минимальными изменениями.
 
 ```toml
 [[profiles]]
@@ -70,7 +96,7 @@ priority = 100
 enabled = true
 ```
 
-Совместимые провайдеры: **Anthropic**, **MiniMax**
+Совместимые провайдеры: **Anthropic**, **MiniMax**, **Google Vertex AI**
 
 ### OpenAICompatible
 
@@ -88,7 +114,7 @@ priority = 100
 enabled = true
 ```
 
-Совместимые провайдеры: **Grok (xAI)**, **OpenAI**, **DeepSeek**, **Kimi/Moonshot**, **GLM (Zhipu)**, **OpenRouter**, **Ollama**, **vLLM**, **LM Studio**
+Совместимые провайдеры: **Grok (xAI)**, **OpenAI**, **DeepSeek**, **Kimi/Moonshot**, **GLM (Zhipu)**, **OpenRouter**, **Groq**, **Mistral**, **Together AI**, **Perplexity**, **Cerebras**, **Azure OpenAI**, **GitHub Copilot**, **GitLab Duo**, **Ollama**, **vLLM**, **LM Studio**
 
 ### OpenAIResponses
 
@@ -99,7 +125,7 @@ enabled = true
 name = "codex-sub"
 provider_type = "OpenAIResponses"
 base_url = "https://chatgpt.com/backend-api/codex"
-default_model = "gpt-4o"
+default_model = "gpt-5.3-codex"
 auth_type = "oauth"
 oauth_provider = "openai"
 ```
@@ -107,37 +133,40 @@ oauth_provider = "openai"
 Совместимые провайдеры: **подписки ChatGPT/Codex** (через Codex CLI)
 
 <Aside type="tip">
-  Этот тип провайдера в основном используется с OAuth-подписками. Подробные инструкции по настройке Codex CLI см. в [Руководстве по настройке провайдеров](/ru/guides/provider-setup/).
+  Этот тип провайдера в основном используется с OAuth-подписками. См. [Руководство по настройке провайдеров](/ru/guides/provider-setup/) для подробных инструкций по настройке Codex CLI.
 </Aside>
 
 ### Поля профиля
 
 | Поле | По умолчанию | Описание |
-|------|--------------|----------|
+|------|-------------|---------|
 | `name` | *обязательно* | Уникальный идентификатор профиля |
 | `provider_type` | `DirectAnthropic` | `DirectAnthropic`, `OpenAICompatible` или `OpenAIResponses` |
-| `base_url` | *обязательно* | Конечная точка API провайдера |
+| `base_url` | *обязательно* | Endpoint API провайдера |
 | `api_key` | `""` | API-ключ (открытый текст) |
-| `api_key_keyring` | — | Чтение API-ключа из связки ключей ОС |
-| `default_model` | *обязательно* | Модель, используемая по умолчанию |
+| `api_key_keyring` | — | Читать API-ключ из связки ключей ОС |
+| `default_model` | *обязательно* | Модель по умолчанию |
 | `auth_type` | `"api-key"` | `"api-key"` или `"oauth"` |
-| `oauth_provider` | — | OAuth-провайдер (`claude`, `openai`, `google`, `qwen`, `kimi`, `github`). Обязателен при `auth_type = "oauth"` |
-| `backup_providers` | `[]` | Имена профилей для аварийного переключения |
+| `oauth_provider` | — | OAuth-провайдер (`claude`, `openai`, `google`, `qwen`, `kimi`, `github`, `gitlab`). Обязательно при `auth_type = "oauth"` |
+| `backup_providers` | `[]` | Имена профилей для failover |
 | `custom_headers` | `{}` | Дополнительные HTTP-заголовки |
 | `extra_env` | `{}` | Дополнительные переменные окружения для Claude |
 | `priority` | `100` | Приоритет для умной маршрутизации |
-| `enabled` | `true` | Активен ли данный профиль |
+| `enabled` | `true` | Активен ли этот профиль |
+| `max_tokens` | — | Ограничить максимальное количество выходных токенов, отправляемых провайдеру (опционально) |
+| `strip_params` | `"auto"` | `"auto"`, `"none"` или `["temperature", "top_p"]`. Автоопределение неподдерживаемых параметров (например, ChatGPT Codex endpoint) |
+| `[profiles.query_params]` | `{}` | URL query-параметры (например, Azure `api-version`) |
 | `[profiles.models]` | — | Таблица маппинга слотов моделей (поля `haiku`, `sonnet`, `opus`) |
 
 ### Интерактивная настройка
 
-Самый простой способ добавить профиль — интерактивный мастер:
+Самый простой способ добавить профиль:
 
 ```bash
 claudex profile add
 ```
 
-Он проведёт вас через выбор провайдера, ввод API-ключа (с опциональным сохранением в связке ключей), выбор модели и тестирование подключения.
+Интерактивный мастер проведёт вас через выбор провайдера, ввод API-ключа (с опциональным хранением в связке ключей), выбор модели и тестирование подключения.
 
 ## Интеграция со связкой ключей
 
@@ -146,7 +175,7 @@ claudex profile add
 ```toml
 [[profiles]]
 name = "grok"
-api_key_keyring = "grok-api-key"   # читается из связки ключей ОС
+api_key_keyring = "grok-api-key"   # читает из связки ключей ОС
 ```
 
 Поддерживаемые бэкенды:
@@ -155,7 +184,7 @@ api_key_keyring = "grok-api-key"   # читается из связки ключ
 
 ## OAuth-аутентификация по подписке
 
-Вместо API-ключей можно авторизоваться с использованием существующей подписки провайдера через OAuth. Это полезно при наличии подписки Claude Pro/Team, ChatGPT Plus или другого плана.
+Вместо API-ключей вы можете аутентифицироваться с помощью существующей подписки провайдера через OAuth. Это полезно при наличии подписки Claude Pro/Team, ChatGPT Plus или другого тарифного плана.
 
 ### Настройка
 
@@ -163,10 +192,10 @@ api_key_keyring = "grok-api-key"   # читается из связки ключ
 
 ```toml
 [[profiles]]
-name = "chatgpt-oauth"
-provider_type = "OpenAICompatible"
-base_url = "https://api.openai.com/v1"
-default_model = "gpt-4o"
+name = "codex-sub"
+provider_type = "OpenAIResponses"
+base_url = "https://chatgpt.com/backend-api/codex"
+default_model = "gpt-5.3-codex"
 auth_type = "oauth"
 oauth_provider = "openai"
 ```
@@ -186,94 +215,73 @@ claudex auth status
 ### Поддерживаемые провайдеры
 
 | Провайдер | `oauth_provider` | Источник токена |
-|-----------|-----------------|-----------------|
-| Claude | `claude` | Читается из `~/.claude` (нативная конфигурация Claude Code) |
-| OpenAI | `openai` | Читается из `~/.codex/auth.json` (Codex CLI) |
-| Google | `google` | Поток device code через OAuth |
-| Qwen | `qwen` | Поток device code через OAuth |
-| Kimi | `kimi` | Поток device code через OAuth |
-| GitHub | `github` | Поток device code через OAuth |
+|-----------|-----------------|----------------|
+| Claude | `claude` | Читает из `~/.claude/.credentials.json` (нативная конфигурация Claude Code) |
+| ChatGPT | `openai` | Browser PKCE или Device Code, запасной вариант `~/.codex/auth.json` (Codex CLI) |
+| Google | `google` | Читает из учётных данных Gemini CLI |
+| Qwen | `qwen` | Device Code flow |
+| Kimi | `kimi` | Читает из учётных данных Kimi CLI |
+| GitHub | `github` | Device Code flow, запасной вариант `~/.config/github-copilot/` |
+| GitLab | `gitlab` | Переменная окружения `GITLAB_TOKEN` |
 
-<Aside type="tip">
-  Для **OpenAI** убедитесь, что у вас установлен и выполнен вход в [Codex CLI](https://github.com/openai/codex) (`codex auth`). Claudex автоматически считывает токен из `~/.codex/auth.json`. Профиль должен использовать `provider_type = "OpenAIResponses"` для взаимодействия через Responses API.
-</Aside>
+Подробности по OAuth-потоку каждого провайдера см. в [OAuth-подписки](/ru/features/oauth-subscriptions/).
 
-<Aside type="tip">
-  Для **Claude** Claudex читает существующую OAuth-сессию Claude Code из `~/.claude`. Отдельный шаг входа не требуется, если вы уже вошли в Claude Code.
-</Aside>
+### Режим Gateway Auth
 
-### Режим аутентификации через шлюз
+При использовании OAuth-профилей Claudex устанавливает `ANTHROPIC_AUTH_TOKEN` (а не `ANTHROPIC_API_KEY`) при запуске Claude Code. Это предотвращает конфликты с собственным механизмом входа Claude Code по подписке, который внутренне использует `ANTHROPIC_API_KEY`.
 
-При использовании OAuth-профилей Claudex устанавливает `ANTHROPIC_AUTH_TOKEN` (не `ANTHROPIC_API_KEY`) при запуске Claude Code. Это предотвращает конфликты с собственным механизмом входа Claude Code по подписке, который внутренне использует `ANTHROPIC_API_KEY`.
-
-Прокси автоматически обновляет OAuth-токены до их истечения. Можно также обновить вручную:
+Прокси автоматически обновляет OAuth-токены до их истечения. Вы также можете обновить вручную:
 
 ```bash
 claudex auth refresh openai
 ```
 
-## Маппинг слотов моделей
+## Query-параметры
 
-Claude Code имеет встроенный переключатель `/model` с тремя слотами: **haiku**, **sonnet** и **opus**. По умолчанию они сопоставлены с моделями Anthropic, но с Claudex вы можете сопоставить их с любыми моделями провайдера.
-
-### Настройка
-
-Добавьте таблицу `[profiles.models]` к любому профилю:
+Некоторые провайдеры требуют URL query-параметры (например, `api-version` у Azure OpenAI). Используйте таблицу `[profiles.query_params]`:
 
 ```toml
 [[profiles]]
-name = "grok"
+name = "azure-openai"
 provider_type = "OpenAICompatible"
-base_url = "https://api.x.ai/v1"
-api_key = "xai-..."
-default_model = "grok-3-beta"
+base_url = "https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT"
+api_key = "YOUR_AZURE_KEY"
+default_model = "gpt-4o"
 
-[profiles.models]
-haiku = "grok-3-mini-beta"
-sonnet = "grok-3-beta"
-opus = "grok-3-beta"
+[profiles.query_params]
+api-version = "2024-12-01-preview"
 ```
 
-Когда вы вводите `/model sonnet` внутри Claude Code, Claudex переводит запрос на использование `grok-3-beta`. Команда `/model opus` сопоставляется с `grok-3-beta` и так далее.
+Claudex добавляет эти параметры к каждому URL запроса для профиля. Azure OpenAI автоматически определяется по `base_url`, содержащему `openai.azure.com`, и использует заголовок `api-key` для аутентификации вместо `Authorization: Bearer`.
 
-### Примеры для распространённых провайдеров
+## Фильтрация параметров
+
+Некоторые провайдеры не поддерживают определённые параметры (например, ChatGPT Codex endpoint отклоняет `temperature`, `top_p`). Поле `strip_params` определяет, какие параметры удаляются перед отправкой:
 
 ```toml
-# Маппинг моделей OpenAI
-[profiles.models]
-haiku = "gpt-4o-mini"
-sonnet = "gpt-4o"
-opus = "o1"
-
-# Маппинг моделей DeepSeek
-[profiles.models]
-haiku = "deepseek-chat"
-sonnet = "deepseek-chat"
-opus = "deepseek-reasoner"
-
-# Маппинг моделей Google Gemini
-[profiles.models]
-haiku = "gemini-2.0-flash"
-sonnet = "gemini-2.5-pro"
-opus = "gemini-2.5-pro"
+strip_params = "auto"       # автоопределение и удаление неподдерживаемых параметров (по умолчанию)
+strip_params = "none"       # отправлять все параметры как есть
+strip_params = ["temperature", "top_p", "top_k"]  # удалить конкретные параметры
 ```
 
-<Aside type="note">
-  Если слот модели не настроен, в качестве резервного используется `default_model` профиля.
-</Aside>
+При значении `"auto"` Claudex распознаёт известные endpoint-ы (например, `chatgpt.com`) и удаляет параметры, которые вызвали бы ошибки.
+
+## Маппинг слотов моделей
+
+Claude Code имеет встроенный переключатель `/model` с тремя слотами: **haiku**, **sonnet** и **opus**. См. [Маппинг слотов моделей](/ru/features/model-slot-mapping/) для подробностей.
 
 ## Совместимость имён инструментов
 
-Некоторые провайдеры (в частности OpenAI) устанавливают ограничение в 64 символа на имена инструментов (функций). Claude Code может генерировать имена инструментов, превышающие это ограничение.
+Некоторые провайдеры (в частности OpenAI) устанавливают лимит в 64 символа для имён инструментов (функций). Claude Code может генерировать имена инструментов, превышающие этот лимит.
 
-Claudex автоматически усекает имена инструментов длиннее 64 символов при отправке запросов к провайдерам, совместимым с OpenAI, и прозрачно восстанавливает оригинальные имена при обработке ответов. Этот процесс полностью прозрачен — никакой настройки не требуется.
+Claudex автоматически усекает имена инструментов длиннее 64 символов при отправке запросов OpenAI-совместимым провайдерам и прозрачно восстанавливает оригинальные имена при обработке ответов. Этот цикл полностью прозрачен.
 
 ## Неинтерактивный режим
 
 Claudex поддерживает одиночное (неинтерактивное) выполнение для использования в CI/CD-конвейерах, скриптах и автоматизации:
 
 ```bash
-# Вывести ответ и выйти
+# Вывести ответ и завершить
 claudex run grok "Explain this codebase" --print
 
 # Пропустить все запросы разрешений (для полностью автоматизированных конвейеров)
@@ -284,20 +292,28 @@ claudex run grok "Fix lint errors" --print --dangerously-skip-permissions
   `--dangerously-skip-permissions` отключает все запросы безопасности. Используйте только в доверенных автоматизированных средах.
 </Aside>
 
-В неинтерактивном режиме логи записываются в файлы логов для каждого экземпляра по адресу `~/Library/Caches/claudex/proxy-{timestamp}-{pid}.log` вместо stderr, сохраняя вывод stdout чистым для конвейерной обработки и автоматизации.
+В неинтерактивном режиме логи записываются в файлы логов для каждого инстанса по пути `~/Library/Caches/claudex/proxy-{timestamp}-{pid}.log` вместо stderr, сохраняя чистый stdout для пайпинга и автоматизации.
 
-## Файлы логов для каждого экземпляра
+## Терминальные гиперссылки
 
-Каждый экземпляр прокси Claudex записывает логи в собственный файл:
+Claudex поддерживает кликабельные OSC 8 гиперссылки в терминальном выводе. См. [Терминальные гиперссылки](/ru/features/terminal-hyperlinks/) для подробностей.
 
+```toml
+# "auto" определяет поддержку терминала; true/false принудительно включают/выключают
+hyperlinks = "auto"
 ```
-~/Library/Caches/claudex/proxy-{timestamp}-{pid}.log
-```
 
-Это исключает перемешивание логов при запуске нескольких экземпляров и сохраняет stderr чистым во время `claudex run` (особенно в неинтерактивном режиме). Логи включают запуск прокси, перевод запросов, события обновления OAuth-токенов и изменения состояния автоматического выключателя.
+## Конфигурационные наборы
+
+Установка повторно используемых пакетов правил, навыков и MCP-серверов. См. [Конфигурационные наборы](/ru/features/configuration-sets/) для подробностей.
+
+```bash
+claudex sets add ./my-set
+claudex sets list
+```
 
 ## Полный пример
 
-Полный файл конфигурации со всеми провайдерами и опциями см. в [`config.example.toml`](https://github.com/StringKe/claudex/blob/main/config.example.toml).
+См. [`config.example.toml`](https://github.com/StringKe/claudex/blob/main/config.example.toml) для полного конфигурационного файла со всеми провайдерами и опциями.
 
-Пошаговые инструкции по настройке каждого провайдера (включая ссылки на API-ключи и OAuth-потоки) см. в [Руководстве по настройке провайдеров](/ru/guides/provider-setup/).
+Для пошаговых инструкций по настройке каждого провайдера (включая ссылки на API-ключи и OAuth-потоки) см. [Руководство по настройке провайдеров](/ru/guides/provider-setup/).

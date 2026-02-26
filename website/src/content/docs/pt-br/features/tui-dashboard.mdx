@@ -1,9 +1,9 @@
 ---
-title: Painel TUI
-description: Painel terminal em tempo real para monitoramento e gerenciamento de perfis
+title: Dashboard TUI
+description: Dashboard em tempo real no terminal para monitoramento e gerenciamento de profiles
 ---
 
-O painel TUI fornece uma interface terminal em tempo real para monitorar a saude dos perfis, visualizar metricas e iniciar sessoes do Claude Code rapidamente.
+O dashboard TUI fornece uma interface em tempo real no terminal para monitorar a saude dos profiles, visualizar metricas e iniciar sessoes do Claude Code rapidamente.
 
 ## Iniciar
 
@@ -11,7 +11,7 @@ O painel TUI fornece uma interface terminal em tempo real para monitorar a saude
 # Inicializacao explicita
 claudex dashboard
 
-# Inicializacao automatica (quando perfis existem e nenhum subcomando e fornecido)
+# Inicializacao automatica (quando profiles existem e nenhum subcomando e fornecido)
 claudex
 ```
 
@@ -21,32 +21,32 @@ claudex
 |-------|------|
 | `j` / `↓` | Mover selecao para baixo |
 | `k` / `↑` | Mover selecao para cima |
-| `Enter` | Iniciar Claude Code com o perfil selecionado |
-| `t` | Testar conectividade do perfil selecionado |
-| `a` | Adicionar novo perfil (exibe dica) |
-| `d` | Excluir perfil selecionado (exibe dica) |
+| `Enter` | Iniciar Claude Code com o profile selecionado |
+| `t` | Testar conectividade do profile selecionado |
+| `a` | Adicionar novo profile (exibe dica) |
+| `d` | Excluir profile selecionado (exibe dica) |
 | `p` | Alternar iniciar/parar proxy |
 | `/` | Entrar no modo de busca |
 | `Esc` | Sair do modo de busca / fechar ajuda |
 | `?` | Exibir popup de ajuda |
-| `q` / `Ctrl+C` | Sair do painel |
+| `q` / `Ctrl+C` | Sair do dashboard |
 
-## Layout do Painel
+## Layout do Dashboard
 
-O painel exibe:
+O dashboard exibe:
 
-- **Lista de perfis** — Todos os perfis configurados com nome, modelo, tipo de provedor e status de saude
-- **Indicadores de saude** — Status codificado por cores (verde = saudavel, amarelo = degradado, vermelho = disjuntor aberto)
-- **Painel de metricas** — Contagem de requisicoes por perfil, taxa de sucesso, latencia media
+- **Lista de profiles** — Todos os profiles configurados com nome, modelo, tipo de provedor e status de saude
+- **Indicadores de saude** — Status codificado por cores (verde = saudavel, amarelo = degradado, vermelho = circuit breaker aberto)
+- **Painel de metricas** — Contagem de requisicoes por profile, taxa de sucesso, latencia media
 - **Painel de logs** — Saida de log em rolagem em tempo real
 
 ## Status de Saude
 
-O painel executa um verificador de saude em segundo plano que envia pings para todos os perfis habilitados a cada ~30 segundos. O status de saude e refletido em tempo real:
+O dashboard executa um verificador de saude em segundo plano que envia pings para todos os profiles habilitados a cada ~30 segundos. O status de saude e refletido em tempo real:
 
 | Cor | Significado |
 |-----|-------------|
 | Verde | Provedor esta respondendo normalmente |
 | Amarelo | Falhas recentes detectadas |
-| Vermelho | Disjuntor esta aberto |
-| Cinza | Perfil esta desabilitado |
+| Vermelho | Circuit breaker esta aberto |
+| Cinza | Profile esta desabilitado |

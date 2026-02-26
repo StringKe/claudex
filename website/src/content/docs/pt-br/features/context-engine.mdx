@@ -1,14 +1,14 @@
 ---
 title: Motor de Contexto
-description: Compressao de conversa, compartilhamento entre perfis e RAG local
+description: Compressao de conversa, compartilhamento entre profiles e RAG local
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-O motor de contexto aprimora suas interacoes com IA atraves de tres mecanismos: compressao de conversa, compartilhamento de contexto entre perfis e RAG local (Retrieval-Augmented Generation).
+O motor de contexto aprimora suas interacoes com IA atraves de tres mecanismos: compressao de conversa, compartilhamento de contexto entre profiles e RAG local (Retrieval-Augmented Generation).
 
 <Aside type="caution">
-  As funcionalidades do motor de contexto requerem um servico LLM para geracao de resumos e embeddings. Voce pode usar qualquer perfil existente (Ollama local, provedores na nuvem como OpenRouter, etc.).
+  As funcionalidades do motor de contexto requerem um servico LLM para geracao de resumos e embeddings. Voce pode usar qualquer profile existente (Ollama local, provedores na nuvem como OpenRouter, etc.).
 </Aside>
 
 ## Compressao de Conversa
@@ -20,7 +20,7 @@ Quando as conversas crescem alem de um limite de tokens, o Claudex usa um LLM pa
 enabled = true
 threshold_tokens = 50000    # comprimir quando o total de tokens exceder este valor
 keep_recent = 10            # sempre manter as ultimas N mensagens
-profile = "openrouter"      # reutilizar base_url + api_key de um perfil
+profile = "openrouter"      # reutilizar base_url + api_key de um profile
 model = "qwen/qwen-2.5-7b-instruct"  # substituir modelo (opcional)
 ```
 
@@ -31,14 +31,14 @@ model = "qwen/qwen-2.5-7b-instruct"  # substituir modelo (opcional)
 3. O resumo e gerado pelo LLM local configurado
 4. A conversa comprimida e encaminhada para o provedor
 
-## Compartilhamento Entre Perfis
+## Compartilhamento Entre Profiles
 
-Compartilhe contexto entre diferentes perfis de provedores dentro da mesma sessao.
+Compartilhe contexto entre diferentes profiles de provedores dentro da mesma sessao.
 
 ```toml
 [context.sharing]
 enabled = true
-max_context_size = 2000    # maximo de tokens a injetar de outros perfis
+max_context_size = 2000    # maximo de tokens a injetar de outros profiles
 ```
 
 Isso e util ao alternar entre provedores no meio de uma tarefa — o contexto relevante de interacoes anteriores e incluido automaticamente.
@@ -51,7 +51,7 @@ Indexe codigo e documentacao locais para geracao aumentada por recuperacao. Trec
 [context.rag]
 enabled = true
 index_paths = ["./src", "./docs"]     # diretorios para indexar
-profile = "openrouter"                 # reutilizar base_url + api_key de um perfil
+profile = "openrouter"                 # reutilizar base_url + api_key de um profile
 model = "openai/text-embedding-3-small"  # modelo de embedding
 chunk_size = 512                       # tamanho do chunk de texto
 top_k = 5                             # numero de resultados a injetar

@@ -1,0 +1,196 @@
+---
+title: Zestawy konfiguracji
+description: Instalacja i zarzadzanie pakietami regul, umiejetnosci i serwerow MCP do wielokrotnego uzytku
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Zestawy konfiguracji to instalowalne, wersjonowane pakiety zawierajace reguly CLAUDE.md, umiejetnosci i konfiguracje serwerow MCP. Zapewniaja przenosny sposob udostepniania i ponownego uzywania konfiguracji Claude Code miedzy projektami i zespolami.
+
+## Przeglad
+
+Zestaw konfiguracji to katalog zawierajacy `manifest.json` (lub `manifest.yaml`), ktory deklaruje jego skladniki:
+
+```
+my-set/
+├── manifest.json
+├── rules/
+│   └── coding-standards.md
+├── skills/
+│   └── deploy.md
+└── claude.md
+```
+
+## Schemat manifestu
+
+```json
+{
+  "name": "my-config-set",
+  "version": "1.0.0",
+  "description": "My team's coding standards and tools",
+  "author": "team-name",
+  "components": {
+    "claude_md": {
+      "path": "claude.md",
+      "strategy": "append"
+    },
+    "rules": [
+      {
+        "name": "coding-standards",
+        "path": "rules/coding-standards.md"
+      }
+    ],
+    "skills": [
+      {
+        "name": "deploy",
+        "path": "skills/deploy.md"
+      }
+    ],
+    "mcp_servers": [
+      {
+        "name": "my-server",
+        "server_type": "stdio",
+        "command": "npx",
+        "args": ["-y", "@myorg/mcp-server"],
+        "env": {
+          "API_KEY": "${MY_API_KEY}"
+        }
+      }
+    ]
+  },
+  "env": [
+    {
+      "name": "MY_API_KEY",
+      "description": "API key for the MCP server",
+      "required": true
+    }
+  ]
+}
+```
+
+### Walidacja nazw
+
+Nazwy zestawow musza pasowac do wzorca `^[a-z0-9][a-z0-9._-]*$`:
+- Zaczynac sie od malej litery lub cyfry
+- Zawierac tylko male litery, cyfry, kropki, podkreslenia i myslniki
+
+### Skladniki
+
+| Skladnik | Opis |
+|----------|------|
+| `claude_md` | Tresc do scalenia z CLAUDE.md projektu |
+| `rules` | Pliki regul instalowane do `.claude/rules/` |
+| `skills` | Definicje umiejetnosci instalowane do `.claude/skills/` |
+| `mcp_servers` | Konfiguracje serwerow MCP dodawane do `.claude/settings.json` |
+
+### Typy serwerow MCP
+
+| Typ | Wymagane pola | Opis |
+|-----|---------------|------|
+| `stdio` | `command` | Proces lokalny przez stdin/stdout |
+| `http` | `url` | Zdalny serwer MCP oparty na HTTP |
+
+```json
+// serwer stdio
+{
+  "name": "local-tools",
+  "server_type": "stdio",
+  "command": "node",
+  "args": ["./server.js"],
+  "env": {"DEBUG": "true"}
+}
+
+// serwer http
+{
+  "name": "remote-api",
+  "server_type": "http",
+  "url": "https://mcp.example.com/api",
+  "headers": {"Authorization": "Bearer ${TOKEN}"}
+}
+```
+
+### Zmienne srodowiskowe
+
+Tablica `env` deklaruje wymagane lub opcjonalne zmienne srodowiskowe:
+
+```json
+{
+  "env": [
+    {
+      "name": "API_KEY",
+      "description": "API key for the service",
+      "required": true
+    },
+    {
+      "name": "DEBUG",
+      "description": "Enable debug mode",
+      "required": false,
+      "default": "false"
+    }
+  ]
+}
+```
+
+Zmienne odwolywane jako `${VAR_NAME}` w konfiguracjach serwerow MCP sa rozwiazywane ze srodowiska w momencie instalacji.
+
+## Polecenia CLI
+
+### Instalacja zestawu
+
+```bash
+claudex sets add ./path/to/set
+```
+
+Waliduje manifest, sprawdza konflikty z istniejacymi zestawami i instaluje wszystkie skladniki.
+
+### Lista zainstalowanych zestawow
+
+```bash
+claudex sets list
+```
+
+Wyswietla wszystkie zainstalowane zestawy z ich wersja, opisem i liczba skladnikow.
+
+### Szczegoly zestawu
+
+```bash
+claudex sets show <NAME>
+```
+
+Pokazuje szczegolowe informacje o zainstalowanym zestawie, w tym wszystkie reguly, umiejetnosci i serwery MCP.
+
+### Aktualizacja zestawu
+
+```bash
+claudex sets update <NAME> ./path/to/new-version
+```
+
+Aktualizuje istniejacy zestaw do nowej wersji. Usuwa stare skladniki i instaluje nowe.
+
+### Usuwanie zestawu
+
+```bash
+claudex sets remove <NAME>
+```
+
+Usuwa zainstalowany zestaw i wszystkie jego skladniki.
+
+## Wykrywanie konfliktow
+
+Podczas instalacji zestawu Claudex sprawdza konflikty:
+
+- **Konflikty nazw regul**: Dwa zestawy nie moga instalowac regul o tej samej nazwie pliku
+- **Konflikty nazw umiejetnosci**: Dwa zestawy nie moga instalowac umiejetnosci o tej samej nazwie
+- **Konflikty serwerow MCP**: Dwa zestawy nie moga definiowac serwerow MCP o tej samej nazwie
+
+Jesli wykryto konflikt, instalacja jest przerywana z opisowym komunikatem bledu wskazujacym, ktory istniejacy zestaw jest wlascicielem konfliktujanego skladnika.
+
+## Plik blokady
+
+Zainstalowane zestawy sa sledzone w pliku blokady, ktory rejestruje:
+
+- Nazwe i wersje zestawu
+- Sciezki zainstalowanych skladnikow
+- Znacznik czasu instalacji
+
+Umozliwia to czyste operacje usuwania i aktualizacji.

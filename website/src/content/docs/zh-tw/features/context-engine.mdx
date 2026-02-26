@@ -5,10 +5,10 @@ description: 對話壓縮、跨 profile 共享與本地 RAG
 
 import { Aside } from '@astrojs/starlight/components';
 
-上下文引擎透過三種機制增強您的 AI 互動：對話壓縮、跨 profile 上下文共享，以及本地 RAG（檢索增強生成）。
+上下文引擎透過三種機制增強你的 AI 互動：對話壓縮、跨 profile 上下文共享，以及本地 RAG（檢索增強生成）。
 
 <Aside type="caution">
-  上下文引擎功能需要 LLM 服務進行摘要生成和嵌入向量生成。您可以使用任何現有 profile（本地 Ollama、雲端提供商如 OpenRouter 等）。
+  上下文引擎功能需要 LLM 服務進行摘要生成和嵌入向量生成。你可以使用任何現有 profile（本地 Ollama、雲端提供商如 OpenRouter 等）。
 </Aside>
 
 ## 對話壓縮
@@ -62,7 +62,7 @@ top_k = 5                             # 要注入的結果數量
 1. 啟動時，Claudex 使用嵌入模型為 `index_paths` 中的檔案建立索引
 2. 對於每個請求，使用者訊息會被嵌入並與索引比對
 3. 最相關的前 k 個區塊作為額外上下文注入請求
-4. 提供商收到關於您程式碼庫更豐富的上下文
+4. 提供商收到關於你程式碼庫更豐富的上下文
 
 <Aside type="tip">
   為了取得最佳的本地 RAG 效果，建議透過 Ollama 使用專用嵌入模型，如 `nomic-embed-text`。

@@ -1,0 +1,111 @@
+---
+title: 터미널 하이퍼링크
+description: 자동 감지 기능을 갖춘 OSC 8 클릭 가능한 터미널 하이퍼링크
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Claudex는 OSC 8 터미널 하이퍼링크를 지원하여, Claude Code 출력의 파일 경로, URL, 참조를 지원되는 터미널에서 클릭할 수 있게 만듭니다.
+
+## 개요
+
+OSC 8은 터미널 출력에 하이퍼링크를 직접 임베딩하는 터미널 이스케이프 시퀀스 표준입니다. 지원되는 경우, 링크를 클릭하면 기본 핸들러에서 열립니다(URL은 브라우저, 파일 경로는 에디터).
+
+이스케이프 시퀀스 형식:
+
+```
+\x1b]8;;URL\x07DISPLAY_TEXT\x1b]8;;\x07
+```
+
+## 설정
+
+```toml
+# config.toml (전역 설정)
+hyperlinks = "auto"    # "auto" | true | false
+```
+
+| 값 | 동작 |
+|-------|----------|
+| `"auto"` | 터미널 지원 자동 감지 (기본값) |
+| `true` | 하이퍼링크 강제 활성화 |
+| `false` | 하이퍼링크 강제 비활성화 |
+
+CLI 플래그를 통해 세션별로 하이퍼링크를 활성화할 수도 있습니다:
+
+```bash
+claudex run grok --hyperlinks
+```
+
+## 터미널 감지
+
+`hyperlinks = "auto"`일 때, Claudex는 다음 순서로 확인합니다:
+
+| 우선순위 | 확인 대상 | 결과 |
+|----------|-------|--------|
+| 1 | `FORCE_HYPERLINKS=1` 환경 변수 | 활성화 |
+| 2 | TTY가 아닌 경우 | 비활성화 |
+| 3 | `DOMTERM` 환경 변수 설정됨 | 활성화 |
+| 4 | `TERM_PROGRAM` = iTerm.app | 활성화 |
+| 5 | `TERM_PROGRAM` = WezTerm | 활성화 |
+| 6 | `TERM_PROGRAM` = vscode | 활성화 |
+| 7 | `TERM_PROGRAM` = Tabby | 활성화 |
+| 8 | `TERM_PROGRAM` = Hyper | 활성화 |
+| 9 | `TERM_PROGRAM` = mintty | 활성화 |
+| 10 | `TERM_PROGRAM` = WarpTerminal | 활성화 |
+| 11 | `TERM` = xterm-kitty | 활성화 |
+| 12 | `TERM` = xterm-ghostty | 활성화 |
+| 13 | `VTE_VERSION` >= 5000 | 활성화 |
+| 14 | `WT_SESSION` 환경 변수 설정됨 (Windows Terminal) | 활성화 |
+| 15 | 위 조건 모두 해당 없음 | 비활성화 (안전한 기본값) |
+
+<Aside type="note">
+  VTE_VERSION >= 5000은 GNOME Terminal (3.68+), xfce4-terminal 및 기타 VTE 기반 터미널을 포함합니다.
+</Aside>
+
+## 지원 터미널
+
+| 터미널 | 플랫폼 | 감지 방법 |
+|----------|----------|-----------------|
+| iTerm2 | macOS | `TERM_PROGRAM` |
+| WezTerm | 크로스 플랫폼 | `TERM_PROGRAM` |
+| Kitty | 크로스 플랫폼 | `TERM` (xterm-kitty) |
+| Ghostty | 크로스 플랫폼 | `TERM` (xterm-ghostty) |
+| VS Code Terminal | 크로스 플랫폼 | `TERM_PROGRAM` |
+| Windows Terminal | Windows | `WT_SESSION` |
+| GNOME Terminal | Linux | `VTE_VERSION` |
+| Tabby | 크로스 플랫폼 | `TERM_PROGRAM` |
+| Hyper | 크로스 플랫폼 | `TERM_PROGRAM` |
+| mintty (Git Bash) | Windows | `TERM_PROGRAM` |
+| WarpTerminal | macOS | `TERM_PROGRAM` |
+| DomTerm | 크로스 플랫폼 | `DOMTERM` |
+
+## PTY 프록시 모드
+
+Unix 시스템에서 하이퍼링크가 활성화되면, Claudex는 Claude Code 프로세스를 PTY(의사 터미널) 프록시 하에서 생성합니다. 이를 통해 Claudex가 터미널 출력을 인터셉트하여 하이퍼링크를 추가하면서도 전체 터미널 경험(색상, 커서 이동 등)을 유지할 수 있습니다.
+
+PTY 프록시는 사용자에게 투명합니다. 대화형 세션에서만 활성화되며, 비대화형 모드(`--print`)에서는 PTY를 건너뜁니다.
+
+<Aside type="tip">
+  터미널 렌더링에 문제가 발생하면, 설정에서 `hyperlinks = false`로 설정하거나 `--hyperlinks` 플래그를 생략하여 하이퍼링크를 비활성화할 수 있습니다.
+</Aside>
+
+## 강제 활성화/비활성화
+
+자동 감지 목록에 없는 터미널의 경우, 하이퍼링크를 강제 활성화할 수 있습니다:
+
+```bash
+# 환경 변수를 통해
+FORCE_HYPERLINKS=1 claudex run grok
+
+# 설정을 통해
+hyperlinks = true
+
+# CLI 플래그를 통해
+claudex run grok --hyperlinks
+```
+
+강제 비활성화(예: 출력 파이핑 시):
+
+```toml
+hyperlinks = false
+```

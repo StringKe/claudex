@@ -4,13 +4,13 @@ description: Gestore multi-istanza di Claude Code con proxy di traduzione intell
 template: splash
 hero:
   title: Claudex
-  tagline: Usa Claude Code con qualsiasi provider AI — Grok, ChatGPT, DeepSeek, Kimi, GLM, Ollama e molti altri.
+  tagline: Usa Claude Code con qualsiasi fornitore AI — Grok, ChatGPT, DeepSeek, Gemini, Kimi, GLM, Ollama, Azure, Groq, Mistral e oltre 20 altri.
   actions:
     - text: Inizia
       link: /it/installation/
       icon: right-arrow
       variant: primary
-    - text: Visualizza su GitHub
+    - text: Vedi su GitHub
       link: https://github.com/StringKe/claudex
       icon: external
       variant: minimal
@@ -18,58 +18,75 @@ hero:
 
 import { Card, CardGrid } from '@astrojs/starlight/components';
 
-## Funzionalità
+## Funzionalita
 
 <CardGrid stagger>
-  <Card title="Proxy di Traduzione" icon="translate">
-    Traduzione automatica del protocollo da Anthropic a OpenAI. Usa Claude Code con Grok, ChatGPT, DeepSeek, Kimi, GLM e qualsiasi provider compatibile con OpenAI.
+  <Card title="Proxy di traduzione" icon="translate">
+    Traduzione automatica del protocollo Anthropic-OpenAI. Usa Claude Code con oltre 20 fornitori tra cui Grok, ChatGPT, DeepSeek, Gemini, Kimi, GLM, Azure OpenAI, Groq, Mistral, Together AI, Perplexity, Cerebras e qualsiasi endpoint compatibile con OpenAI.
   </Card>
   <Card title="Circuit Breaker" icon="warning">
-    Circuit breaker integrato con failover automatico verso provider di backup. Soglie configurabili e timeout di recupero mantengono il tuo flusso di lavoro ininterrotto.
+    Circuit breaker per profilo con failover automatico verso fornitori di backup. Soglie di errore configurabili, timeout di recupero e retry OAuth 401 con aggiornamento del token.
   </Card>
-  <Card title="Routing Intelligente" icon="random">
-    Routing automatico basato sull'intent tramite classificatore locale. Mappa automaticamente attività di codice, analisi, creatività, ricerca e matematica al provider ottimale.
+  <Card title="Routing intelligente" icon="random">
+    Routing automatico basato sugli intenti tramite classificatore locale. Mappa automaticamente attivita di codice, analisi, creativita, ricerca e matematica al profilo del fornitore ottimale.
   </Card>
-  <Card title="Context Engine" icon="document">
-    Compressione delle conversazioni, condivisione del contesto tra profili e RAG locale con embeddings. Arricchisci le tue interazioni AI con un contesto più ricco.
+  <Card title="Motore di contesto" icon="document">
+    Compressione delle conversazioni, condivisione del contesto tra profili e RAG locale con embedding. Migliora le tue interazioni AI con un contesto piu ricco.
   </Card>
   <Card title="Dashboard TUI" icon="laptop">
-    Dashboard terminale in tempo reale che mostra lo stato dei profili, metriche delle richieste, log e funzionalità di avvio rapido. Navigazione completa da tastiera.
+    Dashboard in tempo reale nel terminale che mostra lo stato dei profili, le metriche delle richieste, i log e le funzionalita di avvio rapido. Navigazione completa da tastiera.
   </Card>
-  <Card title="Auto-aggiornamento" icon="up-caret">
-    Un solo comando per verificare e installare l'ultima versione direttamente da GitHub Releases. Rimani aggiornato senza sforzo.
+  <Card title="Aggiornamento automatico" icon="up-caret">
+    Un solo comando per verificare e installare l'ultima versione direttamente da GitHub Releases. Resta aggiornato senza sforzo.
   </Card>
-  <Card title="Autenticazione OAuth con Abbonamento" icon="approve-check">
-    Usa il tuo abbonamento esistente a Claude, OpenAI, Google, Qwen, Kimi o GitHub — nessuna chiave API necessaria. `claudex auth login` legge i token dalla configurazione nativa di ciascun provider.
+  <Card title="Abbonamenti OAuth" icon="approve-check">
+    Usa abbonamenti esistenti di Claude, ChatGPT, Google, Qwen, Kimi, GitHub Copilot o GitLab Duo. Supporta browser PKCE, device code flow e catena di credenziali da CLI nativi.
   </Card>
-  <Card title="Modalità Non Interattiva" icon="rocket">
-    Esecuzione one-shot con `claudex run <profile> "prompt" --print`. Ideale per pipeline CI/CD e automazione tramite script.
+  <Card title="Set di configurazione" icon="setting">
+    Installa e gestisci pacchetti riutilizzabili di regole CLAUDE.md, skill e server MCP tramite `claudex sets add`. Manifesti versionati con rilevamento dei conflitti.
   </Card>
-  <Card title="Mappatura degli Slot Modello" icon="setting">
-    Mappa il selettore `/model` di Claude Code (haiku, sonnet, opus) su qualsiasi modello del provider tramite la configurazione `[profiles.models]`.
+  <Card title="Hyperlink nel terminale" icon="external">
+    Hyperlink cliccabili OSC 8 nell'output del terminale. Rilevamento automatico del supporto del terminale (iTerm, WezTerm, Kitty, Ghostty, VS Code, Windows Terminal) con modalita proxy PTY.
   </Card>
-  <Card title="Compatibilità dei Nomi degli Strumenti" icon="puzzle">
-    Tronca automaticamente i nomi degli strumenti più lunghi di 64 caratteri per la compatibilità con OpenAI, con ripristino trasparente dei nomi originali nelle risposte.
+  <Card title="Mappatura slot modello" icon="puzzle">
+    Mappa il selettore `/model` di Claude Code (haiku, sonnet, opus) a qualsiasi modello del fornitore tramite `[profiles.models]`. Configurazione modelli per profilo con override tramite variabili d'ambiente.
+  </Card>
+  <Card title="Modalita non interattiva" icon="rocket">
+    Esecuzione one-shot con `claudex run <profile> "prompt" --print`. Ideale per pipeline CI/CD e automazione con script.
+  </Card>
+  <Card title="Compatibilita nomi tool" icon="list-format">
+    Troncamento automatico dei nomi dei tool superiori a 64 caratteri per compatibilita OpenAI, con ripristino trasparente bidirezionale nelle risposte.
   </Card>
 </CardGrid>
 
-## Installazione Rapida
+## Fornitori supportati
+
+| Categoria | Fornitori |
+|-----------|-----------|
+| **Direct Anthropic** | Anthropic, MiniMax |
+| **OpenAI Compatible** | Grok (xAI), OpenAI, DeepSeek, Kimi/Moonshot, GLM (Zhipu), OpenRouter, Groq, Mistral, Together AI, Perplexity, Cerebras |
+| **Piattaforme cloud** | Azure OpenAI, Google Vertex AI |
+| **Abbonamenti OAuth** | Claude Max/Pro, ChatGPT Plus/Pro (Codex), Google Gemini, GitHub Copilot, GitLab Duo, Qwen, Kimi |
+| **Modelli locali** | Ollama, vLLM, LM Studio, llama.cpp |
+| **Tramite LiteLLM** | AWS Bedrock e qualsiasi fornitore supportato da LiteLLM |
+
+## Installazione rapida
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/StringKe/claudex/main/install.sh | bash
 ```
 
-## Come Funziona
+## Come funziona
 
 ```
 claudex run grok
     │
-    ├── Avvia proxy → 127.0.0.1:13456
+    ├── Start proxy → 127.0.0.1:13456
     │
-    └── esegue claude con:
+    └── exec claude with:
         ANTHROPIC_BASE_URL=http://127.0.0.1:13456/proxy/grok
         ANTHROPIC_AUTH_TOKEN=<session-token>
         ANTHROPIC_MODEL=grok-3-beta
 ```
 
-Il proxy traduce in modo trasparente tra i protocolli Anthropic e OpenAI, così Claude Code funziona perfettamente con qualsiasi provider supportato. Quando si utilizzano profili OAuth, viene impostato `ANTHROPIC_AUTH_TOKEN` (non `ANTHROPIC_API_KEY`) per evitare conflitti con il login tramite abbonamento nativo di Claude.
+Il proxy traduce in modo trasparente tra i protocolli Anthropic e OpenAI, cosi Claude Code funziona senza problemi con qualsiasi fornitore supportato. Quando si utilizzano profili OAuth, viene impostato `ANTHROPIC_AUTH_TOKEN` (non `ANTHROPIC_API_KEY`) per evitare conflitti con il meccanismo di login dell'abbonamento nativo di Claude Code.

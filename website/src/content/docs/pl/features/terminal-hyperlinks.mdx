@@ -1,0 +1,111 @@
+---
+title: Hiperlinki terminala
+description: Klikalne hiperlinki OSC 8 w wyjsciu terminala z automatycznym wykrywaniem
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Claudex obsluguje hiperlinki terminala OSC 8, umozliwiajac klikanie sciezek plikow, adresow URL i referencji w wyjsciu Claude Code w obslugiwanych terminalach.
+
+## Przeglad
+
+OSC 8 to standard sekwencji ucieczki terminala, ktory osadza hiperlinki bezposrednio w wyjsciu terminala. Gdy jest obslugiwany, klikniecie linku otwiera go w domyslnej aplikacji obslugujacej (przegladarka dla URL, edytor dla sciezek plikow).
+
+Format sekwencji ucieczki:
+
+```
+\x1b]8;;URL\x07DISPLAY_TEXT\x1b]8;;\x07
+```
+
+## Konfiguracja
+
+```toml
+# W config.toml (ustawienie globalne)
+hyperlinks = "auto"    # "auto" | true | false
+```
+
+| Wartosc | Zachowanie |
+|---------|-----------|
+| `"auto"` | Automatyczne wykrywanie obslugi terminala (domyslne) |
+| `true` | Wymus wlaczenie hiperlinkow |
+| `false` | Wymus wylaczenie hiperlinkow |
+
+Mozesz rowniez wlaczyc hiperlinki per sesja za pomoca flagi CLI:
+
+```bash
+claudex run grok --hyperlinks
+```
+
+## Wykrywanie terminala
+
+Gdy `hyperlinks = "auto"`, Claudex sprawdza nastepujace w kolejnosci:
+
+| Priorytet | Sprawdzenie | Wynik |
+|-----------|-------------|-------|
+| 1 | Zmienna srodowiskowa `FORCE_HYPERLINKS=1` | Wlacz |
+| 2 | Nie jest TTY | Wylacz |
+| 3 | Zmienna srodowiskowa `DOMTERM` ustawiona | Wlacz |
+| 4 | `TERM_PROGRAM` = iTerm.app | Wlacz |
+| 5 | `TERM_PROGRAM` = WezTerm | Wlacz |
+| 6 | `TERM_PROGRAM` = vscode | Wlacz |
+| 7 | `TERM_PROGRAM` = Tabby | Wlacz |
+| 8 | `TERM_PROGRAM` = Hyper | Wlacz |
+| 9 | `TERM_PROGRAM` = mintty | Wlacz |
+| 10 | `TERM_PROGRAM` = WarpTerminal | Wlacz |
+| 11 | `TERM` = xterm-kitty | Wlacz |
+| 12 | `TERM` = xterm-ghostty | Wlacz |
+| 13 | `VTE_VERSION` >= 5000 | Wlacz |
+| 14 | Zmienna srodowiskowa `WT_SESSION` ustawiona (Windows Terminal) | Wlacz |
+| 15 | Zaden z powyzszych | Wylacz (bezpieczne domyslne) |
+
+<Aside type="note">
+  VTE_VERSION >= 5000 obejmuje GNOME Terminal (3.68+), xfce4-terminal i inne terminale oparte na VTE.
+</Aside>
+
+## Obslugiwane terminale
+
+| Terminal | Platforma | Metoda wykrywania |
+|----------|-----------|-------------------|
+| iTerm2 | macOS | `TERM_PROGRAM` |
+| WezTerm | Wieloplatformowy | `TERM_PROGRAM` |
+| Kitty | Wieloplatformowy | `TERM` (xterm-kitty) |
+| Ghostty | Wieloplatformowy | `TERM` (xterm-ghostty) |
+| VS Code Terminal | Wieloplatformowy | `TERM_PROGRAM` |
+| Windows Terminal | Windows | `WT_SESSION` |
+| GNOME Terminal | Linux | `VTE_VERSION` |
+| Tabby | Wieloplatformowy | `TERM_PROGRAM` |
+| Hyper | Wieloplatformowy | `TERM_PROGRAM` |
+| mintty (Git Bash) | Windows | `TERM_PROGRAM` |
+| WarpTerminal | macOS | `TERM_PROGRAM` |
+| DomTerm | Wieloplatformowy | `DOMTERM` |
+
+## Tryb proxy PTY
+
+Gdy hiperlinki sa wlaczone w systemach Unix, Claudex uruchamia proces Claude Code pod proxy PTY (pseudo-terminala). Pozwala to Claudex przechwytywac i wzbogacac wyjscie terminala o hiperlinki, zachowujac pelne doswiadczenie terminala (kolory, ruch kursora itp.).
+
+Proxy PTY jest transparentne dla uzytkownika. Jest aktywowane tylko dla sesji interaktywnych (tryb nieinteraktywny z `--print` pomija PTY).
+
+<Aside type="tip">
+  Jesli wystepuja problemy z renderowaniem terminala, mozesz wylaczyc hiperlinki ustawiajac `hyperlinks = false` w konfiguracji lub pomijajac flage `--hyperlinks`.
+</Aside>
+
+## Wymuszenie wlaczenia/wylaczenia
+
+Dla terminali nieobecnych na liscie automatycznego wykrywania mozesz wymusic hiperlinki:
+
+```bash
+# Przez zmienna srodowiskowa
+FORCE_HYPERLINKS=1 claudex run grok
+
+# Przez konfiguracje
+hyperlinks = true
+
+# Przez flage CLI
+claudex run grok --hyperlinks
+```
+
+Aby wymusic wylaczenie (np. przy potokowym przekierowaniu wyjscia):
+
+```toml
+hyperlinks = false
+```

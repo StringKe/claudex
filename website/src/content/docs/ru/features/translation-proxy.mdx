@@ -1,31 +1,42 @@
 ---
 title: Прокси-переводчик
-description: Автоматический перевод протокола Anthropic в OpenAI
+description: Автоматический перевод протокола Anthropic в OpenAI для 20+ провайдеров
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Прокси-переводчик является ядром Claudex. Он располагается между Claude Code и вашими AI-провайдерами, прозрачно выполняя конвертацию между Anthropic Messages API и OpenAI Chat Completions API.
+Прокси-переводчик является ядром Claudex. Он располагается между Claude Code и вашими AI-провайдерами, прозрачно выполняя конвертацию между Anthropic Messages API и OpenAI Chat Completions API (или Responses API).
 
 ## Как это работает
 
 ```
-Claude Code → запрос Anthropic Messages API
+Claude Code → Anthropic Messages API request
     │
-    └── Прокси Claudex (127.0.0.1:13456)
+    └── Claudex Proxy (127.0.0.1:13456)
         │
-        ├── Провайдер DirectAnthropic → пересылка с заголовками
+        ├── DirectAnthropic provider → forward with headers
         │
-        ├── Провайдер OpenAICompatible
-        │   ├── Перевод запроса: Anthropic → OpenAI Chat Completions
-        │   ├── Пересылка провайдеру
-        │   └── Перевод ответа: OpenAI → Anthropic
+        ├── OpenAICompatible provider
+        │   ├── Translate request: Anthropic → OpenAI Chat Completions
+        │   ├── Apply query_params, strip_params, custom_headers
+        │   ├── Forward to provider
+        │   └── Translate response: OpenAI → Anthropic
         │
-        └── Провайдер OpenAIResponses
-            ├── Перевод запроса: Anthropic → OpenAI Responses API
-            ├── Пересылка провайдеру
-            └── Перевод ответа: Responses → Anthropic
+        └── OpenAIResponses provider
+            ├── Translate request: Anthropic → OpenAI Responses API
+            ├── Forward to provider
+            └── Translate response: Responses → Anthropic
 ```
+
+## Адаптеры провайдеров
+
+Claudex использует трейт `ProviderAdapter` для обработки различий между API провайдеров. Реализованы три адаптера:
+
+| Адаптер | Трансляция | Используется |
+|---------|-----------|-------------|
+| **DirectAnthropic** | Нет (passthrough) | Anthropic, MiniMax, Vertex AI |
+| **ChatCompletions** | Полная трансляция Anthropic ↔ OpenAI | Grok, OpenAI, DeepSeek, Kimi, GLM, OpenRouter, Groq, Mistral, Together AI, Perplexity, Cerebras, Azure OpenAI, GitHub Copilot, GitLab Duo, Ollama, vLLM, LM Studio |
+| **Responses** | Anthropic ↔ OpenAI Responses API | Подписки ChatGPT/Codex |
 
 ## Что переводится
 
@@ -34,21 +45,32 @@ Claude Code → запрос Anthropic Messages API
 | Anthropic | OpenAI |
 |-----------|--------|
 | Поле `system` | Системное сообщение в массиве `messages` |
-| Блоки `messages[].content` (text, image, tool_use) | `messages[].content` + `tool_calls` |
-| Массив `tools` (JSON Schema) | Массив `tools` (формат функций) |
-| `tool_choice` | `tool_choice` |
-| `max_tokens` | `max_tokens` |
-| `temperature`, `top_p` | Прямое соответствие |
+| Блоки `messages[].content` (text, image, tool_use, tool_result) | `messages[].content` + `tool_calls` |
+| Массив `tools` (JSON Schema с `input_schema`) | Массив `tools` (формат функций с `parameters`) |
+| `tool_choice` (`auto`, `any`, `{name}`) | `tool_choice` (`auto`, `required`, `{function: {name}}`) |
+| `max_tokens` | `max_tokens` (ограничивается настройкой `max_tokens` профиля, если задана) |
+| `temperature`, `top_p` | Прямое соответствие (удаляются, если совпадает с `strip_params`) |
 
 ### Перевод ответов (OpenAI → Anthropic)
 
 | OpenAI | Anthropic |
 |--------|-----------|
-| `choices[0].message.content` | Блоки `content` |
-| `choices[0].message.tool_calls` | Блоки содержимого `tool_use` |
+| `choices[0].message.content` | Блоки `content` (type: text) |
+| `choices[0].message.tool_calls` | Блоки `content` (type: tool_use) |
 | `finish_reason: stop` | `stop_reason: end_turn` |
 | `finish_reason: tool_calls` | `stop_reason: tool_use` |
 | `usage.prompt_tokens` / `completion_tokens` | `usage.input_tokens` / `output_tokens` |
+
+### Совместимость имён инструментов
+
+Claude Code может генерировать имена инструментов длиннее 64 символов (например, `mcp__server-name__very-long-tool-name-that-exceeds-the-limit`). OpenAI и многие провайдеры устанавливают лимит в 64 символа.
+
+Claudex автоматически:
+1. Усекает имена, превышающие 64 символа, в исходящих запросах
+2. Строит таблицу соответствия усечённых и оригинальных имён
+3. Восстанавливает оригинальные имена в ответах провайдера
+
+Этот цикл полностью прозрачен.
 
 ## Потоковый перевод
 
@@ -61,7 +83,17 @@ Claudex полностью поддерживает потоковую пере�
 | `choices[0].delta.tool_calls` | `content_block_delta` (input_json_delta) |
 | Наличие `finish_reason` | `content_block_stop` + `message_delta` + `message_stop` |
 
-Потоковый переводчик поддерживает конечный автомат для правильной обработки накопления вызовов инструментов и границ блоков содержимого.
+Потоковый переводчик поддерживает конечный автомат для корректной обработки накопления вызовов инструментов и границ блоков содержимого.
+
+## Поддержка Azure OpenAI
+
+Azure OpenAI использует другую схему аутентификации и URL:
+
+- **Аутентификация**: заголовок `api-key` вместо `Authorization: Bearer`
+- **Формат URL**: `https://{resource}.openai.azure.com/openai/deployments/{deployment}`
+- **Версия API**: обязательна через `query_params`
+
+Claudex автоматически определяет Azure, проверяя наличие `openai.azure.com` в `base_url`, и соответственно настраивает аутентификацию.
 
 ## Поддерживаемые провайдеры
 
@@ -69,19 +101,38 @@ Claudex полностью поддерживает потоковую пере�
 |-----------|-----|----------|
 | Anthropic | DirectAnthropic | `https://api.anthropic.com` |
 | MiniMax | DirectAnthropic | `https://api.minimax.io/anthropic` |
+| Google Vertex AI | DirectAnthropic | `https://REGION-aiplatform.googleapis.com/v1/projects/...` |
 | OpenRouter | OpenAICompatible | `https://openrouter.ai/api/v1` |
 | Grok (xAI) | OpenAICompatible | `https://api.x.ai/v1` |
 | OpenAI | OpenAICompatible | `https://api.openai.com/v1` |
 | DeepSeek | OpenAICompatible | `https://api.deepseek.com` |
-| Kimi/Moonshot | OpenAICompatible | `https://api.moonshot.cn/v1` |
-| GLM (Zhipu) | OpenAICompatible | `https://open.bigmodel.cn/api/paas/v4` |
+| Kimi/Moonshot | OpenAICompatible | `https://api.moonshot.ai/v1` |
+| GLM (Zhipu) | OpenAICompatible | `https://api.z.ai/api/paas/v4` |
+| Groq | OpenAICompatible | `https://api.groq.com/openai/v1` |
+| Mistral AI | OpenAICompatible | `https://api.mistral.ai/v1` |
+| Together AI | OpenAICompatible | `https://api.together.xyz/v1` |
+| Perplexity | OpenAICompatible | `https://api.perplexity.ai` |
+| Cerebras | OpenAICompatible | `https://api.cerebras.ai/v1` |
+| Azure OpenAI | OpenAICompatible | `https://{resource}.openai.azure.com/...` |
+| GitHub Copilot | OpenAICompatible | `https://api.githubcopilot.com` |
+| GitLab Duo | OpenAICompatible | `https://gitlab.com/api/v4/ai/llm/proxy` |
 | Ollama | OpenAICompatible | `http://localhost:11434/v1` |
 | vLLM | OpenAICompatible | `http://localhost:8000/v1` |
+| LM Studio | OpenAICompatible | `http://localhost:1234/v1` |
 | ChatGPT/Codex sub | OpenAIResponses | `https://chatgpt.com/backend-api/codex` |
 
 <Aside type="tip">
-  Провайдеры DirectAnthropic не требуют перевода. Провайдеры OpenAIResponses используют Responses API (конечная точка `/responses`) вместо Chat Completions (`/chat/completions`).
+  Провайдеры DirectAnthropic не требуют трансляции. Провайдеры OpenAIResponses используют Responses API (endpoint `/responses`) вместо Chat Completions (`/chat/completions`).
 </Aside>
+
+## Endpoint моделей
+
+Прокси предоставляет endpoint `/v1/models`, который перечисляет все включённые профили. Каждая запись содержит пользовательские поля:
+
+- `x-claudex-profile`: имя профиля
+- `x-claudex-provider`: тип провайдера (`anthropic`, `openai-compatible`, `openai-responses`)
+
+Claude Code запрашивает этот endpoint для обнаружения доступных моделей.
 
 ## Управление прокси
 
@@ -95,7 +146,7 @@ claudex proxy status
 # Остановить демон прокси
 claudex proxy stop
 
-# Запустить на нестандартном порту
+# Запустить на пользовательском порту
 claudex proxy start -p 8080
 ```
 

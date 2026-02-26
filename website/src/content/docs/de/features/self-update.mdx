@@ -3,9 +3,9 @@ title: Selbstaktualisierung
 description: Claudex mit einem Befehl aktuell halten
 ---
 
-Claudex kann Updates direkt von GitHub Releases prüfen und installieren.
+Claudex kann Updates direkt von GitHub Releases pruefen und installieren.
 
-## Auf Updates prüfen
+## Auf Updates pruefen
 
 ```bash
 claudex update --check
@@ -19,22 +19,22 @@ Dies fragt die GitHub API nach dem neuesten Release ab und vergleicht es mit der
 claudex update
 ```
 
-Dies lädt die neueste Release-Binärdatei für die aktuelle Plattform herunter, ersetzt die aktuelle Binärdatei und überprüft die Installation.
+Dies laedt die neueste Release-Binaerdatei fuer die aktuelle Plattform herunter, ersetzt die aktuelle Binaerdatei und ueberprueft die Installation.
 
 ## Funktionsweise
 
 1. GitHub API abfragen: `https://api.github.com/repos/StringKe/claudex/releases/latest`
 2. Aktuelle Version mit dem neuesten Release-Tag vergleichen
-3. Das plattformspezifische Archiv herunterladen (z. B. `claudex-v0.2.0-aarch64-apple-darwin.tar.gz`)
-4. Extrahieren und die laufende Binärdatei ersetzen
-5. Temporäre Dateien bereinigen
+3. Das plattformspezifische Archiv herunterladen (z.B. `claudex-v0.2.0-aarch64-apple-darwin.tar.gz`)
+4. Extrahieren und die laufende Binaerdatei ersetzen
+5. Temporaere Dateien bereinigen
 
-## Unterstützte Plattformen
+## Unterstuetzte Plattformen
 
-Der Update-Mechanismus unterstützt dieselben Plattformen wie die Release-Builds:
+Der Update-Mechanismus unterstuetzt dieselben Plattformen wie die Release-Builds:
 
 | Plattform | Ziel |
-|----------|--------|
+|-----------|------|
 | macOS Intel | `x86_64-apple-darwin` |
 | macOS Apple Silicon | `aarch64-apple-darwin` |
 | Linux x86_64 | `x86_64-unknown-linux-gnu` |

@@ -1,0 +1,239 @@
+---
+title: Совместимость провайдеров
+description: Полная таблица совместимости всех поддерживаемых AI-провайдеров
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## Таблица совместимости провайдеров
+
+| Провайдер | Тип | Аутентификация | Стриминг | Инструменты | Слоты моделей | Примечания |
+|-----------|-----|---------------|----------|-------------|--------------|-----------|
+| Anthropic | DirectAnthropic | API Key | Да | Да | Да | Нативный, без трансляции |
+| MiniMax | DirectAnthropic | API Key | Да | Да | Да | Anthropic-совместимый прокси |
+| Google Vertex AI | DirectAnthropic | Access Token | Да | Да | Да | `gcloud auth print-access-token` |
+| OpenRouter | OpenAICompatible | API Key | Да | Да | Да | 200+ моделей через единый API |
+| Grok (xAI) | OpenAICompatible | API Key | Да | Да | Да | |
+| OpenAI | OpenAICompatible | API Key | Да | Да | Да | |
+| DeepSeek | OpenAICompatible | API Key | Да | Да | Да | |
+| Kimi / Moonshot | OpenAICompatible | API Key / OAuth | Да | Да | Да | |
+| GLM (Zhipu) | OpenAICompatible | API Key | Да | Да | Да | |
+| Groq | OpenAICompatible | API Key | Да | Да | Да | Сверхбыстрый инференс |
+| Mistral AI | OpenAICompatible | API Key | Да | Да | Да | |
+| Together AI | OpenAICompatible | API Key | Да | Да | Да | |
+| Perplexity | OpenAICompatible | API Key | Да | Ограниченно | Да | Встроенный веб-поиск |
+| Cerebras | OpenAICompatible | API Key | Да | Да | Да | Быстрый инференс |
+| Azure OpenAI | OpenAICompatible | API Key | Да | Да | Да | Заголовок `api-key` + `query_params` |
+| GitHub Copilot | OpenAICompatible | OAuth | Да | Да | Да | Device Code flow |
+| GitLab Duo | OpenAICompatible | OAuth (PAT) | Да | Да | Да | Переменная `GITLAB_TOKEN` |
+| ChatGPT/Codex | OpenAIResponses | OAuth | Да | Да | Да | Responses API |
+| Claude (подписка) | DirectAnthropic | OAuth | Да | Да | Да | Пропускает прокси |
+| Google Gemini (подписка) | OpenAICompatible | OAuth | Да | Да | Да | Учётные данные Gemini CLI |
+| Qwen (подписка) | OpenAICompatible | OAuth | Да | Да | Да | Device Code flow |
+| Ollama | OpenAICompatible | Нет | Да | Зависит от модели | Да | Локальный, без API-ключа |
+| vLLM | OpenAICompatible | Нет | Да | Зависит от модели | Да | Локальный |
+| LM Studio | OpenAICompatible | Нет | Да | Зависит от модели | Да | Локальный |
+| Bedrock (LiteLLM) | OpenAICompatible | API Key | Да | Да | Да | Через прокси LiteLLM |
+
+## Подробности по провайдерам
+
+### Anthropic
+
+- **Base URL**: `https://api.anthropic.com`
+- **Тип**: DirectAnthropic (трансляция не требуется)
+- **Аутентификация**: API Key (`sk-ant-*`)
+- **Модели**: claude-opus-4, claude-sonnet-4, claude-haiku-4
+- **Получить API Key**: [console.anthropic.com](https://console.anthropic.com/)
+
+### MiniMax
+
+- **Base URL**: `https://api.minimax.io/anthropic`
+- **Тип**: DirectAnthropic (трансляция не требуется)
+- **Аутентификация**: API Key
+- **Модели**: Использует имена моделей Anthropic (проксирование)
+- **Получить API Key**: [platform.minimaxi.com](https://platform.minimaxi.com/)
+
+### Google Vertex AI
+
+- **Base URL**: `https://REGION-aiplatform.googleapis.com/v1/projects/PROJECT/locations/REGION/publishers/anthropic/models`
+- **Тип**: DirectAnthropic
+- **Аутентификация**: GCP Access Token (`gcloud auth print-access-token`)
+- **Модели**: claude-sonnet-4@20250514, claude-opus-4@20250514
+- **Настройка**: [Vertex AI Console](https://console.cloud.google.com/vertex-ai)
+
+### OpenRouter
+
+- **Base URL**: `https://openrouter.ai/api/v1`
+- **Тип**: OpenAICompatible
+- **Аутентификация**: API Key (`sk-or-*`)
+- **Модели**: 200+ моделей от множества провайдеров
+- **Получить API Key**: [openrouter.ai/keys](https://openrouter.ai/keys)
+
+### Grok (xAI)
+
+- **Base URL**: `https://api.x.ai/v1`
+- **Тип**: OpenAICompatible
+- **Аутентификация**: API Key (`xai-*`)
+- **Модели**: grok-3-beta, grok-3-mini-beta
+- **Получить API Key**: [console.x.ai](https://console.x.ai/)
+
+### OpenAI
+
+- **Base URL**: `https://api.openai.com/v1`
+- **Тип**: OpenAICompatible
+- **Аутентификация**: API Key (`sk-*`)
+- **Модели**: gpt-4o, gpt-4o-mini, o1, o1-mini
+- **Получить API Key**: [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+
+### DeepSeek
+
+- **Base URL**: `https://api.deepseek.com`
+- **Тип**: OpenAICompatible
+- **Аутентификация**: API Key
+- **Модели**: deepseek-chat, deepseek-reasoner
+- **Получить API Key**: [platform.deepseek.com](https://platform.deepseek.com/)
+
+### Kimi / Moonshot
+
+- **Base URL**: `https://api.moonshot.ai/v1`
+- **Тип**: OpenAICompatible
+- **Аутентификация**: API Key / OAuth
+- **Модели**: kimi-k2-0905-preview, moonshot-v1-128k
+- **Получить API Key**: [platform.moonshot.cn](https://platform.moonshot.cn/)
+
+### GLM (Zhipu)
+
+- **Base URL**: `https://api.z.ai/api/paas/v4`
+- **Тип**: OpenAICompatible
+- **Аутентификация**: API Key
+- **Модели**: glm-4.6, glm-4-plus
+- **Получить API Key**: [open.bigmodel.cn](https://open.bigmodel.cn/)
+
+### Groq
+
+- **Base URL**: `https://api.groq.com/openai/v1`
+- **Тип**: OpenAICompatible
+- **Аутентификация**: API Key (`gsk_*`)
+- **Модели**: llama-3.3-70b-versatile, mixtral-8x7b-32768, gemma2-9b-it
+- **Получить API Key**: [console.groq.com](https://console.groq.com/)
+- **Примечание**: Крайне быстрый инференс для open-source моделей
+
+### Mistral AI
+
+- **Base URL**: `https://api.mistral.ai/v1`
+- **Тип**: OpenAICompatible
+- **Аутентификация**: API Key
+- **Модели**: mistral-large-latest, mistral-small-latest
+- **Получить API Key**: [console.mistral.ai](https://console.mistral.ai/)
+
+### Together AI
+
+- **Base URL**: `https://api.together.xyz/v1`
+- **Тип**: OpenAICompatible
+- **Аутентификация**: API Key
+- **Модели**: meta-llama/Llama-3.3-70B-Instruct-Turbo и множество open-source моделей
+- **Получить API Key**: [api.together.ai](https://api.together.ai/)
+
+### Perplexity
+
+- **Base URL**: `https://api.perplexity.ai`
+- **Тип**: OpenAICompatible
+- **Аутентификация**: API Key (`pplx-*`)
+- **Модели**: sonar-pro, sonar
+- **Получить API Key**: [perplexity.ai/settings/api](https://www.perplexity.ai/settings/api)
+- **Примечание**: Модели включают встроенные возможности веб-поиска
+
+### Cerebras
+
+- **Base URL**: `https://api.cerebras.ai/v1`
+- **Тип**: OpenAICompatible
+- **Аутентификация**: API Key
+- **Модели**: llama-3.3-70b
+- **Получить API Key**: [cloud.cerebras.ai](https://cloud.cerebras.ai/)
+- **Примечание**: Платформа быстрого инференса
+
+### Azure OpenAI
+
+- **Base URL**: `https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT`
+- **Тип**: OpenAICompatible
+- **Аутентификация**: API Key (через заголовок `api-key`, определяется автоматически)
+- **Модели**: Зависит от развёртывания (gpt-4o, gpt-4 и т.д.)
+- **Настройка**: [Azure Portal](https://portal.azure.com/)
+- **Примечание**: Требует `api-version` в `query_params`
+
+### GitHub Copilot
+
+- **Base URL**: `https://api.githubcopilot.com`
+- **Тип**: OpenAICompatible
+- **Аутентификация**: OAuth (Device Code flow)
+- **Модели**: gpt-4o (по умолчанию)
+- **Примечание**: Требуется активная подписка GitHub Copilot
+
+### GitLab Duo
+
+- **Base URL**: `https://gitlab.com/api/v4/ai/llm/proxy` (или self-hosted)
+- **Тип**: OpenAICompatible
+- **Аутентификация**: OAuth (Personal Access Token через `GITLAB_TOKEN`)
+- **Модели**: claude-sonnet-4-20250514
+- **Примечание**: Поддерживает `--enterprise-url` для self-hosted инстансов
+
+### ChatGPT / Codex (подписка)
+
+- **Base URL**: `https://chatgpt.com/backend-api/codex`
+- **Тип**: OpenAIResponses
+- **Аутентификация**: OAuth (Browser PKCE / Device Code)
+- **Модели**: gpt-5.3-codex, gpt-5.1-codex, codex-mini-latest
+- **Примечание**: Использует Responses API, а не Chat Completions. `strip_params = "auto"` удаляет неподдерживаемые параметры.
+
+### Claude (подписка)
+
+- **Base URL**: `https://api.claude.ai`
+- **Тип**: DirectAnthropic
+- **Аутентификация**: OAuth (читает `~/.claude/.credentials.json`)
+- **Модели**: claude-sonnet-4, claude-opus-4, claude-haiku-4
+- **Примечание**: Прокси пропускается. Claude Code использует собственный OAuth напрямую.
+
+### Google Gemini (подписка)
+
+- **Base URL**: `https://generativelanguage.googleapis.com/v1beta/openai`
+- **Тип**: OpenAICompatible
+- **Аутентификация**: OAuth (учётные данные Gemini CLI)
+- **Модели**: gemini-2.5-pro, gemini-2.0-flash
+
+### Qwen (подписка)
+
+- **Base URL**: `https://chat.qwen.ai/api`
+- **Тип**: OpenAICompatible
+- **Аутентификация**: OAuth (Device Code flow)
+- **Модели**: qwen3-235b-a22b, qwen-max
+
+### Ollama
+
+- **Base URL**: `http://localhost:11434/v1`
+- **Тип**: OpenAICompatible
+- **Аутентификация**: Не требуется
+- **Модели**: Любая загруженная модель (qwen2.5, llama3.3 и т.д.)
+- **Настройка**: [ollama.com](https://ollama.com/)
+
+### vLLM
+
+- **Base URL**: `http://localhost:8000/v1`
+- **Тип**: OpenAICompatible
+- **Аутентификация**: Не требуется
+- **Модели**: Зависит от обслуживаемой модели
+
+### LM Studio
+
+- **Base URL**: `http://localhost:1234/v1`
+- **Тип**: OpenAICompatible
+- **Аутентификация**: Нет / `"lm-studio"`
+- **Модели**: Зависит от загруженной модели
+- **Настройка**: [lmstudio.ai](https://lmstudio.ai/)
+
+### AWS Bedrock (через LiteLLM)
+
+- **Base URL**: `http://localhost:4000/v1` (прокси LiteLLM)
+- **Тип**: OpenAICompatible
+- **Аутентификация**: API Key (ключ LiteLLM)
+- **Модели**: bedrock/anthropic.claude-sonnet-4-20250514-v2:0
+- **Настройка**: [docs.litellm.ai/docs/providers/bedrock](https://docs.litellm.ai/docs/providers/bedrock)

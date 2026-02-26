@@ -1,10 +1,10 @@
 ---
-title: Менеджер нескольких экземпляров Claude Code
-description: Менеджер нескольких экземпляров Claude Code с интеллектуальным прокси-переводчиком
+title: Менеджер мульти-инстансов Claude Code
+description: Менеджер мульти-инстансов Claude Code с интеллектуальным прокси-переводчиком
 template: splash
 hero:
   title: Claudex
-  tagline: Используйте Claude Code с любым AI-провайдером — Grok, ChatGPT, DeepSeek, Kimi, GLM, Ollama и другими.
+  tagline: Используйте Claude Code с любым AI-провайдером — Grok, ChatGPT, DeepSeek, Gemini, Kimi, GLM, Ollama, Azure, Groq, Mistral и 20+ другими.
   actions:
     - text: Начать
       link: /ru/installation/
@@ -22,36 +22,53 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 
 <CardGrid stagger>
   <Card title="Прокси-переводчик" icon="translate">
-    Автоматический перевод протокола Anthropic в OpenAI. Используйте Claude Code с Grok, ChatGPT, DeepSeek, Kimi, GLM и любым провайдером, совместимым с OpenAI.
+    Автоматический перевод протокола Anthropic в OpenAI. Используйте Claude Code с 20+ провайдерами, включая Grok, ChatGPT, DeepSeek, Gemini, Kimi, GLM, Azure OpenAI, Groq, Mistral, Together AI, Perplexity, Cerebras и любой OpenAI-совместимый endpoint.
   </Card>
-  <Card title="Автоматическое переключение при сбое" icon="warning">
-    Встроенный автоматический выключатель с переключением на резервных провайдеров при обнаружении сбоев. Настраиваемые пороговые значения и таймауты восстановления не прерывают ваш рабочий процесс.
+  <Card title="Автоматический выключатель" icon="warning">
+    Автоматический выключатель на уровне профиля с автоматическим переключением на резервных провайдеров. Настраиваемые пороговые значения сбоев, таймауты восстановления и повтор при OAuth 401 с обновлением токена.
   </Card>
   <Card title="Умная маршрутизация" icon="random">
-    Автоматическая маршрутизация на основе намерений через локальный классификатор. Автоматически направляет задачи по коду, анализу, творчеству, поиску и математике к оптимальному провайдеру.
+    Автоматическая маршрутизация на основе намерений через локальный классификатор. Автоматически направляет задачи по коду, анализу, творчеству, поиску и математике к оптимальному профилю провайдера.
   </Card>
   <Card title="Контекстный движок" icon="document">
-    Сжатие диалогов, совместное использование контекста между профилями и локальный RAG с эмбеддингами. Обогатите взаимодействие с AI более насыщенным контекстом.
+    Сжатие диалогов, обмен контекстом между профилями и локальный RAG с эмбеддингами. Обогатите взаимодействие с AI более насыщенным контекстом.
   </Card>
   <Card title="TUI-панель мониторинга" icon="laptop">
-    Панель мониторинга в реальном времени в терминале, отображающая состояние профилей, метрики запросов, логи и возможность быстрого запуска. Полная навигация с клавиатуры.
+    Панель мониторинга в реальном времени в терминале: состояние профилей, метрики запросов, логи и быстрый запуск. Полная навигация с клавиатуры.
   </Card>
   <Card title="Самообновление" icon="up-caret">
-    Одна команда для проверки и установки последней версии непосредственно из GitHub Releases. Оставайтесь в актуальном состоянии без лишних усилий.
+    Одна команда для проверки и установки последней версии прямо из GitHub Releases. Оставайтесь в актуальном состоянии без усилий.
   </Card>
-  <Card title="OAuth-аутентификация по подписке" icon="approve-check">
-    Используйте существующую подписку Claude, OpenAI, Google, Qwen, Kimi или GitHub — API-ключи не нужны. `claudex auth login` считывает токены из нативной конфигурации CLI каждого провайдера.
+  <Card title="OAuth-подписки" icon="approve-check">
+    Используйте существующие подписки Claude, ChatGPT, Google, Qwen, Kimi, GitHub Copilot или GitLab Duo. Поддержка browser PKCE, device code flow и цепочки учётных данных из нативных CLI.
+  </Card>
+  <Card title="Конфигурационные наборы" icon="setting">
+    Устанавливайте и управляйте повторно используемыми пакетами правил CLAUDE.md, навыков и MCP-серверов через `claudex sets add`. Версионированные манифесты с обнаружением конфликтов.
+  </Card>
+  <Card title="Терминальные гиперссылки" icon="external">
+    Кликабельные OSC 8 гиперссылки в терминальном выводе. Автоопределение поддержки терминала (iTerm, WezTerm, Kitty, Ghostty, VS Code, Windows Terminal) с режимом PTY-прокси.
+  </Card>
+  <Card title="Маппинг слотов моделей" icon="puzzle">
+    Сопоставьте переключатель `/model` Claude Code (haiku, sonnet, opus) с любой моделью провайдера через `[profiles.models]`. Конфигурация моделей на уровне профиля с переопределением через переменные окружения.
   </Card>
   <Card title="Неинтерактивный режим" icon="rocket">
     Одиночное выполнение с `claudex run <profile> "prompt" --print`. Идеально подходит для CI/CD-конвейеров и автоматизации скриптов.
   </Card>
-  <Card title="Маппинг слотов моделей" icon="setting">
-    Сопоставьте переключатель `/model` Claude Code (haiku, sonnet, opus) с любой моделью провайдера через конфигурацию `[profiles.models]`.
-  </Card>
-  <Card title="Совместимость имён инструментов" icon="puzzle">
-    Автоматически усекает имена инструментов длиннее 64 символов для совместимости с OpenAI, с прозрачным восстановлением оригинальных имён в ответах.
+  <Card title="Совместимость имён инструментов" icon="list-format">
+    Автоматическое усечение имён инструментов длиннее 64 символов для совместимости с OpenAI, с прозрачным восстановлением оригинальных имён в ответах.
   </Card>
 </CardGrid>
+
+## Поддерживаемые провайдеры
+
+| Категория | Провайдеры |
+|-----------|-----------|
+| **Direct Anthropic** | Anthropic, MiniMax |
+| **OpenAI Compatible** | Grok (xAI), OpenAI, DeepSeek, Kimi/Moonshot, GLM (Zhipu), OpenRouter, Groq, Mistral, Together AI, Perplexity, Cerebras |
+| **Облачные платформы** | Azure OpenAI, Google Vertex AI |
+| **OAuth-подписки** | Claude Max/Pro, ChatGPT Plus/Pro (Codex), Google Gemini, GitHub Copilot, GitLab Duo, Qwen, Kimi |
+| **Локальные модели** | Ollama, vLLM, LM Studio, llama.cpp |
+| **Через LiteLLM** | AWS Bedrock и любой провайдер, поддерживаемый LiteLLM |
 
 ## Быстрая установка
 
@@ -64,12 +81,12 @@ curl -fsSL https://raw.githubusercontent.com/StringKe/claudex/main/install.sh | 
 ```
 claudex run grok
     │
-    ├── Запуск прокси → 127.0.0.1:13456
+    ├── Start proxy → 127.0.0.1:13456
     │
-    └── exec claude с:
+    └── exec claude with:
         ANTHROPIC_BASE_URL=http://127.0.0.1:13456/proxy/grok
         ANTHROPIC_AUTH_TOKEN=<session-token>
         ANTHROPIC_MODEL=grok-3-beta
 ```
 
-Прокси прозрачно переводит между протоколами Anthropic и OpenAI, поэтому Claude Code работает без проблем с любым поддерживаемым провайдером. При использовании OAuth-профилей устанавливается `ANTHROPIC_AUTH_TOKEN` (не `ANTHROPIC_API_KEY`), чтобы избежать конфликтов с собственным механизмом входа Claude по подписке.
+Прокси прозрачно переводит между протоколами Anthropic и OpenAI, поэтому Claude Code работает бесшовно с любым поддерживаемым провайдером. При использовании OAuth-профилей устанавливается `ANTHROPIC_AUTH_TOKEN` (а не `ANTHROPIC_API_KEY`), чтобы избежать конфликтов с собственным механизмом входа Claude по подписке, который внутренне использует `ANTHROPIC_API_KEY`.

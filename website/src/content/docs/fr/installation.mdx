@@ -1,20 +1,20 @@
 ---
 title: Installation
-description: Comment installer Claudex sur votre système
+description: Comment installer Claudex sur votre systeme
 ---
 
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 
-## Méthodes d'installation
+## Methodes d'installation
 
 <Tabs>
-  <TabItem label="Commande unique" icon="terminal">
+  <TabItem label="Une ligne" icon="terminal">
     ```bash
     curl -fsSL https://raw.githubusercontent.com/StringKe/claudex/main/install.sh | bash
     ```
-    Le script d'installation détecte automatiquement votre OS et votre architecture, télécharge la dernière version depuis GitHub, et l'installe dans `~/.local/bin/claudex`.
+    Le script d'installation detecte automatiquement votre OS et votre architecture, telecharge la derniere version depuis GitHub, et installe dans `~/.local/bin/claudex`.
 
-    Remplacer le répertoire d'installation :
+    Changer le repertoire d'installation :
     ```bash
     CLAUDEX_INSTALL_DIR=/usr/local/bin curl -fsSL https://raw.githubusercontent.com/StringKe/claudex/main/install.sh | bash
     ```
@@ -23,10 +23,10 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
     ```bash
     cargo install --git https://github.com/StringKe/claudex
     ```
-    Nécessite la chaîne d'outils Rust. Le binaire sera installé dans `~/.cargo/bin/claudex`.
+    Necessite la toolchain Rust. Le binaire sera installe dans `~/.cargo/bin/claudex`.
   </TabItem>
   <TabItem label="GitHub Releases" icon="github">
-    Téléchargez le binaire précompilé pour votre plateforme depuis [GitHub Releases](https://github.com/StringKe/claudex/releases).
+    Telechargez le binaire pre-compile pour votre plateforme depuis les [GitHub Releases](https://github.com/StringKe/claudex/releases).
 
     Cibles disponibles :
     - `x86_64-unknown-linux-gnu`
@@ -37,7 +37,7 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
     - `aarch64-apple-darwin`
     - `x86_64-pc-windows-msvc`
 
-    Extraire et placer le binaire dans votre `PATH` :
+    Extrayez et placez le binaire dans votre `PATH` :
     ```bash
     tar xzf claudex-v*.tar.gz
     chmod +x claudex
@@ -48,18 +48,18 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
 
 ## Configuration requise
 
-| Exigence | Détails |
-|----------|---------|
+| Prerequis | Details |
+|-----------|---------|
 | **OS** | macOS (Intel / Apple Silicon), Linux (x86_64 / ARM64), Windows (x86_64) |
-| **Claude Code** | Doit être installé et accessible via la commande `claude` dans votre PATH |
-| **Optionnel** | [Ollama](https://ollama.com) pour le routage intelligent et les fonctionnalités du moteur de contexte |
+| **Claude Code** | Doit etre installe et accessible en tant que `claude` dans votre PATH |
+| **Optionnel** | [Ollama](https://ollama.com) pour les fonctionnalites de routage intelligent et de moteur de contexte |
 
-## Vérifier l'installation
+## Verifier l'installation
 
 ```bash
 claudex --version
 ```
 
-## Étapes suivantes
+## Etapes suivantes
 
-Après l'installation, [configurez votre premier profil de fournisseur](/fr/configuration/).
+Apres l'installation, [configurez votre premier profil fournisseur](/fr/configuration/).

@@ -1,0 +1,239 @@
+---
+title: 提供商相容性
+description: 所有支援的 AI 提供商完整相容性表格
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## 提供商相容性表格
+
+| 提供商 | 類型 | 認證 | 串流 | 工具使用 | 模型 Slot | 備註 |
+|--------|------|------|------|---------|-----------|------|
+| Anthropic | DirectAnthropic | API Key | 是 | 是 | 是 | 原生，無需翻譯 |
+| MiniMax | DirectAnthropic | API Key | 是 | 是 | 是 | Anthropic 相容代理 |
+| Google Vertex AI | DirectAnthropic | Access Token | 是 | 是 | 是 | `gcloud auth print-access-token` |
+| OpenRouter | OpenAICompatible | API Key | 是 | 是 | 是 | 透過單一 API 存取 200+ 模型 |
+| Grok (xAI) | OpenAICompatible | API Key | 是 | 是 | 是 | |
+| OpenAI | OpenAICompatible | API Key | 是 | 是 | 是 | |
+| DeepSeek | OpenAICompatible | API Key | 是 | 是 | 是 | |
+| Kimi / Moonshot | OpenAICompatible | API Key / OAuth | 是 | 是 | 是 | |
+| GLM (Zhipu) | OpenAICompatible | API Key | 是 | 是 | 是 | |
+| Groq | OpenAICompatible | API Key | 是 | 是 | 是 | 超快速推論 |
+| Mistral AI | OpenAICompatible | API Key | 是 | 是 | 是 | |
+| Together AI | OpenAICompatible | API Key | 是 | 是 | 是 | |
+| Perplexity | OpenAICompatible | API Key | 是 | 有限 | 是 | 內建網路搜尋 |
+| Cerebras | OpenAICompatible | API Key | 是 | 是 | 是 | 快速推論 |
+| Azure OpenAI | OpenAICompatible | API Key | 是 | 是 | 是 | `api-key` 標頭 + `query_params` |
+| GitHub Copilot | OpenAICompatible | OAuth | 是 | 是 | 是 | Device Code 流程 |
+| GitLab Duo | OpenAICompatible | OAuth (PAT) | 是 | 是 | 是 | `GITLAB_TOKEN` 環境變數 |
+| ChatGPT/Codex | OpenAIResponses | OAuth | 是 | 是 | 是 | Responses API |
+| Claude（訂閱） | DirectAnthropic | OAuth | 是 | 是 | 是 | 跳過代理 |
+| Google Gemini（訂閱） | OpenAICompatible | OAuth | 是 | 是 | 是 | Gemini CLI 憑證 |
+| Qwen（訂閱） | OpenAICompatible | OAuth | 是 | 是 | 是 | Device Code 流程 |
+| Ollama | OpenAICompatible | 無 | 是 | 視模型而定 | 是 | 本地，無需 API 金鑰 |
+| vLLM | OpenAICompatible | 無 | 是 | 視模型而定 | 是 | 本地 |
+| LM Studio | OpenAICompatible | 無 | 是 | 視模型而定 | 是 | 本地 |
+| Bedrock（LiteLLM） | OpenAICompatible | API Key | 是 | 是 | 是 | 透過 LiteLLM 代理 |
+
+## 提供商詳細資訊
+
+### Anthropic
+
+- **Base URL**：`https://api.anthropic.com`
+- **類型**：DirectAnthropic（無需翻譯）
+- **認證**：API Key（`sk-ant-*`）
+- **模型**：claude-opus-4、claude-sonnet-4、claude-haiku-4
+- **取得 API Key**：[console.anthropic.com](https://console.anthropic.com/)
+
+### MiniMax
+
+- **Base URL**：`https://api.minimax.io/anthropic`
+- **類型**：DirectAnthropic（無需翻譯）
+- **認證**：API Key
+- **模型**：使用 Anthropic 模型名稱（代理轉發）
+- **取得 API Key**：[platform.minimaxi.com](https://platform.minimaxi.com/)
+
+### Google Vertex AI
+
+- **Base URL**：`https://REGION-aiplatform.googleapis.com/v1/projects/PROJECT/locations/REGION/publishers/anthropic/models`
+- **類型**：DirectAnthropic
+- **認證**：GCP Access Token（`gcloud auth print-access-token`）
+- **模型**：claude-sonnet-4@20250514、claude-opus-4@20250514
+- **設定**：[Vertex AI Console](https://console.cloud.google.com/vertex-ai)
+
+### OpenRouter
+
+- **Base URL**：`https://openrouter.ai/api/v1`
+- **類型**：OpenAICompatible
+- **認證**：API Key（`sk-or-*`）
+- **模型**：來自多個提供商的 200+ 模型
+- **取得 API Key**：[openrouter.ai/keys](https://openrouter.ai/keys)
+
+### Grok (xAI)
+
+- **Base URL**：`https://api.x.ai/v1`
+- **類型**：OpenAICompatible
+- **認證**：API Key（`xai-*`）
+- **模型**：grok-3-beta、grok-3-mini-beta
+- **取得 API Key**：[console.x.ai](https://console.x.ai/)
+
+### OpenAI
+
+- **Base URL**：`https://api.openai.com/v1`
+- **類型**：OpenAICompatible
+- **認證**：API Key（`sk-*`）
+- **模型**：gpt-4o、gpt-4o-mini、o1、o1-mini
+- **取得 API Key**：[platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+
+### DeepSeek
+
+- **Base URL**：`https://api.deepseek.com`
+- **類型**：OpenAICompatible
+- **認證**：API Key
+- **模型**：deepseek-chat、deepseek-reasoner
+- **取得 API Key**：[platform.deepseek.com](https://platform.deepseek.com/)
+
+### Kimi / Moonshot
+
+- **Base URL**：`https://api.moonshot.ai/v1`
+- **類型**：OpenAICompatible
+- **認證**：API Key / OAuth
+- **模型**：kimi-k2-0905-preview、moonshot-v1-128k
+- **取得 API Key**：[platform.moonshot.cn](https://platform.moonshot.cn/)
+
+### GLM (Zhipu)
+
+- **Base URL**：`https://api.z.ai/api/paas/v4`
+- **類型**：OpenAICompatible
+- **認證**：API Key
+- **模型**：glm-4.6、glm-4-plus
+- **取得 API Key**：[open.bigmodel.cn](https://open.bigmodel.cn/)
+
+### Groq
+
+- **Base URL**：`https://api.groq.com/openai/v1`
+- **類型**：OpenAICompatible
+- **認證**：API Key（`gsk_*`）
+- **模型**：llama-3.3-70b-versatile、mixtral-8x7b-32768、gemma2-9b-it
+- **取得 API Key**：[console.groq.com](https://console.groq.com/)
+- **備註**：開源模型的極快速推論
+
+### Mistral AI
+
+- **Base URL**：`https://api.mistral.ai/v1`
+- **類型**：OpenAICompatible
+- **認證**：API Key
+- **模型**：mistral-large-latest、mistral-small-latest
+- **取得 API Key**：[console.mistral.ai](https://console.mistral.ai/)
+
+### Together AI
+
+- **Base URL**：`https://api.together.xyz/v1`
+- **類型**：OpenAICompatible
+- **認證**：API Key
+- **模型**：meta-llama/Llama-3.3-70B-Instruct-Turbo 等多種開源模型
+- **取得 API Key**：[api.together.ai](https://api.together.ai/)
+
+### Perplexity
+
+- **Base URL**：`https://api.perplexity.ai`
+- **類型**：OpenAICompatible
+- **認證**：API Key（`pplx-*`）
+- **模型**：sonar-pro、sonar
+- **取得 API Key**：[perplexity.ai/settings/api](https://www.perplexity.ai/settings/api)
+- **備註**：模型具有內建網路搜尋功能
+
+### Cerebras
+
+- **Base URL**：`https://api.cerebras.ai/v1`
+- **類型**：OpenAICompatible
+- **認證**：API Key
+- **模型**：llama-3.3-70b
+- **取得 API Key**：[cloud.cerebras.ai](https://cloud.cerebras.ai/)
+- **備註**：快速推論平台
+
+### Azure OpenAI
+
+- **Base URL**：`https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT`
+- **類型**：OpenAICompatible
+- **認證**：API Key（透過 `api-key` 標頭，自動偵測）
+- **模型**：取決於部署（gpt-4o、gpt-4 等）
+- **設定**：[Azure Portal](https://portal.azure.com/)
+- **備註**：`query_params` 中必須包含 `api-version`
+
+### GitHub Copilot
+
+- **Base URL**：`https://api.githubcopilot.com`
+- **類型**：OpenAICompatible
+- **認證**：OAuth（Device Code 流程）
+- **模型**：gpt-4o（預設）
+- **備註**：需要有效的 GitHub Copilot 訂閱
+
+### GitLab Duo
+
+- **Base URL**：`https://gitlab.com/api/v4/ai/llm/proxy`（或自行管理的實例）
+- **類型**：OpenAICompatible
+- **認證**：OAuth（透過 `GITLAB_TOKEN` 的 Personal Access Token）
+- **模型**：claude-sonnet-4-20250514
+- **備註**：支援 `--enterprise-url` 用於自行管理的實例
+
+### ChatGPT / Codex（訂閱）
+
+- **Base URL**：`https://chatgpt.com/backend-api/codex`
+- **類型**：OpenAIResponses
+- **認證**：OAuth（瀏覽器 PKCE / Device Code）
+- **模型**：gpt-5.3-codex、gpt-5.1-codex、codex-mini-latest
+- **備註**：使用 Responses API，非 Chat Completions。`strip_params = "auto"` 會移除不支援的參數。
+
+### Claude（訂閱）
+
+- **Base URL**：`https://api.claude.ai`
+- **類型**：DirectAnthropic
+- **認證**：OAuth（讀取 `~/.claude/.credentials.json`）
+- **模型**：claude-sonnet-4、claude-opus-4、claude-haiku-4
+- **備註**：跳過代理。Claude Code 直接使用自身的 OAuth。
+
+### Google Gemini（訂閱）
+
+- **Base URL**：`https://generativelanguage.googleapis.com/v1beta/openai`
+- **類型**：OpenAICompatible
+- **認證**：OAuth（Gemini CLI 憑證）
+- **模型**：gemini-2.5-pro、gemini-2.0-flash
+
+### Qwen（訂閱）
+
+- **Base URL**：`https://chat.qwen.ai/api`
+- **類型**：OpenAICompatible
+- **認證**：OAuth（Device Code 流程）
+- **模型**：qwen3-235b-a22b、qwen-max
+
+### Ollama
+
+- **Base URL**：`http://localhost:11434/v1`
+- **類型**：OpenAICompatible
+- **認證**：無需
+- **模型**：任何已拉取的模型（qwen2.5、llama3.3 等）
+- **設定**：[ollama.com](https://ollama.com/)
+
+### vLLM
+
+- **Base URL**：`http://localhost:8000/v1`
+- **類型**：OpenAICompatible
+- **認證**：無需
+- **模型**：取決於啟動時載入的模型
+
+### LM Studio
+
+- **Base URL**：`http://localhost:1234/v1`
+- **類型**：OpenAICompatible
+- **認證**：無需 / `"lm-studio"`
+- **模型**：取決於載入的模型
+- **設定**：[lmstudio.ai](https://lmstudio.ai/)
+
+### AWS Bedrock（透過 LiteLLM）
+
+- **Base URL**：`http://localhost:4000/v1`（LiteLLM 代理）
+- **類型**：OpenAICompatible
+- **認證**：API Key（LiteLLM key）
+- **模型**：bedrock/anthropic.claude-sonnet-4-20250514-v2:0
+- **設定**：[docs.litellm.ai/docs/providers/bedrock](https://docs.litellm.ai/docs/providers/bedrock)

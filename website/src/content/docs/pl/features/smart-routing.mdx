@@ -5,24 +5,24 @@ description: Automatyczne trasowanie dostawcy oparte na intencjach
 
 import { Aside } from '@astrojs/starlight/components';
 
-Inteligentne trasowanie automatycznie wybiera najlepszego dostawcę dla każdego żądania na podstawie klasyfikacji intencji. Użyj `claudex run auto`, aby je aktywować.
+Inteligentne trasowanie automatycznie wybiera najlepszego dostawce dla kazdego zadania na podstawie klasyfikacji intencji. Uzyj `claudex run auto`, aby je aktywowac.
 
-## Jak to działa
+## Jak to dziala
 
-1. Użytkownik uruchamia `claudex run auto`
-2. Claude Code wysyła żądanie do proxy
-3. Proxy wyodrębnia wiadomość użytkownika i wysyła ją do lokalnego klasyfikatora (np. Ollama)
-4. Klasyfikator zwraca kategorię intencji (code, analysis, creative, search, math)
-5. Reguły trasowania mapują intencję na optymalny profil dostawcy
-6. Żądanie jest przekazywane do wybranego dostawcy
+1. Uzytkownik uruchamia `claudex run auto`
+2. Claude Code wysyla zadanie do proxy
+3. Proxy wyodrebnia wiadomosc uzytkownika i wysyla ja do lokalnego klasyfikatora (np. Ollama)
+4. Klasyfikator zwraca kategorie intencji (code, analysis, creative, search, math)
+5. Reguly trasowania mapuja intencje na optymalny profil dostawcy
+6. Zadanie jest przekazywane do wybranego dostawcy
 
 ## Konfiguracja
 
 ```toml
 [router]
 enabled = true
-profile = "local-qwen"      # ponowne użycie base_url + api_key profilu do klasyfikacji
-model = "qwen2.5:3b"        # nadpisanie modelu (opcjonalne, domyślnie default_model profilu)
+profile = "local-qwen"      # ponowne uzycie base_url + api_key profilu do klasyfikacji
+model = "qwen2.5:3b"        # nadpisanie modelu (opcjonalne, domyslnie default_model profilu)
 
 [router.rules]
 code = "deepseek"       # zadania programistyczne → DeepSeek
@@ -35,19 +35,19 @@ default = "grok"        # zapasowy dla niesklasyfikowanych
 
 ## Kategorie intencji
 
-| Intencja | Opis | Przykładowe zadania |
+| Intencja | Opis | Przykladowe zadania |
 |----------|------|---------------------|
-| `code` | Programowanie i generowanie kodu | Napisz funkcję, napraw błąd, refaktoryzuj kod |
-| `analysis` | Analiza danych i rozumowanie | Analizuj logi, porównaj podejścia, wyjaśnij koncepcje |
-| `creative` | Pisanie kreatywne i generowanie pomysłów | Napisz dokumentację, wymyślaj nazwy, redaguj e-maile |
-| `search` | Wyszukiwanie informacji | Znajdź dokumentację API, wyszukaj kody błędów |
-| `math` | Zadania matematyczne i logiczne | Oblicz złożoność, udowodnij poprawność |
+| `code` | Programowanie i generowanie kodu | Napisz funkcje, napraw blad, refaktoryzuj kod |
+| `analysis` | Analiza danych i rozumowanie | Analizuj logi, porownaj podejscia, wyjasnij koncepcje |
+| `creative` | Pisanie kreatywne i generowanie pomyslow | Napisz dokumentacje, wymyslaj nazwy, redaguj e-maile |
+| `search` | Wyszukiwanie informacji | Znajdz dokumentacje API, wyszukaj kody bledow |
+| `math` | Zadania matematyczne i logiczne | Oblicz zlozonosc, udowodnij poprawnosc |
 
 <Aside type="note">
-  Inteligentne trasowanie wymaga usługi LLM do klasyfikacji intencji. Ponownie używa `base_url` i `api_key` istniejącego profilu. Model klasyfikatora powinien być mały i szybki — `qwen2.5:3b` działa dobrze.
+  Inteligentne trasowanie wymaga uslugi LLM do klasyfikacji intencji. Ponownie uzywa `base_url` i `api_key` istniejacego profilu. Model klasyfikatora powinien byc maly i szybki — `qwen2.5:3b` dziala dobrze.
 </Aside>
 
-## Użycie
+## Uzycie
 
 ```bash
 # Uruchom z inteligentnym trasowaniem

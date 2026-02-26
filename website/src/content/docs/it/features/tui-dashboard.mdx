@@ -15,38 +15,38 @@ claudex dashboard
 claudex
 ```
 
-## Scorciatoie da Tastiera
+## Scorciatoie da tastiera
 
 | Tasto | Azione |
 |-------|--------|
 | `j` / `↓` | Sposta la selezione verso il basso |
 | `k` / `↑` | Sposta la selezione verso l'alto |
 | `Enter` | Avvia Claude Code con il profilo selezionato |
-| `t` | Testa la connettività per il profilo selezionato |
+| `t` | Testa la connettivita per il profilo selezionato |
 | `a` | Aggiungi un nuovo profilo (mostra suggerimento) |
 | `d` | Elimina il profilo selezionato (mostra suggerimento) |
 | `p` | Attiva/disattiva avvio/arresto del proxy |
-| `/` | Entra in modalità ricerca |
-| `Esc` | Esci dalla modalità ricerca / chiudi l'aiuto |
+| `/` | Entra in modalita ricerca |
+| `Esc` | Esci dalla modalita ricerca / chiudi l'aiuto |
 | `?` | Mostra il popup di aiuto |
 | `q` / `Ctrl+C` | Esci dalla dashboard |
 
-## Layout della Dashboard
+## Layout della dashboard
 
 La dashboard mostra:
 
-- **Elenco profili** — Tutti i profili configurati con nome, modello, tipo di provider e stato di salute
-- **Indicatori di salute** — Stato con codice colore (verde = sano, giallo = degradato, rosso = circuit breaker aperto)
-- **Pannello metriche** — Conteggio richieste per profilo, tasso di successo, latenza media
-- **Pannello log** — Output log a scorrimento in tempo reale
+- **Elenco profili**: tutti i profili configurati con nome, modello, tipo di fornitore e stato di salute
+- **Indicatori di salute**: stato con codice colore (verde = sano, giallo = degradato, rosso = circuit breaker aperto)
+- **Pannello metriche**: conteggio richieste per profilo, tasso di successo, latenza media
+- **Pannello log**: output log a scorrimento in tempo reale
 
-## Stato di Salute
+## Stato di salute
 
 La dashboard esegue un controllo dello stato in background che verifica tutti i profili abilitati ogni ~30 secondi. Lo stato viene riflesso in tempo reale:
 
 | Colore | Significato |
-|--------|------------|
-| Verde | Il provider risponde normalmente |
+|--------|-------------|
+| Verde | Il fornitore risponde normalmente |
 | Giallo | Guasti recenti rilevati |
-| Rosso | Il circuit breaker è aperto |
-| Grigio | Il profilo è disabilitato |
+| Rosso | Il circuit breaker e aperto |
+| Grigio | Il profilo e disabilitato |

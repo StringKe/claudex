@@ -1,11 +1,11 @@
 ---
-title: Actualizacion Automatica
+title: Actualizacion automatica
 description: Mantener Claudex actualizado con un solo comando
 ---
 
 Claudex puede comprobar e instalar actualizaciones directamente desde GitHub Releases.
 
-## Comprobar Actualizaciones
+## Comprobar actualizaciones
 
 ```bash
 claudex update --check
@@ -13,7 +13,7 @@ claudex update --check
 
 Esto consulta la API de GitHub para obtener la ultima version y la compara con la version instalada.
 
-## Instalar Actualizacion
+## Instalar actualizacion
 
 ```bash
 claudex update
@@ -21,7 +21,7 @@ claudex update
 
 Esto descarga el binario de la ultima version para tu plataforma, reemplaza el binario actual y verifica la instalacion.
 
-## Como Funciona
+## Como funciona
 
 1. Consultar la API de GitHub: `https://api.github.com/repos/StringKe/claudex/releases/latest`
 2. Comparar la version actual con la etiqueta de la ultima version
@@ -29,12 +29,12 @@ Esto descarga el binario de la ultima version para tu plataforma, reemplaza el b
 4. Extraer y reemplazar el binario en ejecucion
 5. Limpiar los archivos temporales
 
-## Plataformas Compatibles
+## Plataformas soportadas
 
-El mecanismo de actualizacion es compatible con las mismas plataformas que las compilaciones de version:
+El mecanismo de actualizacion soporta las mismas plataformas que las compilaciones de release:
 
-| Plataforma | Objetivo |
-|------------|----------|
+| Plataforma | Target |
+|------------|--------|
 | macOS Intel | `x86_64-apple-darwin` |
 | macOS Apple Silicon | `aarch64-apple-darwin` |
 | Linux x86_64 | `x86_64-unknown-linux-gnu` |

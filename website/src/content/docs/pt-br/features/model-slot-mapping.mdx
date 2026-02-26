@@ -1,0 +1,141 @@
+---
+title: Mapeamento de Slots de Modelo
+description: Mapeie o seletor /model do Claude Code para qualquer modelo de provedor
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+O Claude Code tem um comando `/model` embutido que alterna entre tres slots de modelo: **haiku** (rapido), **sonnet** (equilibrado) e **opus** (poderoso). Por padrao, estes mapeiam para modelos Anthropic, mas o Claudex permite mapear cada slot para qualquer modelo de qualquer provedor.
+
+## Configuracao
+
+Adicione uma tabela `[profiles.models]` a qualquer profile:
+
+```toml
+[[profiles]]
+name = "grok"
+provider_type = "OpenAICompatible"
+base_url = "https://api.x.ai/v1"
+api_key = "xai-..."
+default_model = "grok-3-beta"
+
+[profiles.models]
+haiku = "grok-3-mini-beta"
+sonnet = "grok-3-beta"
+opus = "grok-3-beta"
+```
+
+Quando voce digita `/model sonnet` dentro do Claude Code, o Claudex resolve para `grok-3-beta`. O comando `/model opus` mapeia para `grok-3-beta`, e assim por diante.
+
+## Como Funciona
+
+Ao lancar o Claude Code, o Claudex define tres variaveis de ambiente:
+
+| Variavel de Ambiente | Descricao |
+|---------------------|-----------|
+| `ANTHROPIC_DEFAULT_HAIKU_MODEL` | Nome do modelo para o slot haiku |
+| `ANTHROPIC_DEFAULT_SONNET_MODEL` | Nome do modelo para o slot sonnet |
+| `ANTHROPIC_DEFAULT_OPUS_MODEL` | Nome do modelo para o slot opus |
+
+O Claude Code le essas variaveis para popular seu seletor `/model`. Se um slot nao estiver configurado no profile, o `default_model` do profile e usado como fallback.
+
+## Exemplos de Mapeamento por Provedor
+
+### Grok (xAI)
+
+```toml
+[profiles.models]
+haiku = "grok-3-mini-beta"
+sonnet = "grok-3-beta"
+opus = "grok-3-beta"
+```
+
+### OpenAI
+
+```toml
+[profiles.models]
+haiku = "gpt-4o-mini"
+sonnet = "gpt-4o"
+opus = "o1"
+```
+
+### DeepSeek
+
+```toml
+[profiles.models]
+haiku = "deepseek-chat"
+sonnet = "deepseek-chat"
+opus = "deepseek-reasoner"
+```
+
+### Google Gemini
+
+```toml
+[profiles.models]
+haiku = "gemini-2.0-flash"
+sonnet = "gemini-2.5-pro"
+opus = "gemini-2.5-pro"
+```
+
+### ChatGPT Codex (Assinatura)
+
+```toml
+[profiles.models]
+haiku = "codex-mini-latest"
+sonnet = "gpt-5.3-codex"
+opus = "gpt-5.3-codex"
+```
+
+### Claude (Assinatura)
+
+```toml
+[profiles.models]
+haiku = "claude-haiku-4-20250514"
+sonnet = "claude-sonnet-4-20250514"
+opus = "claude-opus-4-20250514"
+```
+
+### Groq
+
+```toml
+[profiles.models]
+haiku = "gemma2-9b-it"
+sonnet = "llama-3.3-70b-versatile"
+opus = "llama-3.3-70b-versatile"
+```
+
+### Mistral
+
+```toml
+[profiles.models]
+haiku = "mistral-small-latest"
+sonnet = "mistral-large-latest"
+opus = "mistral-large-latest"
+```
+
+### Ollama (Local)
+
+```toml
+[profiles.models]
+haiku = "qwen2.5:7b"
+sonnet = "qwen2.5:32b"
+opus = "qwen2.5:72b"
+```
+
+## Comportamento Padrao
+
+Se `[profiles.models]` nao for especificado, todos os tres slots usam o `default_model` do profile como fallback. Isso significa que `/model haiku`, `/model sonnet` e `/model opus` usam todos o mesmo modelo.
+
+<Aside type="tip">
+  Para provedores com apenas um ou dois niveis de modelo, e comum mapear multiplos slots para o mesmo modelo. Por exemplo, o DeepSeek mapeia tanto haiku quanto sonnet para `deepseek-chat`, reservando opus para `deepseek-reasoner`.
+</Aside>
+
+## Override via Variavel de Ambiente
+
+Voce pode substituir slots sem modificar o config definindo variaveis de ambiente diretamente:
+
+```bash
+ANTHROPIC_DEFAULT_HAIKU_MODEL=my-fast-model claudex run grok
+```
+
+Variaveis de ambiente tem precedencia sobre a configuracao do profile.

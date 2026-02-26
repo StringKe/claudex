@@ -1,20 +1,20 @@
 ---
-title: Routing Intelligente
-description: Routing automatico del provider basato sull'intent
+title: Routing intelligente
+description: Routing automatico del fornitore basato sugli intenti
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Il routing intelligente seleziona automaticamente il provider migliore per ogni richiesta in base alla classificazione dell'intent. Usa `claudex run auto` per attivarlo.
+Il routing intelligente seleziona automaticamente il fornitore migliore per ogni richiesta in base alla classificazione degli intenti. Usa `claudex run auto` per attivarlo.
 
-## Come Funziona
+## Come funziona
 
 1. L'utente esegue `claudex run auto`
 2. Claude Code invia una richiesta al proxy
-3. Il proxy estrae il messaggio dell'utente e lo invia a un classificatore locale (es. Ollama)
-4. Il classificatore restituisce una categoria di intent (code, analysis, creative, search, math)
-5. Le regole di routing mappano l'intent al profilo provider ottimale
-6. La richiesta viene inoltrata al provider selezionato
+3. Il proxy estrae il messaggio dell'utente e lo invia a un classificatore locale (ad es. Ollama)
+4. Il classificatore restituisce una categoria di intento (code, analysis, creative, search, math)
+5. Le regole di routing mappano l'intento al profilo fornitore ottimale
+6. La richiesta viene inoltrata al fornitore selezionato
 
 ## Configurazione
 
@@ -22,29 +22,29 @@ Il routing intelligente seleziona automaticamente il provider migliore per ogni 
 [router]
 enabled = true
 profile = "local-qwen"      # riutilizza base_url + api_key di un profilo per la classificazione
-model = "qwen2.5:3b"        # modello override (opzionale, predefinito: default_model del profilo)
+model = "qwen2.5:3b"        # override modello (opzionale, predefinito: default_model del profilo)
 
 [router.rules]
-code = "deepseek"       # attività di codice → DeepSeek
-analysis = "grok"       # attività analitiche → Grok
+code = "deepseek"       # attivita di codice → DeepSeek
+analysis = "grok"       # attivita analitiche → Grok
 creative = "chatgpt"    # scrittura creativa → ChatGPT
 search = "kimi"         # ricerca/consultazione → Kimi
 math = "deepseek"       # matematica/logica → DeepSeek
-default = "grok"        # fallback per intent non classificato
+default = "grok"        # fallback per intento non classificato
 ```
 
-## Categorie di Intent
+## Categorie di intento
 
-| Intent | Descrizione | Esempi di Attività |
-|--------|-------------|-------------------|
+| Intento | Descrizione | Esempi di attivita |
+|---------|-------------|-------------------|
 | `code` | Programmazione e generazione di codice | Scrivere una funzione, correggere un bug, refactoring del codice |
 | `analysis` | Analisi dei dati e ragionamento | Analizzare log, confrontare approcci, spiegare concetti |
 | `creative` | Scrittura creativa e ideazione | Scrivere documentazione, proporre nomi, bozze di email |
 | `search` | Recupero di informazioni | Trovare documentazione API, cercare codici di errore |
-| `math` | Attività matematiche e logiche | Calcolare complessità, dimostrare correttezza |
+| `math` | Attivita matematiche e logiche | Calcolare complessita, dimostrare correttezza |
 
 <Aside type="note">
-  Il routing intelligente richiede un servizio LLM per la classificazione degli intent. Riutilizza `base_url` e `api_key` di un profilo esistente. Il modello classificatore dovrebbe essere piccolo e veloce — `qwen2.5:3b` funziona bene.
+  Il routing intelligente richiede un servizio LLM per la classificazione degli intenti. Riutilizza `base_url` e `api_key` di un profilo esistente. Il modello classificatore dovrebbe essere piccolo e veloce: `qwen2.5:3b` funziona bene.
 </Aside>
 
 ## Utilizzo

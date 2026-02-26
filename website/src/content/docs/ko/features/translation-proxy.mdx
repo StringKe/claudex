@@ -1,31 +1,42 @@
 ---
 title: 번역 프록시
-description: Anthropic-to-OpenAI 프로토콜 자동 변환
+description: 20개 이상의 프로바이더를 위한 Anthropic-to-OpenAI 프로토콜 자동 변환
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-번역 프록시는 Claudex의 핵심입니다. Claude Code와 AI 제공자 사이에 위치하여, Anthropic Messages API와 OpenAI Chat Completions API 간을 투명하게 변환합니다.
+번역 프록시는 Claudex의 핵심입니다. Claude Code와 AI 프로바이더 사이에 위치하여 Anthropic Messages API와 OpenAI Chat Completions API(또는 Responses API) 간을 투명하게 변환합니다.
 
 ## 작동 방식
 
 ```
-Claude Code → Anthropic Messages API 요청
+Claude Code → Anthropic Messages API request
     │
-    └── Claudex 프록시 (127.0.0.1:13456)
+    └── Claudex Proxy (127.0.0.1:13456)
         │
-        ├── DirectAnthropic 제공자 → 헤더와 함께 전달
+        ├── DirectAnthropic provider → forward with headers
         │
-        ├── OpenAICompatible 제공자
-        │   ├── 요청 변환: Anthropic → OpenAI Chat Completions
-        │   ├── 제공자에 전달
-        │   └── 응답 변환: OpenAI → Anthropic
+        ├── OpenAICompatible provider
+        │   ├── Translate request: Anthropic → OpenAI Chat Completions
+        │   ├── Apply query_params, strip_params, custom_headers
+        │   ├── Forward to provider
+        │   └── Translate response: OpenAI → Anthropic
         │
-        └── OpenAIResponses 제공자
-            ├── 요청 변환: Anthropic → OpenAI Responses API
-            ├── 제공자에 전달
-            └── 응답 변환: Responses → Anthropic
+        └── OpenAIResponses provider
+            ├── Translate request: Anthropic → OpenAI Responses API
+            ├── Forward to provider
+            └── Translate response: Responses → Anthropic
 ```
+
+## 프로바이더 어댑터
+
+Claudex는 프로바이더 API 간의 차이를 처리하기 위해 `ProviderAdapter` 트레잇을 사용합니다. 세 가지 어댑터가 구현되어 있습니다:
+
+| 어댑터 | 변환 | 사용 프로바이더 |
+|---------|-------------|---------|
+| **DirectAnthropic** | 없음 (패스스루) | Anthropic, MiniMax, Vertex AI |
+| **ChatCompletions** | 완전한 Anthropic 양방향 OpenAI 변환 | Grok, OpenAI, DeepSeek, Kimi, GLM, OpenRouter, Groq, Mistral, Together AI, Perplexity, Cerebras, Azure OpenAI, GitHub Copilot, GitLab Duo, Ollama, vLLM, LM Studio |
+| **Responses** | Anthropic 양방향 OpenAI Responses API | ChatGPT/Codex 구독 |
 
 ## 변환 대상
 
@@ -34,21 +45,32 @@ Claude Code → Anthropic Messages API 요청
 | Anthropic | OpenAI |
 |-----------|--------|
 | `system` 필드 | `messages` 배열의 시스템 메시지 |
-| `messages[].content` 블록 (text, image, tool_use) | `messages[].content` + `tool_calls` |
-| `tools` 배열 (JSON Schema) | `tools` 배열 (함수 형식) |
-| `tool_choice` | `tool_choice` |
-| `max_tokens` | `max_tokens` |
-| `temperature`, `top_p` | 직접 매핑 |
+| `messages[].content` 블록 (text, image, tool_use, tool_result) | `messages[].content` + `tool_calls` |
+| `tools` 배열 (`input_schema` 포함 JSON Schema) | `tools` 배열 (`parameters` 포함 함수 형식) |
+| `tool_choice` (`auto`, `any`, `{name}`) | `tool_choice` (`auto`, `required`, `{function: {name}}`) |
+| `max_tokens` | `max_tokens` (프로파일의 `max_tokens` 설정 시 상한 적용) |
+| `temperature`, `top_p` | 직접 매핑 (`strip_params` 매칭 시 제거) |
 
 ### 응답 변환 (OpenAI → Anthropic)
 
 | OpenAI | Anthropic |
 |--------|-----------|
-| `choices[0].message.content` | `content` 블록 |
-| `choices[0].message.tool_calls` | `tool_use` 콘텐츠 블록 |
+| `choices[0].message.content` | `content` 블록 (type: text) |
+| `choices[0].message.tool_calls` | `content` 블록 (type: tool_use) |
 | `finish_reason: stop` | `stop_reason: end_turn` |
 | `finish_reason: tool_calls` | `stop_reason: tool_use` |
 | `usage.prompt_tokens` / `completion_tokens` | `usage.input_tokens` / `output_tokens` |
+
+### 도구 이름 호환성
+
+Claude Code는 64자를 초과하는 도구 이름을 생성할 수 있습니다(예: `mcp__server-name__very-long-tool-name-that-exceeds-the-limit`). OpenAI와 많은 프로바이더가 64자 제한을 적용합니다.
+
+Claudex가 자동으로 처리하는 과정:
+1. 발신 요청에서 64자를 초과하는 이름을 단축
+2. 단축된 이름과 원래 이름의 매핑 테이블 구축
+3. 프로바이더 응답에서 원래 이름 복원
+
+이 왕복 처리는 완전히 투명합니다.
 
 ## 스트리밍 변환
 
@@ -63,25 +85,54 @@ Claudex는 SSE(Server-Sent Events) 스트리밍을 완전히 지원하며, OpenA
 
 스트리밍 변환기는 도구 호출 누적과 콘텐츠 블록 경계를 올바르게 처리하기 위해 상태 머신을 유지합니다.
 
-## 지원 제공자
+## Azure OpenAI 지원
 
-| 제공자 | 유형 | Base URL |
+Azure OpenAI는 다른 인증 및 URL 체계를 사용합니다:
+
+- **인증**: `Authorization: Bearer` 대신 `api-key` 헤더
+- **URL 형식**: `https://{resource}.openai.azure.com/openai/deployments/{deployment}`
+- **API 버전**: `query_params`를 통해 필수 지정
+
+Claudex는 `base_url`에 `openai.azure.com`이 포함되어 있는지 확인하여 Azure를 자동 감지하고 인증을 적절히 조정합니다.
+
+## 지원 프로바이더
+
+| 프로바이더 | 유형 | Base URL |
 |----------|------|----------|
 | Anthropic | DirectAnthropic | `https://api.anthropic.com` |
 | MiniMax | DirectAnthropic | `https://api.minimax.io/anthropic` |
+| Google Vertex AI | DirectAnthropic | `https://REGION-aiplatform.googleapis.com/v1/projects/...` |
 | OpenRouter | OpenAICompatible | `https://openrouter.ai/api/v1` |
 | Grok (xAI) | OpenAICompatible | `https://api.x.ai/v1` |
 | OpenAI | OpenAICompatible | `https://api.openai.com/v1` |
 | DeepSeek | OpenAICompatible | `https://api.deepseek.com` |
-| Kimi/Moonshot | OpenAICompatible | `https://api.moonshot.cn/v1` |
-| GLM (Zhipu) | OpenAICompatible | `https://open.bigmodel.cn/api/paas/v4` |
+| Kimi/Moonshot | OpenAICompatible | `https://api.moonshot.ai/v1` |
+| GLM (Zhipu) | OpenAICompatible | `https://api.z.ai/api/paas/v4` |
+| Groq | OpenAICompatible | `https://api.groq.com/openai/v1` |
+| Mistral AI | OpenAICompatible | `https://api.mistral.ai/v1` |
+| Together AI | OpenAICompatible | `https://api.together.xyz/v1` |
+| Perplexity | OpenAICompatible | `https://api.perplexity.ai` |
+| Cerebras | OpenAICompatible | `https://api.cerebras.ai/v1` |
+| Azure OpenAI | OpenAICompatible | `https://{resource}.openai.azure.com/...` |
+| GitHub Copilot | OpenAICompatible | `https://api.githubcopilot.com` |
+| GitLab Duo | OpenAICompatible | `https://gitlab.com/api/v4/ai/llm/proxy` |
 | Ollama | OpenAICompatible | `http://localhost:11434/v1` |
 | vLLM | OpenAICompatible | `http://localhost:8000/v1` |
+| LM Studio | OpenAICompatible | `http://localhost:1234/v1` |
 | ChatGPT/Codex 구독 | OpenAIResponses | `https://chatgpt.com/backend-api/codex` |
 
 <Aside type="tip">
-  DirectAnthropic 제공자는 변환이 필요 없습니다. OpenAIResponses 제공자는 Chat Completions(`/chat/completions`) 대신 Responses API(`/responses` 엔드포인트)를 사용합니다.
+  DirectAnthropic 프로바이더는 변환이 필요 없습니다. OpenAIResponses 프로바이더는 Chat Completions(`/chat/completions`) 대신 Responses API(`/responses` 엔드포인트)를 사용합니다.
 </Aside>
+
+## Models 엔드포인트
+
+프록시는 모든 활성 프로파일을 나열하는 `/v1/models` 엔드포인트를 제공합니다. 각 항목에는 커스텀 필드가 포함됩니다:
+
+- `x-claudex-profile`: 프로파일 이름
+- `x-claudex-provider`: 프로바이더 유형 (`anthropic`, `openai-compatible`, `openai-responses`)
+
+Claude Code가 이 엔드포인트를 쿼리하여 사용 가능한 모델을 검색합니다.
 
 ## 프록시 관리
 

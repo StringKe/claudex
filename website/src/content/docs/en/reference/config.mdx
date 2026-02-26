@@ -7,15 +7,16 @@ import { Aside } from '@astrojs/starlight/components';
 
 ## Config File Location
 
-Claudex searches for config files in this order:
+Claudex uses layered configuration via figment. Sources merge in this order (later overrides earlier):
 
-1. `$CLAUDEX_CONFIG` environment variable
-2. `./claudex.toml` (current directory)
-3. `./.claudex/config.toml` (current directory)
-4. Parent directories (up to 10 levels), checking both patterns
-5. `~/.config/claudex/config.toml` (XDG — checked **before** platform-specific paths)
+1. **Programmatic defaults**
+2. **Global config** (`~/.config/claudex/config.toml` or `.yaml`)
+3. **Project config** (`claudex.toml`/`.claudex/config.toml` in CWD or parents, or `$CLAUDEX_CONFIG`)
+4. **Environment variables** (`CLAUDEX_` prefix, `__` separator)
 
-See [Configuration](/en/configuration/) for full details.
+Both TOML and YAML formats are supported.
+
+See [Configuration](/en/configuration/) for setup details.
 
 ## Global Settings
 
@@ -31,6 +32,9 @@ proxy_host = "127.0.0.1"
 
 # Log level: trace, debug, info, warn, error
 log_level = "info"
+
+# Terminal hyperlinks (OSC 8): "auto" | true | false
+hyperlinks = "auto"
 ```
 
 | Field | Type | Default | Description |
@@ -39,6 +43,7 @@ log_level = "info"
 | `proxy_port` | integer | `13456` | Port the translation proxy listens on |
 | `proxy_host` | string | `"127.0.0.1"` | Address the proxy binds to |
 | `log_level` | string | `"info"` | Minimum log level |
+| `hyperlinks` | string/bool | `"auto"` | Terminal hyperlinks: `"auto"` (detect), `true` (force on), `false` (force off) |
 
 ## Model Aliases
 
@@ -75,6 +80,12 @@ custom_headers = {}
 extra_env = {}
 priority = 100
 enabled = true
+max_tokens = 16384                  # optional: cap output tokens
+strip_params = "auto"               # "auto" | "none" | ["temperature", "top_p"]
+
+# URL query parameters (e.g., Azure api-version)
+[profiles.query_params]
+# api-version = "2024-12-01-preview"
 
 # Model slot mapping (optional)
 [profiles.models]
@@ -92,12 +103,27 @@ opus = "grok-3-beta"
 | `api_key_keyring` | string | — | OS keychain entry name (overrides `api_key`) |
 | `default_model` | string | *required* | Model identifier to use by default |
 | `auth_type` | string | `"api-key"` | Authentication method: `"api-key"` or `"oauth"` |
-| `oauth_provider` | string | — | OAuth provider name (required when `auth_type = "oauth"`). One of: `claude`, `openai`, `google`, `qwen`, `kimi`, `github` |
+| `oauth_provider` | string | — | OAuth provider name. One of: `claude`, `openai`, `google`, `qwen`, `kimi`, `github`, `gitlab` |
 | `backup_providers` | string[] | `[]` | Profile names for failover, tried in order |
 | `custom_headers` | map | `{}` | Additional HTTP headers sent with every request |
 | `extra_env` | map | `{}` | Environment variables set when launching Claude |
 | `priority` | integer | `100` | Priority weight for smart routing (higher = preferred) |
 | `enabled` | boolean | `true` | Whether this profile is active |
+| `max_tokens` | integer | — | Cap max output tokens sent to provider. When set, overrides the `max_tokens` in requests |
+| `strip_params` | string/array | `"auto"` | Parameters to strip from requests. `"auto"` detects known endpoints; `"none"` sends all; array strips specific params |
+
+### Query Parameters
+
+```toml
+[profiles.query_params]
+api-version = "2024-12-01-preview"
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `query_params` | map | Key-value pairs appended as URL query parameters to every request |
+
+Used primarily for Azure OpenAI (`api-version`), but works with any provider.
 
 ### Model Slot Mapping
 
@@ -117,7 +143,7 @@ opus = "grok-3-beta"          # maps /model opus
 | `opus` | string | Model to use when Claude Code selects `opus` |
 
 <Aside type="tip">
-  If a slot is not defined, the profile's `default_model` is used as fallback.
+  If a slot is not defined, the profile's `default_model` is used as fallback. Slots are also exposed as environment variables: `ANTHROPIC_DEFAULT_HAIKU_MODEL`, `ANTHROPIC_DEFAULT_SONNET_MODEL`, `ANTHROPIC_DEFAULT_OPUS_MODEL`.
 </Aside>
 
 ### Provider Examples
@@ -178,17 +204,75 @@ backup_providers = ["grok"]
 [[profiles]]
 name = "kimi"
 provider_type = "OpenAICompatible"
-base_url = "https://api.moonshot.cn/v1"
+base_url = "https://api.moonshot.ai/v1"
 api_key = "..."
-default_model = "moonshot-v1-128k"
+default_model = "kimi-k2-0905-preview"
 
 # GLM / 智谱 (OpenAICompatible — needs translation)
 [[profiles]]
 name = "glm"
 provider_type = "OpenAICompatible"
-base_url = "https://open.bigmodel.cn/api/paas/v4"
+base_url = "https://api.z.ai/api/paas/v4"
 api_key = "..."
-default_model = "glm-4-plus"
+default_model = "glm-4.6"
+
+# Groq (OpenAICompatible — fast inference)
+[[profiles]]
+name = "groq"
+provider_type = "OpenAICompatible"
+base_url = "https://api.groq.com/openai/v1"
+api_key = "gsk_..."
+default_model = "llama-3.3-70b-versatile"
+
+# Mistral AI (OpenAICompatible — needs translation)
+[[profiles]]
+name = "mistral"
+provider_type = "OpenAICompatible"
+base_url = "https://api.mistral.ai/v1"
+api_key = "..."
+default_model = "mistral-large-latest"
+
+# Together AI (OpenAICompatible — needs translation)
+[[profiles]]
+name = "together"
+provider_type = "OpenAICompatible"
+base_url = "https://api.together.xyz/v1"
+api_key = "..."
+default_model = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+
+# Perplexity (OpenAICompatible — online search + LLM)
+[[profiles]]
+name = "perplexity"
+provider_type = "OpenAICompatible"
+base_url = "https://api.perplexity.ai"
+api_key = "pplx-..."
+default_model = "sonar-pro"
+
+# Cerebras (OpenAICompatible — fast inference)
+[[profiles]]
+name = "cerebras"
+provider_type = "OpenAICompatible"
+base_url = "https://api.cerebras.ai/v1"
+api_key = "..."
+default_model = "llama-3.3-70b"
+
+# Azure OpenAI (OpenAICompatible — api-key header + query_params)
+[[profiles]]
+name = "azure-openai"
+provider_type = "OpenAICompatible"
+base_url = "https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT"
+api_key = "YOUR_AZURE_KEY"
+default_model = "gpt-4o"
+[profiles.query_params]
+api-version = "2024-12-01-preview"
+
+# Google Vertex AI (DirectAnthropic)
+[[profiles]]
+name = "vertex-ai"
+provider_type = "DirectAnthropic"
+base_url = "https://us-east5-aiplatform.googleapis.com/v1/projects/YOUR_PROJECT/locations/us-east5/publishers/anthropic/models"
+api_key = "YOUR_GCLOUD_TOKEN"
+default_model = "claude-sonnet-4@20250514"
 
 # Ollama (local, no API key needed)
 [[profiles]]
@@ -207,39 +291,16 @@ base_url = "http://localhost:8000/v1"
 api_key = ""
 default_model = "llama-3.3-70b"
 enabled = false
-
-# ChatGPT/Codex subscription (OpenAIResponses — Responses API translation)
-[[profiles]]
-name = "codex-sub"
-provider_type = "OpenAIResponses"
-base_url = "https://chatgpt.com/backend-api/codex"
-default_model = "gpt-4o"
-auth_type = "oauth"
-oauth_provider = "openai"
 ```
 
 ### OAuth Profile Examples
 
 ```toml
-# OpenAI via OAuth (reads token from Codex CLI ~/.codex/auth.json)
+# Claude Max (skips proxy, uses Claude's native OAuth from ~/.claude)
 [[profiles]]
-name = "chatgpt-oauth"
-provider_type = "OpenAICompatible"
-base_url = "https://api.openai.com/v1"
-default_model = "gpt-4o"
-auth_type = "oauth"
-oauth_provider = "openai"
-
-[profiles.models]
-haiku = "gpt-4o-mini"
-sonnet = "gpt-4o"
-opus = "o1"
-
-# Claude subscription (skips proxy, uses Claude's native OAuth from ~/.claude)
-[[profiles]]
-name = "claude-sub"
+name = "claude-max"
 provider_type = "DirectAnthropic"
-base_url = "https://api.anthropic.com"
+base_url = "https://api.claude.ai"
 default_model = "claude-sonnet-4-20250514"
 auth_type = "oauth"
 oauth_provider = "claude"
@@ -249,9 +310,23 @@ haiku = "claude-haiku-4-20250514"
 sonnet = "claude-sonnet-4-20250514"
 opus = "claude-opus-4-20250514"
 
+# ChatGPT/Codex subscription (OpenAIResponses)
+[[profiles]]
+name = "codex-sub"
+provider_type = "OpenAIResponses"
+base_url = "https://chatgpt.com/backend-api/codex"
+default_model = "gpt-5.3-codex"
+auth_type = "oauth"
+oauth_provider = "openai"
+
+[profiles.models]
+haiku = "codex-mini-latest"
+sonnet = "gpt-5.3-codex"
+opus = "gpt-5.3-codex"
+
 # Google Gemini via OAuth
 [[profiles]]
-name = "gemini"
+name = "gemini-sub"
 provider_type = "OpenAICompatible"
 base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
 default_model = "gemini-2.5-pro"
@@ -271,37 +346,32 @@ oauth_provider = "kimi"
 [[profiles]]
 name = "qwen-oauth"
 provider_type = "OpenAICompatible"
-base_url = "https://chat.qwenlm.ai/api/chat/v1"
-default_model = "qwen-max"
+base_url = "https://chat.qwen.ai/api"
+default_model = "qwen3-235b-a22b"
 auth_type = "oauth"
 oauth_provider = "qwen"
 
 # GitHub Copilot via OAuth
 [[profiles]]
-name = "github-copilot"
+name = "copilot"
 provider_type = "OpenAICompatible"
 base_url = "https://api.githubcopilot.com"
 default_model = "gpt-4o"
 auth_type = "oauth"
 oauth_provider = "github"
 
-# ChatGPT/Codex subscription via OAuth (OpenAIResponses)
+# GitLab Duo via GITLAB_TOKEN
 [[profiles]]
-name = "codex-sub"
-provider_type = "OpenAIResponses"
-base_url = "https://chatgpt.com/backend-api/codex"
-default_model = "gpt-4o"
+name = "gitlab-duo"
+provider_type = "OpenAICompatible"
+base_url = "https://gitlab.com/api/v4/ai/llm/proxy"
+default_model = "claude-sonnet-4-20250514"
 auth_type = "oauth"
-oauth_provider = "openai"
-
-[profiles.models]
-haiku = "gpt-4o-mini"
-sonnet = "gpt-4o"
-opus = "o1-pro"
+oauth_provider = "gitlab"
 ```
 
 <Aside type="caution">
-  For the `claude` OAuth provider, Claudex uses a special gateway auth mode: it sets `ANTHROPIC_AUTH_TOKEN` (not `ANTHROPIC_API_KEY`) to avoid conflicting with Claude Code's own subscription login flow.
+  For the `claude` OAuth provider, Claudex skips the proxy and lets Claude Code use its own OAuth directly. For all other OAuth providers, the proxy handles token management and refresh.
 </Aside>
 
 ## Smart Router
@@ -358,8 +428,8 @@ model = "qwen2.5:3b"      # override model (optional)
 | `enabled` | boolean | `false` | Enable conversation compression |
 | `threshold_tokens` | integer | `50000` | Compress when token count exceeds this |
 | `keep_recent` | integer | `10` | Always keep the last N messages uncompressed |
-| `profile` | string | `""` | Profile name to reuse for summarization (uses its `base_url` + `api_key`) |
-| `model` | string | `""` | Model override for summarization (defaults to profile's `default_model`) |
+| `profile` | string | `""` | Profile name to reuse for summarization |
+| `model` | string | `""` | Model override for summarization |
 
 ### Cross-Profile Sharing
 
@@ -390,7 +460,7 @@ top_k = 5
 |-------|------|---------|-------------|
 | `enabled` | boolean | `false` | Enable local RAG |
 | `index_paths` | string[] | `[]` | Directories to index |
-| `profile` | string | `""` | Profile name to reuse for embeddings (uses its `base_url` + `api_key`) |
-| `model` | string | `""` | Embedding model name (defaults to profile's `default_model`) |
+| `profile` | string | `""` | Profile name to reuse for embeddings |
+| `model` | string | `""` | Embedding model name |
 | `chunk_size` | integer | `512` | Text chunk size in tokens |
 | `top_k` | integer | `5` | Number of results to inject |

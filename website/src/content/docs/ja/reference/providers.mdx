@@ -1,0 +1,239 @@
+---
+title: プロバイダー互換性
+description: 対応するすべての AI プロバイダーの完全な互換性テーブル
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## プロバイダー互換性テーブル
+
+| プロバイダー | タイプ | 認証 | ストリーミング | ツール使用 | モデルスロット | 備考 |
+|------------|--------|------|-------------|---------|-------------|------|
+| Anthropic | DirectAnthropic | API キー | 対応 | 対応 | 対応 | ネイティブ、翻訳なし |
+| MiniMax | DirectAnthropic | API キー | 対応 | 対応 | 対応 | Anthropic 互換プロキシ |
+| Google Vertex AI | DirectAnthropic | アクセストークン | 対応 | 対応 | 対応 | `gcloud auth print-access-token` |
+| OpenRouter | OpenAICompatible | API キー | 対応 | 対応 | 対応 | 単一 API で 200 以上のモデル |
+| Grok (xAI) | OpenAICompatible | API キー | 対応 | 対応 | 対応 | |
+| OpenAI | OpenAICompatible | API キー | 対応 | 対応 | 対応 | |
+| DeepSeek | OpenAICompatible | API キー | 対応 | 対応 | 対応 | |
+| Kimi / Moonshot | OpenAICompatible | API キー / OAuth | 対応 | 対応 | 対応 | |
+| GLM (Zhipu) | OpenAICompatible | API キー | 対応 | 対応 | 対応 | |
+| Groq | OpenAICompatible | API キー | 対応 | 対応 | 対応 | 超高速推論 |
+| Mistral AI | OpenAICompatible | API キー | 対応 | 対応 | 対応 | |
+| Together AI | OpenAICompatible | API キー | 対応 | 対応 | 対応 | |
+| Perplexity | OpenAICompatible | API キー | 対応 | 限定的 | 対応 | ウェブ検索組み込み |
+| Cerebras | OpenAICompatible | API キー | 対応 | 対応 | 対応 | 高速推論 |
+| Azure OpenAI | OpenAICompatible | API キー | 対応 | 対応 | 対応 | `api-key` ヘッダー + `query_params` |
+| GitHub Copilot | OpenAICompatible | OAuth | 対応 | 対応 | 対応 | デバイスコードフロー |
+| GitLab Duo | OpenAICompatible | OAuth (PAT) | 対応 | 対応 | 対応 | `GITLAB_TOKEN` 環境変数 |
+| ChatGPT/Codex | OpenAIResponses | OAuth | 対応 | 対応 | 対応 | Responses API |
+| Claude（サブスクリプション） | DirectAnthropic | OAuth | 対応 | 対応 | 対応 | プロキシスキップ |
+| Google Gemini（サブスクリプション） | OpenAICompatible | OAuth | 対応 | 対応 | 対応 | Gemini CLI クレデンシャル |
+| Qwen（サブスクリプション） | OpenAICompatible | OAuth | 対応 | 対応 | 対応 | デバイスコードフロー |
+| Ollama | OpenAICompatible | なし | 対応 | モデル依存 | 対応 | ローカル、API キー不要 |
+| vLLM | OpenAICompatible | なし | 対応 | モデル依存 | 対応 | ローカル |
+| LM Studio | OpenAICompatible | なし | 対応 | モデル依存 | 対応 | ローカル |
+| Bedrock（LiteLLM） | OpenAICompatible | API キー | 対応 | 対応 | 対応 | LiteLLM プロキシ経由 |
+
+## プロバイダー詳細
+
+### Anthropic
+
+- **ベース URL**: `https://api.anthropic.com`
+- **タイプ**: DirectAnthropic（翻訳不要）
+- **認証**: API キー（`sk-ant-*`）
+- **モデル**: claude-opus-4、claude-sonnet-4、claude-haiku-4
+- **API キー取得**: [console.anthropic.com](https://console.anthropic.com/)
+
+### MiniMax
+
+- **ベース URL**: `https://api.minimax.io/anthropic`
+- **タイプ**: DirectAnthropic（翻訳不要）
+- **認証**: API キー
+- **モデル**: Anthropic モデル名を使用（プロキシ）
+- **API キー取得**: [platform.minimaxi.com](https://platform.minimaxi.com/)
+
+### Google Vertex AI
+
+- **ベース URL**: `https://REGION-aiplatform.googleapis.com/v1/projects/PROJECT/locations/REGION/publishers/anthropic/models`
+- **タイプ**: DirectAnthropic
+- **認証**: GCP アクセストークン（`gcloud auth print-access-token`）
+- **モデル**: claude-sonnet-4@20250514、claude-opus-4@20250514
+- **セットアップ**: [Vertex AI Console](https://console.cloud.google.com/vertex-ai)
+
+### OpenRouter
+
+- **ベース URL**: `https://openrouter.ai/api/v1`
+- **タイプ**: OpenAICompatible
+- **認証**: API キー（`sk-or-*`）
+- **モデル**: 複数プロバイダーの 200 以上のモデル
+- **API キー取得**: [openrouter.ai/keys](https://openrouter.ai/keys)
+
+### Grok (xAI)
+
+- **ベース URL**: `https://api.x.ai/v1`
+- **タイプ**: OpenAICompatible
+- **認証**: API キー（`xai-*`）
+- **モデル**: grok-3-beta、grok-3-mini-beta
+- **API キー取得**: [console.x.ai](https://console.x.ai/)
+
+### OpenAI
+
+- **ベース URL**: `https://api.openai.com/v1`
+- **タイプ**: OpenAICompatible
+- **認証**: API キー（`sk-*`）
+- **モデル**: gpt-4o、gpt-4o-mini、o1、o1-mini
+- **API キー取得**: [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+
+### DeepSeek
+
+- **ベース URL**: `https://api.deepseek.com`
+- **タイプ**: OpenAICompatible
+- **認証**: API キー
+- **モデル**: deepseek-chat、deepseek-reasoner
+- **API キー取得**: [platform.deepseek.com](https://platform.deepseek.com/)
+
+### Kimi / Moonshot
+
+- **ベース URL**: `https://api.moonshot.ai/v1`
+- **タイプ**: OpenAICompatible
+- **認証**: API キー / OAuth
+- **モデル**: kimi-k2-0905-preview、moonshot-v1-128k
+- **API キー取得**: [platform.moonshot.cn](https://platform.moonshot.cn/)
+
+### GLM (Zhipu)
+
+- **ベース URL**: `https://api.z.ai/api/paas/v4`
+- **タイプ**: OpenAICompatible
+- **認証**: API キー
+- **モデル**: glm-4.6、glm-4-plus
+- **API キー取得**: [open.bigmodel.cn](https://open.bigmodel.cn/)
+
+### Groq
+
+- **ベース URL**: `https://api.groq.com/openai/v1`
+- **タイプ**: OpenAICompatible
+- **認証**: API キー（`gsk_*`）
+- **モデル**: llama-3.3-70b-versatile、mixtral-8x7b-32768、gemma2-9b-it
+- **API キー取得**: [console.groq.com](https://console.groq.com/)
+- **特記**: オープンソースモデルの超高速推論
+
+### Mistral AI
+
+- **ベース URL**: `https://api.mistral.ai/v1`
+- **タイプ**: OpenAICompatible
+- **認証**: API キー
+- **モデル**: mistral-large-latest、mistral-small-latest
+- **API キー取得**: [console.mistral.ai](https://console.mistral.ai/)
+
+### Together AI
+
+- **ベース URL**: `https://api.together.xyz/v1`
+- **タイプ**: OpenAICompatible
+- **認証**: API キー
+- **モデル**: meta-llama/Llama-3.3-70B-Instruct-Turbo、多数のオープンソースモデル
+- **API キー取得**: [api.together.ai](https://api.together.ai/)
+
+### Perplexity
+
+- **ベース URL**: `https://api.perplexity.ai`
+- **タイプ**: OpenAICompatible
+- **認証**: API キー（`pplx-*`）
+- **モデル**: sonar-pro、sonar
+- **API キー取得**: [perplexity.ai/settings/api](https://www.perplexity.ai/settings/api)
+- **特記**: ウェブ検索機能組み込みモデル
+
+### Cerebras
+
+- **ベース URL**: `https://api.cerebras.ai/v1`
+- **タイプ**: OpenAICompatible
+- **認証**: API キー
+- **モデル**: llama-3.3-70b
+- **API キー取得**: [cloud.cerebras.ai](https://cloud.cerebras.ai/)
+- **特記**: 高速推論プラットフォーム
+
+### Azure OpenAI
+
+- **ベース URL**: `https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT`
+- **タイプ**: OpenAICompatible
+- **認証**: API キー（`api-key` ヘッダー経由、自動検出）
+- **モデル**: デプロイメント依存（gpt-4o、gpt-4 等）
+- **セットアップ**: [Azure Portal](https://portal.azure.com/)
+- **特記**: `query_params` に `api-version` が必須
+
+### GitHub Copilot
+
+- **ベース URL**: `https://api.githubcopilot.com`
+- **タイプ**: OpenAICompatible
+- **認証**: OAuth（デバイスコードフロー）
+- **モデル**: gpt-4o（デフォルト）
+- **特記**: 有効な GitHub Copilot サブスクリプションが必要
+
+### GitLab Duo
+
+- **ベース URL**: `https://gitlab.com/api/v4/ai/llm/proxy`（またはセルフホスト）
+- **タイプ**: OpenAICompatible
+- **認証**: OAuth（`GITLAB_TOKEN` 経由のパーソナルアクセストークン）
+- **モデル**: claude-sonnet-4-20250514
+- **特記**: セルフホストインスタンス向けに `--enterprise-url` をサポート
+
+### ChatGPT / Codex（サブスクリプション）
+
+- **ベース URL**: `https://chatgpt.com/backend-api/codex`
+- **タイプ**: OpenAIResponses
+- **認証**: OAuth（ブラウザ PKCE / デバイスコード）
+- **モデル**: gpt-5.3-codex、gpt-5.1-codex、codex-mini-latest
+- **特記**: Chat Completions ではなく Responses API を使用。`strip_params = "auto"` で未対応パラメータを除去。
+
+### Claude（サブスクリプション）
+
+- **ベース URL**: `https://api.claude.ai`
+- **タイプ**: DirectAnthropic
+- **認証**: OAuth（`~/.claude/.credentials.json` から読み取り）
+- **モデル**: claude-sonnet-4、claude-opus-4、claude-haiku-4
+- **特記**: プロキシはスキップされます。Claude Code が自身の OAuth を直接使用。
+
+### Google Gemini（サブスクリプション）
+
+- **ベース URL**: `https://generativelanguage.googleapis.com/v1beta/openai`
+- **タイプ**: OpenAICompatible
+- **認証**: OAuth（Gemini CLI クレデンシャル）
+- **モデル**: gemini-2.5-pro、gemini-2.0-flash
+
+### Qwen（サブスクリプション）
+
+- **ベース URL**: `https://chat.qwen.ai/api`
+- **タイプ**: OpenAICompatible
+- **認証**: OAuth（デバイスコードフロー）
+- **モデル**: qwen3-235b-a22b、qwen-max
+
+### Ollama
+
+- **ベース URL**: `http://localhost:11434/v1`
+- **タイプ**: OpenAICompatible
+- **認証**: 不要
+- **モデル**: プル済みの任意のモデル（qwen2.5、llama3.3 等）
+- **セットアップ**: [ollama.com](https://ollama.com/)
+
+### vLLM
+
+- **ベース URL**: `http://localhost:8000/v1`
+- **タイプ**: OpenAICompatible
+- **認証**: 不要
+- **モデル**: サーブされたモデルに依存
+
+### LM Studio
+
+- **ベース URL**: `http://localhost:1234/v1`
+- **タイプ**: OpenAICompatible
+- **認証**: なし / `"lm-studio"`
+- **モデル**: ロードされたモデルに依存
+- **セットアップ**: [lmstudio.ai](https://lmstudio.ai/)
+
+### AWS Bedrock（LiteLLM 経由）
+
+- **ベース URL**: `http://localhost:4000/v1`（LiteLLM プロキシ）
+- **タイプ**: OpenAICompatible
+- **認証**: API キー（LiteLLM キー）
+- **モデル**: bedrock/anthropic.claude-sonnet-4-20250514-v2:0
+- **セットアップ**: [docs.litellm.ai/docs/providers/bedrock](https://docs.litellm.ai/docs/providers/bedrock)

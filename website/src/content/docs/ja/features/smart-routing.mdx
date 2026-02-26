@@ -7,13 +7,13 @@ import { Aside } from '@astrojs/starlight/components';
 
 スマートルーティングはインテント分類に基づいて各リクエストに最適なプロバイダーを自動的に選択します。`claudex run auto` で有効化できます。
 
-## 仕組み
+## 動作の仕組み
 
-1. ユーザーが `claudex run auto` を実行する
-2. Claude Code がプロキシにリクエストを送信する
-3. プロキシがユーザーのメッセージを抽出し、ローカル分類器 (例: Ollama) に送信する
-4. 分類器がインテントカテゴリ (code、analysis、creative、search、math) を返す
-5. ルーティングルールがインテントを最適なプロバイダープロファイルにマッピングする
+1. ユーザーが `claudex run auto` を実行
+2. Claude Code がプロキシにリクエストを送信
+3. プロキシがユーザーのメッセージを抽出し、ローカル分類器（例: Ollama）に送信
+4. 分類器がインテントカテゴリ（code、analysis、creative、search、math）を返す
+5. ルーティングルールがインテントを最適なプロバイダープロファイルにマッピング
 6. リクエストが選択されたプロバイダーに転送される
 
 ## 設定
@@ -22,13 +22,13 @@ import { Aside } from '@astrojs/starlight/components';
 [router]
 enabled = true
 profile = "local-qwen"      # 分類に使用するプロファイルの base_url + api_key を再利用
-model = "qwen2.5:3b"        # モデルを上書き (任意、デフォルトはプロファイルの default_model)
+model = "qwen2.5:3b"        # モデルを上書き（任意、デフォルトはプロファイルの default_model）
 
 [router.rules]
 code = "deepseek"       # コーディングタスク → DeepSeek
 analysis = "grok"       # 分析タスク → Grok
 creative = "chatgpt"    # クリエイティブライティング → ChatGPT
-search = "kimi"         # 検索/調査 → Kimi
+search = "kimi"         # 検索/リサーチ → Kimi
 math = "deepseek"       # 数学/論理 → DeepSeek
 default = "grok"        # 未分類のフォールバック
 ```
@@ -36,15 +36,15 @@ default = "grok"        # 未分類のフォールバック
 ## インテントカテゴリ
 
 | インテント | 説明 | タスク例 |
-|------------|------|----------|
+|-----------|------|---------|
 | `code` | プログラミングとコード生成 | 関数の作成、バグ修正、リファクタリング |
 | `analysis` | データ分析と推論 | ログ分析、アプローチの比較、概念の説明 |
 | `creative` | クリエイティブライティングとアイデア出し | ドキュメント作成、名前のブレインストーミング、メール下書き |
 | `search` | 情報検索 | API ドキュメントの検索、エラーコードの調査 |
-| `math` | 数学的・論理的タスク | 計算量の計算、正確性の証明 |
+| `math` | 数学的・論理的タスク | 計算量の算出、正確性の証明 |
 
 <Aside type="note">
-  スマートルーティングはインテント分類のために LLM サービスが必要です。既存のプロファイルの `base_url` と `api_key` を再利用します。分類器モデルは小さくて高速なものが望ましいです。`qwen2.5:3b` が適しています。
+  スマートルーティングにはインテント分類のための LLM サービスが必要です。既存のプロファイルの `base_url` と `api_key` を再利用します。分類器モデルは小さくて高速なものが適しています。`qwen2.5:3b` が推奨されます。
 </Aside>
 
 ## 使用方法

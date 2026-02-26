@@ -1,0 +1,196 @@
+---
+title: 설정 세트
+description: 재사용 가능한 규칙, 스킬, MCP 서버 번들을 설치하고 관리
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+설정 세트는 CLAUDE.md 규칙, 스킬, MCP 서버 설정을 번들링하는 설치 가능하고 버전 관리되는 패키지입니다. 프로젝트와 팀 간에 Claude Code 설정을 공유하고 재사용할 수 있는 이식 가능한 방법을 제공합니다.
+
+## 개요
+
+설정 세트는 컴포넌트를 선언하는 `manifest.json`(또는 `manifest.yaml`)이 포함된 디렉토리입니다:
+
+```
+my-set/
+├── manifest.json
+├── rules/
+│   └── coding-standards.md
+├── skills/
+│   └── deploy.md
+└── claude.md
+```
+
+## 매니페스트 스키마
+
+```json
+{
+  "name": "my-config-set",
+  "version": "1.0.0",
+  "description": "My team's coding standards and tools",
+  "author": "team-name",
+  "components": {
+    "claude_md": {
+      "path": "claude.md",
+      "strategy": "append"
+    },
+    "rules": [
+      {
+        "name": "coding-standards",
+        "path": "rules/coding-standards.md"
+      }
+    ],
+    "skills": [
+      {
+        "name": "deploy",
+        "path": "skills/deploy.md"
+      }
+    ],
+    "mcp_servers": [
+      {
+        "name": "my-server",
+        "server_type": "stdio",
+        "command": "npx",
+        "args": ["-y", "@myorg/mcp-server"],
+        "env": {
+          "API_KEY": "${MY_API_KEY}"
+        }
+      }
+    ]
+  },
+  "env": [
+    {
+      "name": "MY_API_KEY",
+      "description": "API key for the MCP server",
+      "required": true
+    }
+  ]
+}
+```
+
+### 이름 검증
+
+세트 이름은 `^[a-z0-9][a-z0-9._-]*$` 패턴과 일치해야 합니다:
+- 소문자 또는 숫자로 시작
+- 소문자, 숫자, 점, 밑줄, 하이픈만 포함 가능
+
+### 컴포넌트
+
+| 컴포넌트 | 설명 |
+|-----------|-------------|
+| `claude_md` | 프로젝트의 CLAUDE.md에 병합할 콘텐츠 |
+| `rules` | `.claude/rules/`에 설치되는 규칙 파일 |
+| `skills` | `.claude/skills/`에 설치되는 스킬 정의 |
+| `mcp_servers` | `.claude/settings.json`에 추가되는 MCP 서버 설정 |
+
+### MCP 서버 유형
+
+| 유형 | 필수 필드 | 설명 |
+|------|----------------|-------------|
+| `stdio` | `command` | stdin/stdout을 통한 로컬 프로세스 |
+| `http` | `url` | 원격 HTTP 기반 MCP 서버 |
+
+```json
+// stdio 서버
+{
+  "name": "local-tools",
+  "server_type": "stdio",
+  "command": "node",
+  "args": ["./server.js"],
+  "env": {"DEBUG": "true"}
+}
+
+// http 서버
+{
+  "name": "remote-api",
+  "server_type": "http",
+  "url": "https://mcp.example.com/api",
+  "headers": {"Authorization": "Bearer ${TOKEN}"}
+}
+```
+
+### 환경 변수
+
+`env` 배열은 필수 또는 선택적 환경 변수를 선언합니다:
+
+```json
+{
+  "env": [
+    {
+      "name": "API_KEY",
+      "description": "API key for the service",
+      "required": true
+    },
+    {
+      "name": "DEBUG",
+      "description": "Enable debug mode",
+      "required": false,
+      "default": "false"
+    }
+  ]
+}
+```
+
+MCP 서버 설정에서 `${VAR_NAME}`으로 참조되는 변수는 설치 시점에 환경에서 해석됩니다.
+
+## CLI 명령
+
+### 세트 설치
+
+```bash
+claudex sets add ./path/to/set
+```
+
+매니페스트를 검증하고, 기존 세트와의 충돌을 확인한 후 모든 컴포넌트를 설치합니다.
+
+### 설치된 세트 목록
+
+```bash
+claudex sets list
+```
+
+모든 설치된 세트의 버전, 설명, 컴포넌트 수를 표시합니다.
+
+### 세트 상세 정보
+
+```bash
+claudex sets show <NAME>
+```
+
+설치된 세트의 모든 규칙, 스킬, MCP 서버를 포함한 상세 정보를 표시합니다.
+
+### 세트 업데이트
+
+```bash
+claudex sets update <NAME> ./path/to/new-version
+```
+
+기존 세트를 새 버전으로 업데이트합니다. 이전 컴포넌트를 제거하고 새 컴포넌트를 설치합니다.
+
+### 세트 제거
+
+```bash
+claudex sets remove <NAME>
+```
+
+설치된 세트와 해당 세트의 모든 컴포넌트를 제거합니다.
+
+## 충돌 감지
+
+세트를 설치할 때 Claudex가 충돌을 확인합니다:
+
+- **규칙 이름 충돌**: 두 세트가 같은 파일명의 규칙을 설치할 수 없음
+- **스킬 이름 충돌**: 두 세트가 같은 이름의 스킬을 설치할 수 없음
+- **MCP 서버 충돌**: 두 세트가 같은 이름의 MCP 서버를 정의할 수 없음
+
+충돌이 감지되면, 충돌하는 컴포넌트를 소유한 기존 세트를 나타내는 설명적 오류 메시지와 함께 설치가 중단됩니다.
+
+## 잠금 파일
+
+설치된 세트는 다음을 기록하는 잠금 파일로 추적됩니다:
+
+- 세트 이름과 버전
+- 설치된 컴포넌트 경로
+- 설치 타임스탬프
+
+이를 통해 깔끔한 제거 및 업데이트 작업이 가능합니다.

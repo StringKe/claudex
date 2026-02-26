@@ -1,102 +1,153 @@
 ---
 title: Proxy de traduction
-description: Traduction automatique du protocole Anthropic vers OpenAI
+description: Traduction automatique du protocole Anthropic vers OpenAI pour plus de 20 fournisseurs
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Le proxy de traduction est le cœur de Claudex. Il s'intercale entre Claude Code et vos fournisseurs d'IA, convertissant de manière transparente entre l'API Anthropic Messages et l'API OpenAI Chat Completions.
+Le proxy de traduction est le coeur de Claudex. Il s'intercale entre Claude Code et vos fournisseurs IA, convertissant de maniere transparente entre l'API Anthropic Messages et l'API OpenAI Chat Completions (ou l'API Responses).
 
-## Comment ça fonctionne
+## Fonctionnement
 
 ```
-Claude Code → requête API Anthropic Messages
+Claude Code → Anthropic Messages API request
     │
-    └── Proxy Claudex (127.0.0.1:13456)
+    └── Claudex Proxy (127.0.0.1:13456)
         │
-        ├── Fournisseur DirectAnthropic → transmission avec en-têtes
+        ├── DirectAnthropic provider → forward with headers
         │
-        ├── Fournisseur OpenAICompatible
-        │   ├── Traduire la requête : Anthropic → OpenAI Chat Completions
-        │   ├── Transmettre au fournisseur
-        │   └── Traduire la réponse : OpenAI → Anthropic
+        ├── OpenAICompatible provider
+        │   ├── Translate request: Anthropic → OpenAI Chat Completions
+        │   ├── Apply query_params, strip_params, custom_headers
+        │   ├── Forward to provider
+        │   └── Translate response: OpenAI → Anthropic
         │
-        └── Fournisseur OpenAIResponses
-            ├── Traduire la requête : Anthropic → API OpenAI Responses
-            ├── Transmettre au fournisseur
-            └── Traduire la réponse : Responses → Anthropic
+        └── OpenAIResponses provider
+            ├── Translate request: Anthropic → OpenAI Responses API
+            ├── Forward to provider
+            └── Translate response: Responses → Anthropic
 ```
+
+## Adaptateurs de fournisseurs
+
+Claudex utilise un trait `ProviderAdapter` pour gerer les differences entre les API des fournisseurs. Trois adaptateurs sont implementes :
+
+| Adaptateur | Traduction | Utilise par |
+|------------|------------|-------------|
+| **DirectAnthropic** | Aucune (passthrough) | Anthropic, MiniMax, Vertex AI |
+| **ChatCompletions** | Traduction complete Anthropic ↔ OpenAI | Grok, OpenAI, DeepSeek, Kimi, GLM, OpenRouter, Groq, Mistral, Together AI, Perplexity, Cerebras, Azure OpenAI, GitHub Copilot, GitLab Duo, Ollama, vLLM, LM Studio |
+| **Responses** | Anthropic ↔ API OpenAI Responses | Abonnements ChatGPT/Codex |
 
 ## Ce qui est traduit
 
-### Traduction des requêtes (Anthropic → OpenAI)
+### Traduction des requetes (Anthropic → OpenAI)
 
 | Anthropic | OpenAI |
 |-----------|--------|
-| Champ `system` | Message système dans le tableau `messages` |
-| Blocs `messages[].content` (text, image, tool_use) | `messages[].content` + `tool_calls` |
-| Tableau `tools` (JSON Schema) | Tableau `tools` (format function) |
-| `tool_choice` | `tool_choice` |
-| `max_tokens` | `max_tokens` |
-| `temperature`, `top_p` | Correspondance directe |
+| Champ `system` | Message systeme dans le tableau `messages` |
+| Blocs `messages[].content` (text, image, tool_use, tool_result) | `messages[].content` + `tool_calls` |
+| Tableau `tools` (JSON Schema avec `input_schema`) | Tableau `tools` (format function avec `parameters`) |
+| `tool_choice` (`auto`, `any`, `{name}`) | `tool_choice` (`auto`, `required`, `{function: {name}}`) |
+| `max_tokens` | `max_tokens` (plafonne par le parametre `max_tokens` du profil si defini) |
+| `temperature`, `top_p` | Correspondance directe (supprime si `strip_params` correspond) |
 
-### Traduction des réponses (OpenAI → Anthropic)
+### Traduction des reponses (OpenAI → Anthropic)
 
 | OpenAI | Anthropic |
 |--------|-----------|
-| `choices[0].message.content` | Blocs `content` |
-| `choices[0].message.tool_calls` | Blocs de contenu `tool_use` |
+| `choices[0].message.content` | Blocs `content` (type: text) |
+| `choices[0].message.tool_calls` | Blocs `content` (type: tool_use) |
 | `finish_reason: stop` | `stop_reason: end_turn` |
 | `finish_reason: tool_calls` | `stop_reason: tool_use` |
 | `usage.prompt_tokens` / `completion_tokens` | `usage.input_tokens` / `output_tokens` |
 
+### Compatibilite des noms d'outils
+
+Claude Code peut generer des noms d'outils depassant 64 caracteres (par ex. `mcp__server-name__very-long-tool-name-that-exceeds-the-limit`). OpenAI et de nombreux fournisseurs imposent une limite de 64 caracteres.
+
+Claudex automatiquement :
+1. Tronque les noms depassant 64 caracteres dans les requetes sortantes
+2. Construit une table de correspondance des noms tronques vers les originaux
+3. Restaure les noms originaux dans les reponses du fournisseur
+
+Cet aller-retour est entierement transparent.
+
 ## Traduction en streaming
 
-Claudex prend entièrement en charge le streaming SSE (Server-Sent Events), traduisant les chunks de flux OpenAI en événements de flux Anthropic en temps réel :
+Claudex supporte entierement le streaming SSE (Server-Sent Events), traduisant les chunks de flux OpenAI en evenements de flux Anthropic en temps reel :
 
 | SSE OpenAI | SSE Anthropic |
 |------------|---------------|
 | Premier chunk | `message_start` + `content_block_start` |
 | `choices[0].delta.content` | `content_block_delta` (text_delta) |
 | `choices[0].delta.tool_calls` | `content_block_delta` (input_json_delta) |
-| `finish_reason` présent | `content_block_stop` + `message_delta` + `message_stop` |
+| `finish_reason` present | `content_block_stop` + `message_delta` + `message_stop` |
 
-Le traducteur en streaming maintient une machine d'état pour gérer correctement l'accumulation des appels d'outils et les limites des blocs de contenu.
+Le traducteur en streaming maintient une machine d'etat pour gerer correctement l'accumulation des appels d'outils et les limites des blocs de contenu.
 
-## Fournisseurs pris en charge
+## Support Azure OpenAI
+
+Azure OpenAI utilise un schema d'authentification et d'URL different :
+
+- **Authentification** : en-tete `api-key` au lieu de `Authorization: Bearer`
+- **Format d'URL** : `https://{resource}.openai.azure.com/openai/deployments/{deployment}`
+- **Version API** : requise via `query_params`
+
+Claudex detecte automatiquement Azure en verifiant si la `base_url` contient `openai.azure.com` et ajuste l'authentification en consequence.
+
+## Fournisseurs supportes
 
 | Fournisseur | Type | URL de base |
 |-------------|------|-------------|
 | Anthropic | DirectAnthropic | `https://api.anthropic.com` |
 | MiniMax | DirectAnthropic | `https://api.minimax.io/anthropic` |
+| Google Vertex AI | DirectAnthropic | `https://REGION-aiplatform.googleapis.com/v1/projects/...` |
 | OpenRouter | OpenAICompatible | `https://openrouter.ai/api/v1` |
 | Grok (xAI) | OpenAICompatible | `https://api.x.ai/v1` |
 | OpenAI | OpenAICompatible | `https://api.openai.com/v1` |
 | DeepSeek | OpenAICompatible | `https://api.deepseek.com` |
-| Kimi/Moonshot | OpenAICompatible | `https://api.moonshot.cn/v1` |
-| GLM (Zhipu) | OpenAICompatible | `https://open.bigmodel.cn/api/paas/v4` |
+| Kimi/Moonshot | OpenAICompatible | `https://api.moonshot.ai/v1` |
+| GLM (Zhipu) | OpenAICompatible | `https://api.z.ai/api/paas/v4` |
+| Groq | OpenAICompatible | `https://api.groq.com/openai/v1` |
+| Mistral AI | OpenAICompatible | `https://api.mistral.ai/v1` |
+| Together AI | OpenAICompatible | `https://api.together.xyz/v1` |
+| Perplexity | OpenAICompatible | `https://api.perplexity.ai` |
+| Cerebras | OpenAICompatible | `https://api.cerebras.ai/v1` |
+| Azure OpenAI | OpenAICompatible | `https://{resource}.openai.azure.com/...` |
+| GitHub Copilot | OpenAICompatible | `https://api.githubcopilot.com` |
+| GitLab Duo | OpenAICompatible | `https://gitlab.com/api/v4/ai/llm/proxy` |
 | Ollama | OpenAICompatible | `http://localhost:11434/v1` |
 | vLLM | OpenAICompatible | `http://localhost:8000/v1` |
+| LM Studio | OpenAICompatible | `http://localhost:1234/v1` |
 | ChatGPT/Codex sub | OpenAIResponses | `https://chatgpt.com/backend-api/codex` |
 
 <Aside type="tip">
-  Les fournisseurs DirectAnthropic ne nécessitent aucune traduction. Les fournisseurs OpenAIResponses utilisent l'API Responses (point de terminaison `/responses`) au lieu de Chat Completions (`/chat/completions`).
+  Les fournisseurs DirectAnthropic ne necessitent aucune traduction. Les fournisseurs OpenAIResponses utilisent l'API Responses (endpoint `/responses`) au lieu de Chat Completions (`/chat/completions`).
 </Aside>
+
+## Endpoint Models
+
+Le proxy expose un endpoint `/v1/models` qui liste tous les profils actives. Chaque entree inclut des champs personnalises :
+
+- `x-claudex-profile` : nom du profil
+- `x-claudex-provider` : type de fournisseur (`anthropic`, `openai-compatible`, `openai-responses`)
+
+Claude Code interroge cet endpoint pour decouvrir les modeles disponibles.
 
 ## Gestion du proxy
 
 ```bash
-# Démarrer le proxy en tant que démon
+# Demarrer le proxy en tant que daemon
 claudex proxy start -d
 
-# Vérifier le statut du proxy
+# Verifier le statut du proxy
 claudex proxy status
 
-# Arrêter le démon proxy
+# Arreter le daemon proxy
 claudex proxy stop
 
-# Démarrer sur un port personnalisé
+# Demarrer sur un port personnalise
 claudex proxy start -p 8080
 ```
 
-Lorsque vous exécutez `claudex run <profile>`, le proxy est automatiquement démarré en arrière-plan s'il ne tourne pas déjà.
+Lorsque vous executez `claudex run <profile>`, le proxy est automatiquement demarre en arriere-plan s'il ne tourne pas deja.

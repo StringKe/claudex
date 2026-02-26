@@ -12,7 +12,7 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
     ```bash
     curl -fsSL https://raw.githubusercontent.com/StringKe/claudex/main/install.sh | bash
     ```
-    安装脚本自动检测 OS 和架构，从 GitHub 下载最新 release，安装到 `~/.local/bin/claudex`。
+    安装脚本会自动检测你的操作系统和架构，从 GitHub 下载最新版本，并安装到 `~/.local/bin/claudex`。
 
     自定义安装目录：
     ```bash
@@ -23,7 +23,7 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
     ```bash
     cargo install --git https://github.com/StringKe/claudex
     ```
-    需要 Rust 工具链。二进制文件安装到 `~/.cargo/bin/claudex`。
+    需要 Rust 工具链。二进制文件将安装到 `~/.cargo/bin/claudex`。
   </TabItem>
   <TabItem label="GitHub Releases" icon="github">
     从 [GitHub Releases](https://github.com/StringKe/claudex/releases) 下载适合你平台的预编译二进制文件。
@@ -37,7 +37,7 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
     - `aarch64-apple-darwin`
     - `x86_64-pc-windows-msvc`
 
-    解压并放入 PATH：
+    解压并将二进制文件放入你的 `PATH`：
     ```bash
     tar xzf claudex-v*.tar.gz
     chmod +x claudex
@@ -48,9 +48,9 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
 
 ## 系统要求
 
-| 要求 | 说明 |
+| 要求 | 详情 |
 |------|------|
-| **操作系统** | macOS（Intel / Apple Silicon）、Linux（x86_64 / ARM64）、Windows（x86_64） |
+| **操作系统** | macOS (Intel / Apple Silicon)、Linux (x86_64 / ARM64)、Windows (x86_64) |
 | **Claude Code** | 必须已安装，且 `claude` 命令在 PATH 中可用 |
 | **可选** | [Ollama](https://ollama.com) 用于智能路由和上下文引擎功能 |
 
@@ -60,6 +60,6 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
 claudex --version
 ```
 
-## 下一步
+## 后续步骤
 
 安装完成后，[配置你的第一个提供商 profile](/zh-cn/configuration/)。

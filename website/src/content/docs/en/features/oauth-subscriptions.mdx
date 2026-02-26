@@ -1,0 +1,198 @@
+---
+title: OAuth Subscriptions
+description: Use existing provider subscriptions with Claude Code through OAuth authentication
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Claudex supports OAuth-based authentication for 7 providers, letting you use existing subscriptions (Claude Max, ChatGPT Plus, GitHub Copilot, etc.) without separate API keys.
+
+## Overview
+
+Instead of providing an `api_key`, you configure `auth_type = "oauth"` and specify an `oauth_provider`. Claudex handles the full credential chain: reading tokens from native CLI configs, performing device code flows, storing tokens in the system keyring, and auto-refreshing before expiry.
+
+```toml
+[[profiles]]
+name = "codex-sub"
+provider_type = "OpenAIResponses"
+base_url = "https://chatgpt.com/backend-api/codex"
+default_model = "gpt-5.3-codex"
+auth_type = "oauth"
+oauth_provider = "openai"
+```
+
+## Supported Providers
+
+| Provider | `oauth_provider` | Login Method | Fallback |
+|----------|-----------------|--------------|----------|
+| Claude | `claude` | Reads `~/.claude/.credentials.json` | — |
+| ChatGPT/Codex | `openai` | Browser PKCE or Device Code | `~/.codex/auth.json` (Codex CLI) |
+| Google Gemini | `google` | Reads Gemini CLI credentials | — |
+| Kimi | `kimi` | Reads Kimi CLI credentials | — |
+| Qwen | `qwen` | Device Code flow | — |
+| GitHub Copilot | `github` | Device Code flow | `~/.config/github-copilot/` |
+| GitLab Duo | `gitlab` | `GITLAB_TOKEN` environment variable | — |
+
+## Credential Chain
+
+Each provider follows a credential chain pattern:
+
+1. **Check system keyring** for a previously stored token
+2. **Read from native CLI config** (provider-specific paths)
+3. **Initiate OAuth flow** (browser PKCE or device code) if no token found
+
+Once obtained, tokens are stored in the system keyring for subsequent use.
+
+## Token Management
+
+### Token Structure
+
+```
+OAuthToken {
+    access_token: String,
+    refresh_token: Option<String>,
+    expires_at: Option<i64>,       // Unix milliseconds
+    token_type: Option<String>,
+    scopes: Option<Vec<String>>,
+    extra: Option<Value>,          // provider-specific data
+}
+```
+
+### Auto-Refresh
+
+The proxy checks token expiry before each request. If a token is within 60 seconds of expiration:
+
+1. Attempt to refresh using `refresh_token` (if available)
+2. On successful refresh, update the keyring
+3. If refresh fails, invalidate the token and prompt re-login on next use
+
+### 401 Retry
+
+When a provider returns HTTP 401, the proxy:
+
+1. Invalidates the current token
+2. Attempts a fresh token load from the credential chain
+3. Retries the request once with the new token
+4. If retry fails, returns the error to Claude Code
+
+## Provider Details
+
+### Claude
+
+Claude OAuth profiles are special: **the proxy is skipped entirely**. When you run a Claude OAuth profile, Claudex launches Claude Code directly without setting `ANTHROPIC_BASE_URL`. Claude Code uses its own built-in OAuth session from `~/.claude/.credentials.json`.
+
+```toml
+[[profiles]]
+name = "claude-max"
+provider_type = "DirectAnthropic"
+base_url = "https://api.claude.ai"
+default_model = "claude-sonnet-4-20250514"
+auth_type = "oauth"
+oauth_provider = "claude"
+```
+
+No `claudex auth login` step is needed. If you are already logged in to Claude Code, it works immediately.
+
+### ChatGPT / Codex
+
+Supports two OAuth flows:
+
+1. **Browser PKCE**: Opens a browser window for OpenAI login, receives token via local callback server
+2. **Device Code**: For headless environments, displays a code to enter at a URL
+
+Claudex also reads tokens from the Codex CLI config at `~/.codex/auth.json` as a fallback. The `ChatGPT-Account-ID` header is auto-extracted from the Codex CLI auth file.
+
+```bash
+# Browser flow (default)
+claudex auth login openai --profile codex-sub
+
+# Device code flow (headless)
+claudex auth login openai --profile codex-sub --headless
+```
+
+### GitHub Copilot
+
+Uses GitHub's Device Code flow:
+
+1. `claudex auth login github` displays a device code
+2. Open `https://github.com/login/device` and enter the code
+3. Token is stored in the system keyring
+
+Falls back to reading existing tokens from `~/.config/github-copilot/` if available.
+
+### GitLab Duo
+
+Uses a Personal Access Token via the `GITLAB_TOKEN` environment variable:
+
+```bash
+export GITLAB_TOKEN=glpat-...
+claudex auth login gitlab --profile gitlab-duo
+```
+
+For self-hosted GitLab instances:
+
+```bash
+claudex auth login gitlab --enterprise-url https://gitlab.mycompany.com --profile gitlab-duo
+```
+
+### Google Gemini
+
+Reads credentials from the Gemini CLI configuration. Install and authenticate with the Gemini CLI first, then `claudex auth login google` reads the stored token.
+
+### Qwen
+
+Uses the OAuth Device Code flow. Claudex displays a code and URL for authentication:
+
+```bash
+claudex auth login qwen --profile qwen-oauth
+# Displays: Go to https://... and enter code: XXXX-XXXX
+```
+
+### Kimi
+
+Reads credentials from the Kimi CLI configuration, similar to the Google Gemini flow.
+
+## Gateway Auth Mode
+
+When launching Claude Code with an OAuth profile (except Claude), Claudex sets:
+
+```
+ANTHROPIC_AUTH_TOKEN=claudex-passthrough
+```
+
+This uses the `Authorization: Bearer` header instead of `X-Api-Key`, preventing conflicts with Claude Code's own `ANTHROPIC_API_KEY` mechanism. The proxy then replaces the passthrough token with the actual OAuth token.
+
+## CLI Commands
+
+```bash
+# Log in to a provider
+claudex auth login <PROVIDER> [--profile <NAME>] [--enterprise-url <URL>] [--headless]
+
+# Check auth status for all OAuth profiles
+claudex auth status
+
+# Check a specific provider
+claudex auth status openai
+
+# Manually refresh a token
+claudex auth refresh <PROVIDER>
+
+# Remove stored tokens
+claudex auth logout <PROVIDER>
+```
+
+## Provider Defaults
+
+When you create a profile with `auth_type = "oauth"`, each provider has built-in defaults for `base_url`, `provider_type`, and `default_model`:
+
+| Provider | Default base_url | Default provider_type | Default model |
+|----------|-----------------|----------------------|---------------|
+| Claude | `https://api.claude.ai` | DirectAnthropic | `claude-sonnet-4-20250514` |
+| ChatGPT | `https://chatgpt.com/backend-api/codex` | OpenAIResponses | `gpt-5.3-codex` |
+| GitHub | `https://api.githubcopilot.com` | OpenAICompatible | `gpt-4o` |
+| GitLab | `https://gitlab.com/api/v4/ai/llm/proxy` | OpenAICompatible | `claude-sonnet-4-20250514` |
+| Google | `https://generativelanguage.googleapis.com/v1beta/openai` | OpenAICompatible | `gemini-2.5-pro` |
+| Qwen | `https://chat.qwen.ai/api` | OpenAICompatible | `qwen3-235b-a22b` |
+| Kimi | `https://api.moonshot.cn/v1` | OpenAICompatible | `kimi-k2-0905-preview` |
+
+These defaults are used if you omit `base_url` or `default_model` from the profile config.

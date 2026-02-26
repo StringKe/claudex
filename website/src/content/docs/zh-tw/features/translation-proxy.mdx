@@ -1,31 +1,42 @@
 ---
 title: 翻譯代理
-description: 自動 Anthropic-to-OpenAI 協定翻譯
+description: 自動 Anthropic 至 OpenAI 協定翻譯，支援 20 多家提供商
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-翻譯代理是 Claudex 的核心。它位於 Claude Code 和您的 AI 提供商之間，透明地在 Anthropic Messages API 和 OpenAI Chat Completions API 之間進行轉換。
+翻譯代理是 Claudex 的核心。它位於 Claude Code 和你的 AI 提供商之間，透明地在 Anthropic Messages API 和 OpenAI Chat Completions API（或 Responses API）之間進行轉換。
 
 ## 運作原理
 
 ```
-Claude Code → Anthropic Messages API 請求
+Claude Code → Anthropic Messages API request
     │
-    └── Claudex 代理（127.0.0.1:13456）
+    └── Claudex Proxy (127.0.0.1:13456)
         │
-        ├── DirectAnthropic 提供商 → 轉發並附加標頭
+        ├── DirectAnthropic provider → forward with headers
         │
-        ├── OpenAICompatible 提供商
-        │   ├── 翻譯請求：Anthropic → OpenAI Chat Completions
-        │   ├── 轉發至提供商
-        │   └── 翻譯回應：OpenAI → Anthropic
+        ├── OpenAICompatible provider
+        │   ├── Translate request: Anthropic → OpenAI Chat Completions
+        │   ├── Apply query_params, strip_params, custom_headers
+        │   ├── Forward to provider
+        │   └── Translate response: OpenAI → Anthropic
         │
-        └── OpenAIResponses 提供商
-            ├── 翻譯請求：Anthropic → OpenAI Responses API
-            ├── 轉發至提供商
-            └── 翻譯回應：Responses → Anthropic
+        └── OpenAIResponses provider
+            ├── Translate request: Anthropic → OpenAI Responses API
+            ├── Forward to provider
+            └── Translate response: Responses → Anthropic
 ```
+
+## Provider Adapter
+
+Claudex 使用 `ProviderAdapter` trait 處理不同提供商 API 之間的差異。共實作了三種 adapter：
+
+| Adapter | 翻譯 | 使用者 |
+|---------|------|--------|
+| **DirectAnthropic** | 無（直通） | Anthropic、MiniMax、Vertex AI |
+| **ChatCompletions** | 完整 Anthropic 與 OpenAI 雙向翻譯 | Grok、OpenAI、DeepSeek、Kimi、GLM、OpenRouter、Groq、Mistral、Together AI、Perplexity、Cerebras、Azure OpenAI、GitHub Copilot、GitLab Duo、Ollama、vLLM、LM Studio |
+| **Responses** | Anthropic 與 OpenAI Responses API 雙向翻譯 | ChatGPT/Codex 訂閱 |
 
 ## 翻譯內容
 
@@ -34,21 +45,32 @@ Claude Code → Anthropic Messages API 請求
 | Anthropic | OpenAI |
 |-----------|--------|
 | `system` 欄位 | `messages` 陣列中的系統訊息 |
-| `messages[].content` 區塊（text、image、tool_use） | `messages[].content` + `tool_calls` |
-| `tools` 陣列（JSON Schema） | `tools` 陣列（function 格式） |
-| `tool_choice` | `tool_choice` |
-| `max_tokens` | `max_tokens` |
-| `temperature`、`top_p` | 直接映射 |
+| `messages[].content` 區塊（text、image、tool_use、tool_result） | `messages[].content` + `tool_calls` |
+| `tools` 陣列（JSON Schema，含 `input_schema`） | `tools` 陣列（function 格式，含 `parameters`） |
+| `tool_choice`（`auto`、`any`、`{name}`） | `tool_choice`（`auto`、`required`、`{function: {name}}`） |
+| `max_tokens` | `max_tokens`（若有設定 profile 的 `max_tokens` 則受其上限） |
+| `temperature`、`top_p` | 直接映射（若 `strip_params` 匹配則移除） |
 
 ### 回應翻譯（OpenAI → Anthropic）
 
 | OpenAI | Anthropic |
 |--------|-----------|
-| `choices[0].message.content` | `content` 區塊 |
-| `choices[0].message.tool_calls` | `tool_use` 內容區塊 |
+| `choices[0].message.content` | `content` 區塊（type: text） |
+| `choices[0].message.tool_calls` | `content` 區塊（type: tool_use） |
 | `finish_reason: stop` | `stop_reason: end_turn` |
 | `finish_reason: tool_calls` | `stop_reason: tool_use` |
 | `usage.prompt_tokens` / `completion_tokens` | `usage.input_tokens` / `output_tokens` |
+
+### 工具名稱相容
+
+Claude Code 可能產生超過 64 字元的工具名稱（例如 `mcp__server-name__very-long-tool-name-that-exceeds-the-limit`）。OpenAI 和許多提供商有 64 字元限制。
+
+Claudex 自動：
+1. 在送出的請求中截斷超過 64 字元的名稱
+2. 建立截斷名稱到原始名稱的映射表
+3. 在提供商回應中還原原始名稱
+
+此雙向轉換完全透明。
 
 ## 串流翻譯
 
@@ -63,25 +85,54 @@ Claudex 完整支援 SSE（Server-Sent Events）串流，即時將 OpenAI 串流
 
 串流翻譯器維護一個狀態機，以正確處理工具呼叫累積和內容區塊邊界。
 
+## Azure OpenAI 支援
+
+Azure OpenAI 使用不同的認證和 URL 結構：
+
+- **認證**：使用 `api-key` 標頭取代 `Authorization: Bearer`
+- **URL 格式**：`https://{resource}.openai.azure.com/openai/deployments/{deployment}`
+- **API 版本**：透過 `query_params` 必填
+
+Claudex 透過檢查 `base_url` 是否包含 `openai.azure.com` 自動偵測 Azure，並據此調整認證方式。
+
 ## 支援的提供商
 
 | 提供商 | 類型 | Base URL |
 |--------|------|----------|
 | Anthropic | DirectAnthropic | `https://api.anthropic.com` |
 | MiniMax | DirectAnthropic | `https://api.minimax.io/anthropic` |
+| Google Vertex AI | DirectAnthropic | `https://REGION-aiplatform.googleapis.com/v1/projects/...` |
 | OpenRouter | OpenAICompatible | `https://openrouter.ai/api/v1` |
 | Grok (xAI) | OpenAICompatible | `https://api.x.ai/v1` |
 | OpenAI | OpenAICompatible | `https://api.openai.com/v1` |
 | DeepSeek | OpenAICompatible | `https://api.deepseek.com` |
-| Kimi/Moonshot | OpenAICompatible | `https://api.moonshot.cn/v1` |
-| GLM (Zhipu) | OpenAICompatible | `https://open.bigmodel.cn/api/paas/v4` |
+| Kimi/Moonshot | OpenAICompatible | `https://api.moonshot.ai/v1` |
+| GLM (Zhipu) | OpenAICompatible | `https://api.z.ai/api/paas/v4` |
+| Groq | OpenAICompatible | `https://api.groq.com/openai/v1` |
+| Mistral AI | OpenAICompatible | `https://api.mistral.ai/v1` |
+| Together AI | OpenAICompatible | `https://api.together.xyz/v1` |
+| Perplexity | OpenAICompatible | `https://api.perplexity.ai` |
+| Cerebras | OpenAICompatible | `https://api.cerebras.ai/v1` |
+| Azure OpenAI | OpenAICompatible | `https://{resource}.openai.azure.com/...` |
+| GitHub Copilot | OpenAICompatible | `https://api.githubcopilot.com` |
+| GitLab Duo | OpenAICompatible | `https://gitlab.com/api/v4/ai/llm/proxy` |
 | Ollama | OpenAICompatible | `http://localhost:11434/v1` |
 | vLLM | OpenAICompatible | `http://localhost:8000/v1` |
+| LM Studio | OpenAICompatible | `http://localhost:1234/v1` |
 | ChatGPT/Codex 訂閱 | OpenAIResponses | `https://chatgpt.com/backend-api/codex` |
 
 <Aside type="tip">
   DirectAnthropic 提供商不需要翻譯。OpenAIResponses 提供商使用 Responses API（`/responses` 端點）而非 Chat Completions（`/chat/completions`）。
 </Aside>
+
+## Models 端點
+
+代理暴露一個 `/v1/models` 端點，列出所有已啟用的 profile。每個項目包含自訂欄位：
+
+- `x-claudex-profile`：profile 名稱
+- `x-claudex-provider`：提供商類型（`anthropic`、`openai-compatible`、`openai-responses`）
+
+Claude Code 查詢此端點以探索可用模型。
 
 ## 代理管理
 
@@ -95,8 +146,8 @@ claudex proxy status
 # 停止代理背景程式
 claudex proxy stop
 
-# 在自訂埠啟動
+# 在自訂連接埠啟動
 claudex proxy start -p 8080
 ```
 
-執行 `claudex run <profile>` 時，若代理尚未運作，會自動在背景啟動。
+執行 `claudex run <profile>` 時，若代理尚未運行，會自動在背景啟動。

@@ -1,0 +1,111 @@
+---
+title: Terminal-Hyperlinks
+description: OSC-8-klickbare Hyperlinks in der Terminalausgabe mit automatischer Erkennung
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Claudex unterstuetzt OSC-8-Terminal-Hyperlinks, die Dateipfade, URLs und Referenzen in der Claude Code-Ausgabe in unterstuetzten Terminals klickbar machen.
+
+## Ueberblick
+
+OSC 8 ist ein Terminal-Escape-Sequenz-Standard, der Hyperlinks direkt in die Terminalausgabe einbettet. Bei Unterstuetzung oeffnet ein Klick auf einen Link den Standard-Handler (Browser fuer URLs, Editor fuer Dateipfade).
+
+Das Escape-Sequenz-Format:
+
+```
+\x1b]8;;URL\x07DISPLAY_TEXT\x1b]8;;\x07
+```
+
+## Konfiguration
+
+```toml
+# In config.toml (globale Einstellung)
+hyperlinks = "auto"    # "auto" | true | false
+```
+
+| Wert | Verhalten |
+|------|-----------|
+| `"auto"` | Terminalunterstuetzung automatisch erkennen (Standard) |
+| `true` | Hyperlinks erzwingen |
+| `false` | Hyperlinks deaktivieren |
+
+Sie koennen Hyperlinks auch pro Sitzung ueber das CLI-Flag aktivieren:
+
+```bash
+claudex run grok --hyperlinks
+```
+
+## Terminal-Erkennung
+
+Wenn `hyperlinks = "auto"`, prueft Claudex folgende Bedingungen in dieser Reihenfolge:
+
+| Prioritaet | Pruefung | Ergebnis |
+|------------|----------|----------|
+| 1 | `FORCE_HYPERLINKS=1`-Umgebungsvariable | Aktivieren |
+| 2 | Kein TTY | Deaktivieren |
+| 3 | `DOMTERM`-Umgebungsvariable gesetzt | Aktivieren |
+| 4 | `TERM_PROGRAM` = iTerm.app | Aktivieren |
+| 5 | `TERM_PROGRAM` = WezTerm | Aktivieren |
+| 6 | `TERM_PROGRAM` = vscode | Aktivieren |
+| 7 | `TERM_PROGRAM` = Tabby | Aktivieren |
+| 8 | `TERM_PROGRAM` = Hyper | Aktivieren |
+| 9 | `TERM_PROGRAM` = mintty | Aktivieren |
+| 10 | `TERM_PROGRAM` = WarpTerminal | Aktivieren |
+| 11 | `TERM` = xterm-kitty | Aktivieren |
+| 12 | `TERM` = xterm-ghostty | Aktivieren |
+| 13 | `VTE_VERSION` >= 5000 | Aktivieren |
+| 14 | `WT_SESSION`-Umgebungsvariable gesetzt (Windows Terminal) | Aktivieren |
+| 15 | Keine der obigen Bedingungen | Deaktivieren (sicherer Standard) |
+
+<Aside type="note">
+  VTE_VERSION >= 5000 deckt GNOME Terminal (3.68+), xfce4-terminal und andere VTE-basierte Terminals ab.
+</Aside>
+
+## Unterstuetzte Terminals
+
+| Terminal | Plattform | Erkennungsmethode |
+|----------|-----------|-------------------|
+| iTerm2 | macOS | `TERM_PROGRAM` |
+| WezTerm | Plattformuebergreifend | `TERM_PROGRAM` |
+| Kitty | Plattformuebergreifend | `TERM` (xterm-kitty) |
+| Ghostty | Plattformuebergreifend | `TERM` (xterm-ghostty) |
+| VS Code Terminal | Plattformuebergreifend | `TERM_PROGRAM` |
+| Windows Terminal | Windows | `WT_SESSION` |
+| GNOME Terminal | Linux | `VTE_VERSION` |
+| Tabby | Plattformuebergreifend | `TERM_PROGRAM` |
+| Hyper | Plattformuebergreifend | `TERM_PROGRAM` |
+| mintty (Git Bash) | Windows | `TERM_PROGRAM` |
+| WarpTerminal | macOS | `TERM_PROGRAM` |
+| DomTerm | Plattformuebergreifend | `DOMTERM` |
+
+## PTY-Proxy-Modus
+
+Wenn Hyperlinks auf Unix-Systemen aktiviert sind, startet Claudex den Claude Code-Prozess unter einem PTY (Pseudo-Terminal)-Proxy. Dies ermoeglicht es Claudex, die Terminalausgabe mit Hyperlinks abzufangen und anzureichern, waehrend das volle Terminal-Erlebnis (Farben, Cursorbewegung usw.) erhalten bleibt.
+
+Der PTY-Proxy ist fuer den Benutzer transparent. Er wird nur fuer interaktive Sitzungen aktiviert (nicht-interaktiver Modus mit `--print` ueberspringt den PTY).
+
+<Aside type="tip">
+  Wenn Probleme mit der Terminal-Darstellung auftreten, koennen Sie Hyperlinks mit `hyperlinks = false` in Ihrer Konfiguration oder durch Weglassen des `--hyperlinks`-Flags deaktivieren.
+</Aside>
+
+## Erzwungenes Aktivieren/Deaktivieren
+
+Fuer Terminals, die nicht in der Auto-Erkennungsliste enthalten sind, koennen Sie Hyperlinks erzwingen:
+
+```bash
+# Ueber Umgebungsvariable
+FORCE_HYPERLINKS=1 claudex run grok
+
+# Ueber Konfiguration
+hyperlinks = true
+
+# Ueber CLI-Flag
+claudex run grok --hyperlinks
+```
+
+Zum erzwungenen Deaktivieren (z.B. beim Pipen der Ausgabe):
+
+```toml
+hyperlinks = false
+```

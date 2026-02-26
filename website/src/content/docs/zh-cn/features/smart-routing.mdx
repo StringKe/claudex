@@ -13,7 +13,7 @@ import { Aside } from '@astrojs/starlight/components';
 2. Claude Code 向代理发送请求
 3. 代理提取用户消息，发送给本地分类器（如 Ollama）
 4. 分类器返回意图类别（code、analysis、creative、search、math）
-5. 路由规则将意图映射到对应的 profile
+5. 路由规则将意图映射到最优的提供商 profile
 6. 请求转发到选定的提供商
 
 ## 配置
@@ -44,7 +44,7 @@ default = "grok"        # 未分类的默认路由
 | `math` | 数学和逻辑任务 | 计算复杂度、证明正确性 |
 
 <Aside type="note">
-  智能路由需要 LLM 服务进行意图分类，复用已有 profile 的 `base_url` 和 `api_key`。分类器模型应选择小而快的 — `qwen2.5:3b` 效果很好。
+  智能路由需要 LLM 服务进行意图分类，复用已有 profile 的 `base_url` 和 `api_key`。分类器模型应选择小而快的，`qwen2.5:3b` 效果很好。
 </Aside>
 
 ## 使用

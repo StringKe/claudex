@@ -7,34 +7,56 @@ import { Aside } from '@astrojs/starlight/components';
 
 ## 設定檔探索
 
-Claudex 按以下順序搜尋設定檔：
+Claudex 使用 [figment](https://docs.rs/figment) 進行分層設定。來源按以下順序合併（後者覆寫前者）：
 
-1. `$CLAUDEX_CONFIG` 環境變數
-2. `./claudex.toml`（目前目錄）
-3. `./.claudex/config.toml`（目前目錄）
-4. 父目錄（最多向上 10 層），檢查上述兩種模式
-5. `~/.config/claudex/config.toml`（XDG — 在平台特定路徑**之前**檢查）
+1. **程式內建預設值**（內建的 fallback）
+2. **全域設定** (`~/.config/claudex/config.toml` 或 `config.yaml`)
+3. **專案設定**（當前目錄或向上最多 10 層的 `claudex.toml` 或 `claudex.yaml`，或 `$CLAUDEX_CONFIG`）
+4. **環境變數**（`CLAUDEX_` 前綴，`__` 作為分隔符）
+
+同時支援 TOML 和 YAML 格式。檔案格式由副檔名偵測（`.toml` 或 `.yaml`/`.yml`）。
 
 <Aside type="note">
-  XDG 路徑（`~/.config/claudex/config.toml`）現在在平台特定路徑之前檢查。若任何位置都找不到設定檔，建立預設設定時會使用 XDG 路徑。
+  XDG 路徑（`~/.config/claudex/config.toml`）是預設位置。如果任何地方都找不到設定檔，建立新設定時會使用此路徑。
 </Aside>
 
 ```bash
-# 顯示載入的設定路徑和搜尋順序
-claudex config
+# 顯示載入的設定檔路徑及所有搜尋位置
+claudex config show
 
-# 在目前目錄建立本地設定
-claudex config --init
+# 僅顯示設定檔路徑
+claudex config path
+
+# 在當前目錄建立新設定檔
+claudex config init
+
+# 從 config.example.toml 重建設定檔
+claudex config recreate
+
+# 用 $EDITOR 開啟設定檔
+claudex config edit
+
+# 驗證設定語法和 profile 參照
+claudex config validate
+
+# 取得特定設定值
+claudex config get proxy_port
+
+# 設定特定值
+claudex config set proxy_port 8080
+
+# 匯出當前設定到 stdout
+claudex config export
 ```
 
 <Aside type="tip">
-  專案級設定（`./claudex.toml`）優先於全域設定，可以為不同專案自訂提供商。
+  專案層級設定（`./claudex.toml`）優先於全域設定，因此你可以為每個專案自訂提供商。
 </Aside>
 
 ## 全域設定
 
 ```toml
-# Claude 二進位檔案路徑（預設：從 PATH 中查找 "claude"）
+# claude 二進位檔路徑（預設：PATH 中的 "claude"）
 # claude_binary = "/usr/local/bin/claude"
 
 # 代理設定
@@ -44,6 +66,10 @@ proxy_host = "127.0.0.1"
 # 日誌層級：trace, debug, info, warn, error
 log_level = "info"
 
+# 終端超連結 (OSC 8)："auto" | true | false
+# "auto" 自動偵測終端支援；true/false 強制開啟/關閉
+hyperlinks = "auto"
+
 # 模型別名（簡稱 → 完整模型名稱）
 [model_aliases]
 grok3 = "grok-3-beta"
@@ -51,13 +77,13 @@ gpt4o = "gpt-4o"
 ds3 = "deepseek-chat"
 ```
 
-## Profile 設定
+## Profiles
 
-每個 profile 代表一個 AI 提供商連線。有三種提供商類型：
+每個 profile 代表一個 AI 提供商連線。共有三種提供商類型：
 
 ### DirectAnthropic
 
-用於原生支援 Anthropic Messages API 的提供商。請求以最小修改直接轉發。
+用於原生支援 Anthropic Messages API 的提供商。請求以最小修改轉發。
 
 ```toml
 [[profiles]]
@@ -70,11 +96,11 @@ priority = 100
 enabled = true
 ```
 
-相容提供商：**Anthropic**、**MiniMax**
+相容提供商：**Anthropic**、**MiniMax**、**Google Vertex AI**
 
 ### OpenAICompatible
 
-用於使用 OpenAI Chat Completions API 的提供商。Claudex 自動在 Anthropic 和 OpenAI 協定之間翻譯。
+用於使用 OpenAI Chat Completions API 的提供商。Claudex 自動在 Anthropic 和 OpenAI 協定之間進行翻譯。
 
 ```toml
 [[profiles]]
@@ -88,18 +114,18 @@ priority = 100
 enabled = true
 ```
 
-相容提供商：**Grok (xAI)**、**OpenAI**、**DeepSeek**、**Kimi/Moonshot**、**GLM（智譜）**、**OpenRouter**、**Ollama**、**vLLM**、**LM Studio**
+相容提供商：**Grok (xAI)**、**OpenAI**、**DeepSeek**、**Kimi/Moonshot**、**GLM (Zhipu)**、**OpenRouter**、**Groq**、**Mistral**、**Together AI**、**Perplexity**、**Cerebras**、**Azure OpenAI**、**GitHub Copilot**、**GitLab Duo**、**Ollama**、**vLLM**、**LM Studio**
 
 ### OpenAIResponses
 
-用於使用 OpenAI Responses API 的提供商（如 ChatGPT/Codex 訂閱）。Claudex 自動在 Anthropic Messages API 和 OpenAI Responses API 之間翻譯。
+用於使用 OpenAI Responses API 的提供商（例如 ChatGPT/Codex 訂閱）。Claudex 在 Anthropic Messages API 和 OpenAI Responses API 之間進行翻譯。
 
 ```toml
 [[profiles]]
 name = "codex-sub"
 provider_type = "OpenAIResponses"
 base_url = "https://chatgpt.com/backend-api/codex"
-default_model = "gpt-4o"
+default_model = "gpt-5.3-codex"
 auth_type = "oauth"
 oauth_provider = "openai"
 ```
@@ -107,66 +133,69 @@ oauth_provider = "openai"
 相容提供商：**ChatGPT/Codex 訂閱**（透過 Codex CLI）
 
 <Aside type="tip">
-  此類型主要用於 OAuth 訂閱。詳細的 Codex CLI 設定步驟請參見 [Provider 設定指南](/zh-tw/guides/provider-setup/)。
+  此提供商類型主要搭配 OAuth 訂閱使用。詳細設定說明請參閱[提供商設定指南](/zh-tw/guides/provider-setup/)。
 </Aside>
 
 ### Profile 欄位
 
 | 欄位 | 預設值 | 說明 |
 |------|--------|------|
-| `name` | *必填* | 唯一識別名稱 |
+| `name` | *必填* | 唯一的 profile 識別名稱 |
 | `provider_type` | `DirectAnthropic` | `DirectAnthropic`、`OpenAICompatible` 或 `OpenAIResponses` |
 | `base_url` | *必填* | 提供商 API 端點 |
 | `api_key` | `""` | API 金鑰（明文） |
-| `api_key_keyring` | — | 從 OS 鑰匙圈讀取 API 金鑰 |
+| `api_key_keyring` | — | 從作業系統金鑰鏈讀取 API 金鑰 |
 | `default_model` | *必填* | 預設使用的模型 |
 | `auth_type` | `"api-key"` | `"api-key"` 或 `"oauth"` |
-| `oauth_provider` | — | OAuth 提供商（`claude`、`openai`、`google`、`qwen`、`kimi`、`github`）。`auth_type = "oauth"` 時必填 |
-| `backup_providers` | `[]` | 故障轉移 profile 名稱清單 |
-| `custom_headers` | `{}` | 額外 HTTP 請求標頭 |
+| `oauth_provider` | — | OAuth 提供商（`claude`、`openai`、`google`、`qwen`、`kimi`、`github`、`gitlab`）。`auth_type = "oauth"` 時必填 |
+| `backup_providers` | `[]` | 故障轉移 profile 名稱 |
+| `custom_headers` | `{}` | 額外 HTTP 標頭 |
 | `extra_env` | `{}` | 啟動 Claude 時的額外環境變數 |
 | `priority` | `100` | 智慧路由優先權 |
-| `enabled` | `true` | 是否啟用 |
+| `enabled` | `true` | 此 profile 是否啟用 |
+| `max_tokens` | — | 傳送給提供商的最大輸出 token 數上限（選填） |
+| `strip_params` | `"auto"` | `"auto"`、`"none"` 或 `["temperature", "top_p"]`。自動偵測不支援的參數（例如 ChatGPT Codex 端點） |
+| `[profiles.query_params]` | `{}` | URL 查詢參數（例如 Azure 的 `api-version`） |
 | `[profiles.models]` | — | 模型 slot 映射表（`haiku`、`sonnet`、`opus` 欄位） |
 
 ### 互動式設定
 
-新增 profile 最簡單的方式是使用互動式精靈：
+新增 profile 最簡單的方式是互動式精靈：
 
 ```bash
 claudex profile add
 ```
 
-它會引導您完成提供商選擇、API 金鑰輸入（支援 keyring 儲存）、模型選擇和連線測試。
+它會引導你完成提供商選擇、API 金鑰輸入（可選金鑰鏈儲存）、模型選擇和連線測試。
 
-## 鑰匙圈整合
+## 金鑰鏈整合
 
-將 API 金鑰安全儲存在 OS 鑰匙圈中，而非明文設定：
+將 API 金鑰安全地儲存在作業系統金鑰鏈中，取代明文設定：
 
 ```toml
 [[profiles]]
 name = "grok"
-api_key_keyring = "grok-api-key"   # 從 OS 鑰匙圈讀取
+api_key_keyring = "grok-api-key"   # 從作業系統金鑰鏈讀取
 ```
 
 支援的後端：
 - **macOS**：Keychain
-- **Linux**：Secret Service（GNOME Keyring / KDE Wallet）
+- **Linux**：Secret Service (GNOME Keyring / KDE Wallet)
 
 ## OAuth 訂閱認證
 
-除了 API 金鑰，您也可以透過 OAuth 使用現有的提供商訂閱進行認證。適用於 Claude Pro/Team、ChatGPT Plus 或其他訂閱方案。
+除了 API 金鑰，你也可以透過 OAuth 使用現有的提供商訂閱進行認證。適合擁有 Claude Pro/Team、ChatGPT Plus 或其他訂閱方案的使用者。
 
-### 設定
+### 設定步驟
 
 1. 將 profile 的 `auth_type` 設為 `"oauth"` 並指定 `oauth_provider`：
 
 ```toml
 [[profiles]]
-name = "chatgpt-oauth"
-provider_type = "OpenAICompatible"
-base_url = "https://api.openai.com/v1"
-default_model = "gpt-4o"
+name = "codex-sub"
+provider_type = "OpenAIResponses"
+base_url = "https://chatgpt.com/backend-api/codex"
+default_model = "gpt-5.3-codex"
 auth_type = "oauth"
 oauth_provider = "openai"
 ```
@@ -187,96 +216,75 @@ claudex auth status
 
 | 提供商 | `oauth_provider` | Token 來源 |
 |--------|-----------------|------------|
-| Claude | `claude` | 從 `~/.claude` 讀取（Claude Code 原生設定） |
-| OpenAI | `openai` | 從 `~/.codex/auth.json` 讀取（Codex CLI） |
-| Google | `google` | OAuth 裝置碼流程 |
-| Qwen | `qwen` | OAuth 裝置碼流程 |
-| Kimi | `kimi` | OAuth 裝置碼流程 |
-| GitHub | `github` | OAuth 裝置碼流程 |
+| Claude | `claude` | 從 `~/.claude/.credentials.json` 讀取（Claude Code 的原生設定） |
+| ChatGPT | `openai` | 瀏覽器 PKCE 或 Device Code，回退至 `~/.codex/auth.json`（Codex CLI） |
+| Google | `google` | 從 Gemini CLI 憑證讀取 |
+| Qwen | `qwen` | Device Code 流程 |
+| Kimi | `kimi` | 從 Kimi CLI 憑證讀取 |
+| GitHub | `github` | Device Code 流程，回退至 `~/.config/github-copilot/` |
+| GitLab | `gitlab` | `GITLAB_TOKEN` 環境變數 |
 
-<Aside type="tip">
-  對於 **OpenAI**，請確保已安裝 [Codex CLI](https://github.com/openai/codex) 並已登入（`codex auth`）。Claudex 自動從 `~/.codex/auth.json` 讀取 token。Profile 應使用 `provider_type = "OpenAIResponses"` 以透過 Responses API 通訊。
-</Aside>
+各提供商 OAuth 流程的詳細說明請參閱 [OAuth 訂閱認證](/zh-tw/features/oauth-subscriptions/)。
 
-<Aside type="tip">
-  對於 **Claude**，Claudex 讀取已有的 Claude Code OAuth 工作階段（`~/.claude`）。若您已登入 Claude Code，無需額外登入步驟。
-</Aside>
+### Gateway Auth 模式
 
-### Gateway 認證模式
+使用 OAuth profile 時，Claudex 啟動 Claude Code 時會設定 `ANTHROPIC_AUTH_TOKEN`（而非 `ANTHROPIC_API_KEY`）。這可防止與 Claude Code 自身的訂閱登入機制衝突，因為 Claude Code 內部使用 `ANTHROPIC_API_KEY`。
 
-使用 OAuth profile 時，Claudex 啟動 Claude Code 時設定 `ANTHROPIC_AUTH_TOKEN`（而非 `ANTHROPIC_API_KEY`）。這可以避免與 Claude Code 自身訂閱登入機制衝突，因為 Claude Code 內部使用 `ANTHROPIC_API_KEY`。
-
-代理會在 OAuth token 過期前自動刷新。您也可以手動刷新：
+代理會在 OAuth token 過期前自動刷新。你也可以手動刷新：
 
 ```bash
 claudex auth refresh openai
 ```
 
-## 模型 Slot 映射
+## 查詢參數
 
-Claude Code 內建 `/model` 切換器，包含三個 slot：**haiku**、**sonnet** 和 **opus**。預設映射到 Anthropic 模型，但透過 Claudex 可以將它們映射到任意提供商的模型。
-
-### 設定
-
-在任意 profile 中新增 `[profiles.models]` 表：
+部分提供商需要 URL 查詢參數（例如 Azure OpenAI 的 `api-version`）。使用 `[profiles.query_params]` 表：
 
 ```toml
 [[profiles]]
-name = "grok"
+name = "azure-openai"
 provider_type = "OpenAICompatible"
-base_url = "https://api.x.ai/v1"
-api_key = "xai-..."
-default_model = "grok-3-beta"
+base_url = "https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT"
+api_key = "YOUR_AZURE_KEY"
+default_model = "gpt-4o"
 
-[profiles.models]
-haiku = "grok-3-mini-beta"
-sonnet = "grok-3-beta"
-opus = "grok-3-beta"
+[profiles.query_params]
+api-version = "2024-12-01-preview"
 ```
 
-在 Claude Code 中輸入 `/model sonnet` 時，Claudex 會將請求翻譯為使用 `grok-3-beta`。`/model opus` 指令映射到 `grok-3-beta`，依此類推。
+Claudex 會將這些參數附加到該 profile 的每個請求 URL 中。Azure OpenAI 會透過 `base_url` 包含 `openai.azure.com` 自動偵測，並使用 `api-key` 標頭進行認證（取代 `Authorization: Bearer`）。
 
-### 常見提供商範例
+## 參數移除
+
+部分提供商不支援某些參數（例如 ChatGPT Codex 端點會拒絕 `temperature`、`top_p`）。`strip_params` 欄位控制傳送前要移除哪些參數：
 
 ```toml
-# OpenAI 模型映射
-[profiles.models]
-haiku = "gpt-4o-mini"
-sonnet = "gpt-4o"
-opus = "o1"
-
-# DeepSeek 模型映射
-[profiles.models]
-haiku = "deepseek-chat"
-sonnet = "deepseek-chat"
-opus = "deepseek-reasoner"
-
-# Google Gemini 模型映射
-[profiles.models]
-haiku = "gemini-2.0-flash"
-sonnet = "gemini-2.5-pro"
-opus = "gemini-2.5-pro"
+strip_params = "auto"       # 自動偵測並移除不支援的參數（預設）
+strip_params = "none"       # 照原樣傳送所有參數
+strip_params = ["temperature", "top_p", "top_k"]  # 移除特定參數
 ```
 
-<Aside type="note">
-  未設定的模型 slot 將回退到 profile 的 `default_model`。
-</Aside>
+設為 `"auto"` 時，Claudex 會偵測已知端點（例如 `chatgpt.com`）並移除會導致錯誤的參數。
 
-## 工具名稱相容性
+## 模型 Slot 映射
 
-部分提供商（尤其是 OpenAI）對工具（函式）名稱有 64 字元長度限制。Claude Code 產生的工具名稱可能超過此限制。
+Claude Code 有內建的 `/model` 切換器，包含三個 slot：**haiku**、**sonnet** 和 **opus**。詳見[模型 Slot 映射](/zh-tw/features/model-slot-mapping/)。
 
-Claudex 在向 OpenAI 相容提供商傳送請求時，自動截斷超過 64 字元的工具名稱，並在處理回應時透明還原原始名稱。整個往返過程完全透明，無需額外設定。
+## 工具名稱相容
+
+部分提供商（特別是 OpenAI）對工具（function）名稱有 64 字元限制。Claude Code 可能產生超過此限制的工具名稱。
+
+Claudex 在傳送請求給 OpenAI 相容提供商時，會自動截斷超過 64 字元的工具名稱，並在處理回應時透明地還原原始名稱。此雙向轉換完全透明。
 
 ## 非互動模式
 
 Claudex 支援一次性（非互動）執行，適用於 CI/CD 流水線、腳本和自動化：
 
 ```bash
-# 輸出回應後退出
+# 印出回應並退出
 claudex run grok "Explain this codebase" --print
 
-# 跳過所有權限提示（用於全自動流水線）
+# 跳過所有權限提示（用於完全自動化的流水線）
 claudex run grok "Fix lint errors" --print --dangerously-skip-permissions
 ```
 
@@ -284,20 +292,28 @@ claudex run grok "Fix lint errors" --print --dangerously-skip-permissions
   `--dangerously-skip-permissions` 會停用所有安全提示。僅在受信任的自動化環境中使用。
 </Aside>
 
-非互動模式下，日誌寫入每實例日誌檔案 `~/Library/Caches/claudex/proxy-{timestamp}-{pid}.log`（而非 stderr），保持 stdout 輸出乾淨，便於管道和自動化處理。
+在非互動模式下，日誌會寫入到 `~/Library/Caches/claudex/proxy-{timestamp}-{pid}.log` 的個別實例日誌檔，而非 stderr，保持 stdout 輸出乾淨以便管道處理和自動化。
 
-## 每實例日誌檔案
+## 終端超連結
 
-每個 Claudex 代理實例將日誌寫入獨立檔案：
+Claudex 支援終端輸出中的 OSC 8 可點擊超連結。詳見[終端超連結](/zh-tw/features/terminal-hyperlinks/)。
 
+```toml
+# "auto" 自動偵測終端支援；true/false 強制開啟/關閉
+hyperlinks = "auto"
 ```
-~/Library/Caches/claudex/proxy-{timestamp}-{pid}.log
-```
 
-這避免了多實例執行時的日誌交錯，並在 `claudex run` 期間（尤其是非互動模式下）保持 stderr 乾淨。日誌內容包括代理啟動、請求翻譯、OAuth token 刷新事件和斷路器狀態變化。
+## 設定集
+
+安裝可重用的規則、技能和 MCP 伺服器套件包。詳見[設定集](/zh-tw/features/configuration-sets/)。
+
+```bash
+claudex sets add ./my-set
+claudex sets list
+```
 
 ## 完整範例
 
-參見 [`config.example.toml`](https://github.com/StringKe/claudex/blob/main/config.example.toml) 取得包含所有提供商和選項的完整設定檔。
+參閱 [`config.example.toml`](https://github.com/StringKe/claudex/blob/main/config.example.toml) 取得包含所有提供商和選項的完整設定檔。
 
-每個提供商的詳細設定步驟（包括 API 金鑰取得連結和 OAuth 流程），請參見 [Provider 設定指南](/zh-tw/guides/provider-setup/)。
+各提供商的逐步設定說明（包括 API 金鑰連結和 OAuth 流程），請參閱[提供商設定指南](/zh-tw/guides/provider-setup/)。

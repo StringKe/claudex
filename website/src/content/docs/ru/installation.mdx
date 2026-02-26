@@ -1,6 +1,6 @@
 ---
 title: Установка
-description: Как установить Claudex в вашей системе
+description: Как установить Claudex на вашу систему
 ---
 
 import { Tabs, TabItem } from '@astrojs/starlight/components';
@@ -8,13 +8,13 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
 ## Способы установки
 
 <Tabs>
-  <TabItem label="Одна команда" icon="terminal">
+  <TabItem label="Однострочник" icon="terminal">
     ```bash
     curl -fsSL https://raw.githubusercontent.com/StringKe/claudex/main/install.sh | bash
     ```
-    Скрипт установки автоматически определяет вашу ОС и архитектуру, загружает последний релиз с GitHub и устанавливает в `~/.local/bin/claudex`.
+    Скрипт установки автоматически определяет вашу ОС и архитектуру, скачивает последний релиз с GitHub и устанавливает в `~/.local/bin/claudex`.
 
-    Переопределение директории установки:
+    Переопределение каталога установки:
     ```bash
     CLAUDEX_INSTALL_DIR=/usr/local/bin curl -fsSL https://raw.githubusercontent.com/StringKe/claudex/main/install.sh | bash
     ```
@@ -23,12 +23,12 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
     ```bash
     cargo install --git https://github.com/StringKe/claudex
     ```
-    Требует наличия цепочки инструментов Rust. Бинарный файл будет установлен в `~/.cargo/bin/claudex`.
+    Требуется набор инструментов Rust. Бинарный файл будет установлен в `~/.cargo/bin/claudex`.
   </TabItem>
   <TabItem label="GitHub Releases" icon="github">
-    Загрузите готовый бинарный файл для вашей платформы из [GitHub Releases](https://github.com/StringKe/claudex/releases).
+    Скачайте предварительно собранный бинарный файл для вашей платформы из [GitHub Releases](https://github.com/StringKe/claudex/releases).
 
-    Доступные целевые платформы:
+    Доступные цели:
     - `x86_64-unknown-linux-gnu`
     - `x86_64-unknown-linux-musl`
     - `aarch64-unknown-linux-gnu`
@@ -37,7 +37,7 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
     - `aarch64-apple-darwin`
     - `x86_64-pc-windows-msvc`
 
-    Распакуйте и поместите бинарный файл в `PATH`:
+    Распакуйте и поместите бинарный файл в ваш `PATH`:
     ```bash
     tar xzf claudex-v*.tar.gz
     chmod +x claudex
@@ -49,9 +49,9 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
 ## Системные требования
 
 | Требование | Подробности |
-|------------|-------------|
+|------------|------------|
 | **ОС** | macOS (Intel / Apple Silicon), Linux (x86_64 / ARM64), Windows (x86_64) |
-| **Claude Code** | Должен быть установлен и доступен как `claude` в PATH |
+| **Claude Code** | Должен быть установлен и доступен как `claude` в вашем PATH |
 | **Опционально** | [Ollama](https://ollama.com) для функций умной маршрутизации и контекстного движка |
 
 ## Проверка установки

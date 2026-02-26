@@ -3,34 +3,34 @@ title: Circuit Breaker & Failover
 description: Automatische Fehlererkennung und Anbieter-Failover
 ---
 
-Claudex enthält für jedes Anbieterprofil einen integrierten Circuit Breaker mit automatischem Failover zu Backup-Anbietern, wenn Fehler erkannt werden.
+Claudex enthaelt fuer jedes Anbieterprofil einen integrierten Circuit Breaker mit automatischem Failover zu Backup-Anbietern, wenn Fehler erkannt werden.
 
-## Circuit-Breaker-Zustände
+## Circuit-Breaker-Zustaende
 
 ```
-         Erfolg
+         success
     ┌──────────────┐
     │              │
-    ▼    Fehler    │
- Geschlossen ───► Offen
+    ▼    failure   │
+ Closed ────────► Open
     ▲              │
-    │   Timeout    │
-    │   abgelaufen ▼
+    │   timeout    │
+    │   expired    ▼
     └─────────── HalfOpen
                    │
-                Fehler → zurück zu Offen
+                failure → back to Open
 ```
 
 | Zustand | Verhalten |
-|-------|----------|
-| **Geschlossen** | Normalbetrieb. Anfragen werden durchgeleitet. Fehler werden gezählt. |
-| **Offen** | Anfragen werden blockiert. Löst Failover zu Backup-Anbietern aus. |
-| **HalfOpen** | Nach dem Wiederherstellungs-Timeout wird eine Testanfrage zugelassen. Erfolg → Geschlossen; Fehler → zurück zu Offen. |
+|---------|-----------|
+| **Closed** | Normalbetrieb. Anfragen werden durchgeleitet. Fehler werden gezaehlt. |
+| **Open** | Anfragen werden blockiert. Loest Failover zu Backup-Anbietern aus. |
+| **HalfOpen** | Nach dem Wiederherstellungs-Timeout wird eine Testanfrage zugelassen. Erfolg → Closed; Fehler → zurueck zu Open. |
 
 ## Standardparameter
 
 | Parameter | Wert |
-|-----------|-------|
+|-----------|------|
 | Fehlerschwellenwert | 3 aufeinanderfolgende Fehler |
 | Wiederherstellungs-Timeout | 30 Sekunden |
 
@@ -48,16 +48,27 @@ default_model = "grok-3-beta"
 backup_providers = ["deepseek", "chatgpt"]   # Failover-Kette
 ```
 
-Wenn `grok` 3 Mal nacheinander fehlschlägt:
-1. Circuit Breaker öffnet für `grok`
+Wenn `grok` 3 Mal nacheinander fehlschlaegt:
+1. Circuit Breaker oeffnet fuer `grok`
 2. Anfrage wird mit `deepseek` wiederholt
-3. Wenn `deepseek` ebenfalls fehlschlägt, `chatgpt` versuchen
-4. Jeder Backup-Anbieter hat seinen eigenen unabhängigen Circuit Breaker
+3. Wenn `deepseek` ebenfalls fehlschlaegt, `chatgpt` versuchen
+4. Jeder Backup-Anbieter hat seinen eigenen unabhaengigen Circuit Breaker
 
-## Gesundheitsprüfung
+## OAuth-401-Wiederholung
 
-Ein Hintergrund-Gesundheitsprüfer läuft alle ~30 Sekunden und sendet leichte Testanfragen an alle aktivierten Profile. Der Gesundheitsstatus wird im TUI-Dashboard farbcodiert angezeigt:
+Fuer OAuth-Profile erhalten HTTP-401-Antworten eine Sonderbehandlung:
 
-- Grün: gesund
-- Gelb: beeinträchtigt (kürzliche Fehler)
+1. Der Proxy macht das aktuelle OAuth-Token ungueltig
+2. Versucht ein neues Token aus der Credential Chain zu laden
+3. Wiederholt die Anfrage mit dem neuen Token
+4. Zaehlt nur als Circuit-Breaker-Fehler, wenn auch die Wiederholung fehlschlaegt
+
+Dies verhindert, dass voruebergehender Token-Ablauf unnoetiges Failover ausloest.
+
+## Gesundheitspruefung
+
+Ein Hintergrund-Gesundheitspruefer laeuft alle ~30 Sekunden und sendet leichte Testanfragen an alle aktivierten Profile. Der Gesundheitsstatus wird im TUI-Dashboard farbcodiert angezeigt:
+
+- Gruen: gesund
+- Gelb: beeintraechtigt (kuerzliche Fehler)
 - Rot: Circuit Breaker offen

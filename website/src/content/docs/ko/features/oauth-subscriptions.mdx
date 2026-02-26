@@ -1,0 +1,198 @@
+---
+title: OAuth 구독 인증
+description: OAuth 인증을 통해 기존 프로바이더 구독으로 Claude Code 사용
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Claudex는 7개 프로바이더에 대한 OAuth 기반 인증을 지원하여, 별도의 API 키 없이 기존 구독(Claude Max, ChatGPT Plus, GitHub Copilot 등)을 사용할 수 있습니다.
+
+## 개요
+
+`api_key`를 제공하는 대신 `auth_type = "oauth"`를 설정하고 `oauth_provider`를 지정합니다. Claudex가 전체 자격 증명 체인을 처리합니다: 네이티브 CLI 설정에서 토큰 읽기, 디바이스 코드 플로우 수행, 시스템 키링에 토큰 저장, 만료 전 자동 갱신.
+
+```toml
+[[profiles]]
+name = "codex-sub"
+provider_type = "OpenAIResponses"
+base_url = "https://chatgpt.com/backend-api/codex"
+default_model = "gpt-5.3-codex"
+auth_type = "oauth"
+oauth_provider = "openai"
+```
+
+## 지원 프로바이더
+
+| 프로바이더 | `oauth_provider` | 로그인 방법 | 폴백 |
+|----------|-----------------|--------------|----------|
+| Claude | `claude` | `~/.claude/.credentials.json` 읽기 | -- |
+| ChatGPT/Codex | `openai` | 브라우저 PKCE 또는 Device Code | `~/.codex/auth.json` (Codex CLI) |
+| Google Gemini | `google` | Gemini CLI 자격 증명 읽기 | -- |
+| Kimi | `kimi` | Kimi CLI 자격 증명 읽기 | -- |
+| Qwen | `qwen` | Device Code 플로우 | -- |
+| GitHub Copilot | `github` | Device Code 플로우 | `~/.config/github-copilot/` |
+| GitLab Duo | `gitlab` | `GITLAB_TOKEN` 환경 변수 | -- |
+
+## 자격 증명 체인
+
+각 프로바이더는 자격 증명 체인 패턴을 따릅니다:
+
+1. 이전에 저장된 토큰이 있는지 **시스템 키링 확인**
+2. **네이티브 CLI 설정에서 읽기** (프로바이더별 경로)
+3. 토큰이 없으면 **OAuth 플로우 시작** (브라우저 PKCE 또는 디바이스 코드)
+
+토큰을 획득하면 이후 사용을 위해 시스템 키링에 저장됩니다.
+
+## 토큰 관리
+
+### 토큰 구조
+
+```
+OAuthToken {
+    access_token: String,
+    refresh_token: Option<String>,
+    expires_at: Option<i64>,       // Unix milliseconds
+    token_type: Option<String>,
+    scopes: Option<Vec<String>>,
+    extra: Option<Value>,          // 프로바이더별 데이터
+}
+```
+
+### 자동 갱신
+
+프록시는 각 요청 전에 토큰 만료를 확인합니다. 토큰이 만료 60초 전이면:
+
+1. `refresh_token`(사용 가능한 경우)을 사용하여 갱신 시도
+2. 갱신 성공 시 키링 업데이트
+3. 갱신 실패 시 토큰을 무효화하고 다음 사용 시 재로그인 요청
+
+### 401 재시도
+
+프로바이더가 HTTP 401을 반환하면 프록시가:
+
+1. 현재 토큰 무효화
+2. 자격 증명 체인에서 새 토큰 로드 시도
+3. 새 토큰으로 요청 1회 재시도
+4. 재시도도 실패하면 Claude Code에 오류 반환
+
+## 프로바이더 상세
+
+### Claude
+
+Claude OAuth 프로파일은 특수합니다: **프록시가 완전히 건너뛰어집니다**. Claude OAuth 프로파일을 실행하면, Claudex가 `ANTHROPIC_BASE_URL`을 설정하지 않고 Claude Code를 직접 실행합니다. Claude Code가 `~/.claude/.credentials.json`에서 자체 내장 OAuth 세션을 사용합니다.
+
+```toml
+[[profiles]]
+name = "claude-max"
+provider_type = "DirectAnthropic"
+base_url = "https://api.claude.ai"
+default_model = "claude-sonnet-4-20250514"
+auth_type = "oauth"
+oauth_provider = "claude"
+```
+
+별도의 `claudex auth login` 단계가 필요 없습니다. Claude Code에 이미 로그인되어 있다면 즉시 작동합니다.
+
+### ChatGPT / Codex
+
+두 가지 OAuth 플로우를 지원합니다:
+
+1. **Browser PKCE**: OpenAI 로그인을 위해 브라우저 창을 열고, 로컬 콜백 서버를 통해 토큰 수신
+2. **Device Code**: 헤드리스 환경용으로, URL에 입력할 코드를 표시
+
+Claudex는 폴백으로 `~/.codex/auth.json`의 Codex CLI 토큰도 읽습니다. `ChatGPT-Account-ID` 헤더는 Codex CLI 인증 파일에서 자동 추출됩니다.
+
+```bash
+# 브라우저 플로우 (기본)
+claudex auth login openai --profile codex-sub
+
+# Device code 플로우 (헤드리스)
+claudex auth login openai --profile codex-sub --headless
+```
+
+### GitHub Copilot
+
+GitHub Device Code 플로우를 사용합니다:
+
+1. `claudex auth login github`이 디바이스 코드를 표시
+2. `https://github.com/login/device`에서 코드 입력
+3. 토큰이 시스템 키링에 저장
+
+`~/.config/github-copilot/`에서 기존 토큰이 있으면 폴백으로 읽습니다.
+
+### GitLab Duo
+
+`GITLAB_TOKEN` 환경 변수를 통한 Personal Access Token을 사용합니다:
+
+```bash
+export GITLAB_TOKEN=glpat-...
+claudex auth login gitlab --profile gitlab-duo
+```
+
+자체 호스팅 GitLab 인스턴스의 경우:
+
+```bash
+claudex auth login gitlab --enterprise-url https://gitlab.mycompany.com --profile gitlab-duo
+```
+
+### Google Gemini
+
+Gemini CLI 설정에서 자격 증명을 읽습니다. Gemini CLI를 먼저 설치하고 인증한 후, `claudex auth login google`이 저장된 토큰을 읽습니다.
+
+### Qwen
+
+OAuth Device Code 플로우를 사용합니다. Claudex가 인증을 위한 코드와 URL을 표시합니다:
+
+```bash
+claudex auth login qwen --profile qwen-oauth
+# 표시: Go to https://... and enter code: XXXX-XXXX
+```
+
+### Kimi
+
+Google Gemini 플로우와 유사하게 Kimi CLI 설정에서 자격 증명을 읽습니다.
+
+## 게이트웨이 인증 모드
+
+OAuth 프로파일(Claude 제외)로 Claude Code를 실행할 때, Claudex는 다음을 설정합니다:
+
+```
+ANTHROPIC_AUTH_TOKEN=claudex-passthrough
+```
+
+이는 `X-Api-Key` 대신 `Authorization: Bearer` 헤더를 사용하여, Claude Code 자체의 `ANTHROPIC_API_KEY` 메커니즘과의 충돌을 방지합니다. 프록시가 패스스루 토큰을 실제 OAuth 토큰으로 교체합니다.
+
+## CLI 명령
+
+```bash
+# 프로바이더에 로그인
+claudex auth login <PROVIDER> [--profile <NAME>] [--enterprise-url <URL>] [--headless]
+
+# 모든 OAuth 프로파일의 인증 상태 확인
+claudex auth status
+
+# 특정 프로바이더 확인
+claudex auth status openai
+
+# 토큰 수동 갱신
+claudex auth refresh <PROVIDER>
+
+# 저장된 토큰 제거
+claudex auth logout <PROVIDER>
+```
+
+## 프로바이더 기본값
+
+`auth_type = "oauth"`로 프로파일을 생성할 때, 각 프로바이더에 `base_url`, `provider_type`, `default_model`의 내장 기본값이 있습니다:
+
+| 프로바이더 | 기본 base_url | 기본 provider_type | 기본 모델 |
+|----------|-----------------|----------------------|---------------|
+| Claude | `https://api.claude.ai` | DirectAnthropic | `claude-sonnet-4-20250514` |
+| ChatGPT | `https://chatgpt.com/backend-api/codex` | OpenAIResponses | `gpt-5.3-codex` |
+| GitHub | `https://api.githubcopilot.com` | OpenAICompatible | `gpt-4o` |
+| GitLab | `https://gitlab.com/api/v4/ai/llm/proxy` | OpenAICompatible | `claude-sonnet-4-20250514` |
+| Google | `https://generativelanguage.googleapis.com/v1beta/openai` | OpenAICompatible | `gemini-2.5-pro` |
+| Qwen | `https://chat.qwen.ai/api` | OpenAICompatible | `qwen3-235b-a22b` |
+| Kimi | `https://api.moonshot.cn/v1` | OpenAICompatible | `kimi-k2-0905-preview` |
+
+프로파일 설정에서 `base_url` 또는 `default_model`을 생략하면 이 기본값이 사용됩니다.

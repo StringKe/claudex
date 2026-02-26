@@ -1,0 +1,111 @@
+---
+title: ターミナルハイパーリンク
+description: 自動検出付き OSC 8 クリック可能なターミナルハイパーリンク
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Claudex はターミナル出力で OSC 8 ハイパーリンクをサポートしており、Claude Code の出力に含まれるファイルパス、URL、参照を対応ターミナルでクリック可能にします。
+
+## 概要
+
+OSC 8 はターミナル出力にハイパーリンクを直接埋め込むターミナルエスケープシーケンス標準です。対応している場合、リンクをクリックするとデフォルトハンドラー（URL はブラウザ、ファイルパスはエディタ）で開きます。
+
+エスケープシーケンスの形式:
+
+```
+\x1b]8;;URL\x07DISPLAY_TEXT\x1b]8;;\x07
+```
+
+## 設定
+
+```toml
+# config.toml（グローバル設定）
+hyperlinks = "auto"    # "auto" | true | false
+```
+
+| 値 | 動作 |
+|----|------|
+| `"auto"` | ターミナルのサポートを自動検出（デフォルト） |
+| `true` | ハイパーリンクを強制有効化 |
+| `false` | ハイパーリンクを強制無効化 |
+
+CLI フラグでセッション単位でもハイパーリンクを有効化できます:
+
+```bash
+claudex run grok --hyperlinks
+```
+
+## ターミナル検出
+
+`hyperlinks = "auto"` の場合、Claudex は以下の順序で確認します:
+
+| 優先度 | 確認内容 | 結果 |
+|-------|---------|------|
+| 1 | `FORCE_HYPERLINKS=1` 環境変数 | 有効 |
+| 2 | TTY でない | 無効 |
+| 3 | `DOMTERM` 環境変数が設定済み | 有効 |
+| 4 | `TERM_PROGRAM` = iTerm.app | 有効 |
+| 5 | `TERM_PROGRAM` = WezTerm | 有効 |
+| 6 | `TERM_PROGRAM` = vscode | 有効 |
+| 7 | `TERM_PROGRAM` = Tabby | 有効 |
+| 8 | `TERM_PROGRAM` = Hyper | 有効 |
+| 9 | `TERM_PROGRAM` = mintty | 有効 |
+| 10 | `TERM_PROGRAM` = WarpTerminal | 有効 |
+| 11 | `TERM` = xterm-kitty | 有効 |
+| 12 | `TERM` = xterm-ghostty | 有効 |
+| 13 | `VTE_VERSION` >= 5000 | 有効 |
+| 14 | `WT_SESSION` 環境変数が設定済み（Windows Terminal） | 有効 |
+| 15 | 上記いずれにも該当しない | 無効（安全なデフォルト） |
+
+<Aside type="note">
+  VTE_VERSION >= 5000 は GNOME Terminal（3.68+）、xfce4-terminal、その他の VTE ベースターミナルをカバーします。
+</Aside>
+
+## 対応ターミナル
+
+| ターミナル | プラットフォーム | 検出方法 |
+|-----------|-------------|---------|
+| iTerm2 | macOS | `TERM_PROGRAM` |
+| WezTerm | クロスプラットフォーム | `TERM_PROGRAM` |
+| Kitty | クロスプラットフォーム | `TERM` (xterm-kitty) |
+| Ghostty | クロスプラットフォーム | `TERM` (xterm-ghostty) |
+| VS Code Terminal | クロスプラットフォーム | `TERM_PROGRAM` |
+| Windows Terminal | Windows | `WT_SESSION` |
+| GNOME Terminal | Linux | `VTE_VERSION` |
+| Tabby | クロスプラットフォーム | `TERM_PROGRAM` |
+| Hyper | クロスプラットフォーム | `TERM_PROGRAM` |
+| mintty (Git Bash) | Windows | `TERM_PROGRAM` |
+| WarpTerminal | macOS | `TERM_PROGRAM` |
+| DomTerm | クロスプラットフォーム | `DOMTERM` |
+
+## PTY プロキシモード
+
+Unix システムでハイパーリンクが有効な場合、Claudex は PTY（擬似端末）プロキシの下で Claude Code プロセスを起動します。これにより、Claudex はターミナル出力をインターセプトしてハイパーリンクで強化しつつ、完全なターミナル体験（カラー、カーソル移動など）を維持できます。
+
+PTY プロキシはユーザーに対して透過的です。対話セッションでのみ有効化されます（`--print` を使用した非対話モードでは PTY はスキップされます）。
+
+<Aside type="tip">
+  ターミナルの描画に問題がある場合は、設定で `hyperlinks = false` を指定するか、`--hyperlinks` フラグを省略してハイパーリンクを無効化できます。
+</Aside>
+
+## 強制有効/無効
+
+自動検出リストにないターミナルでハイパーリンクを強制的に有効にするには:
+
+```bash
+# 環境変数経由
+FORCE_HYPERLINKS=1 claudex run grok
+
+# 設定経由
+hyperlinks = true
+
+# CLI フラグ経由
+claudex run grok --hyperlinks
+```
+
+強制的に無効にする場合（例: 出力のパイプ時）:
+
+```toml
+hyperlinks = false
+```

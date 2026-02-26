@@ -7,14 +7,16 @@ import { Aside } from '@astrojs/starlight/components';
 
 ## 配置文件位置
 
-Claudex 按以下顺序搜索配置文件：
+Claudex 使用 figment 实现分层配置。配置源按以下顺序合并（后者覆盖前者）：
 
-1. `$CLAUDEX_CONFIG` 环境变量
-2. `./claudex.toml`（当前目录）
-3. `./.claudex/config.toml`（当前目录）
-4. 父目录（最多向上 10 级），检查上述两种模式
+1. **程序内置默认值**
+2. **全局配置**（`~/.config/claudex/config.toml` 或 `.yaml`）
+3. **项目配置**（当前目录或父目录中的 `claudex.toml`/`.claudex/config.toml`，或 `$CLAUDEX_CONFIG`）
+4. **环境变量**（`CLAUDEX_` 前缀，`__` 分隔符）
 
-参见[配置](/zh-cn/configuration/)了解完整详情。
+同时支持 TOML 和 YAML 格式。
+
+参见[配置](/zh-cn/configuration/)了解设置详情。
 
 ## 全局设置
 
@@ -30,6 +32,9 @@ proxy_host = "127.0.0.1"
 
 # 日志级别：trace, debug, info, warn, error
 log_level = "info"
+
+# 终端超链接（OSC 8）："auto" | true | false
+hyperlinks = "auto"
 ```
 
 | 字段 | 类型 | 默认值 | 说明 |
@@ -38,6 +43,7 @@ log_level = "info"
 | `proxy_port` | integer | `13456` | 翻译代理监听端口 |
 | `proxy_host` | string | `"127.0.0.1"` | 代理绑定地址 |
 | `log_level` | string | `"info"` | 最低日志级别 |
+| `hyperlinks` | string/bool | `"auto"` | 终端超链接：`"auto"`（检测）、`true`（强制开启）、`false`（强制关闭） |
 
 ## 模型别名
 
@@ -74,8 +80,14 @@ custom_headers = {}
 extra_env = {}
 priority = 100
 enabled = true
+max_tokens = 16384                  # 可选：限制输出 token 数
+strip_params = "auto"               # "auto" | "none" | ["temperature", "top_p"]
 
-# 模型 slot 映射（可选）
+# URL 查询参数（例如 Azure api-version）
+[profiles.query_params]
+# api-version = "2024-12-01-preview"
+
+# 模型槽位映射（可选）
 [profiles.models]
 haiku = "grok-3-mini-beta"
 sonnet = "grok-3-beta"
@@ -84,23 +96,38 @@ opus = "grok-3-beta"
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `name` | string | *必填* | 唯一标识名 |
+| `name` | string | *必填* | 唯一的 profile 标识符 |
 | `provider_type` | string | `"DirectAnthropic"` | `"DirectAnthropic"`、`"OpenAICompatible"` 或 `"OpenAIResponses"` |
 | `base_url` | string | *必填* | 提供商 API 端点 URL |
 | `api_key` | string | `""` | 明文 API 密钥 |
-| `api_key_keyring` | string | — | OS 钥匙链条目名（覆盖 `api_key`） |
+| `api_key_keyring` | string | -- | OS 密钥链条目名（覆盖 `api_key`） |
 | `default_model` | string | *必填* | 默认模型标识 |
 | `auth_type` | string | `"api-key"` | 认证方式：`"api-key"` 或 `"oauth"` |
-| `oauth_provider` | string | — | OAuth 提供商名称（`auth_type = "oauth"` 时必填）。可选：`claude`、`openai`、`google`、`qwen`、`kimi`、`github` |
+| `oauth_provider` | string | -- | OAuth 提供商名称。可选：`claude`、`openai`、`google`、`qwen`、`kimi`、`github`、`gitlab` |
 | `backup_providers` | string[] | `[]` | 故障转移 profile 名，按顺序尝试 |
 | `custom_headers` | map | `{}` | 每个请求附带的额外 HTTP 头 |
 | `extra_env` | map | `{}` | 启动 Claude 时设置的环境变量 |
 | `priority` | integer | `100` | 智能路由优先级权重（越高越优先） |
 | `enabled` | boolean | `true` | 是否激活此 profile |
+| `max_tokens` | integer | -- | 限制发送给提供商的最大输出 token 数。设置时覆盖请求中的 `max_tokens` |
+| `strip_params` | string/array | `"auto"` | 从请求中剥离的参数。`"auto"` 检测已知端点；`"none"` 发送全部；数组指定特定参数 |
 
-### 模型 Slot 映射
+### 查询参数
 
-可选的 `[profiles.models]` 表将 Claude Code 的 `/model` 切换器 slot 映射到提供商特定的模型名。当你在 Claude Code 中切换模型（例如 `/model opus`）时，Claudex 会将请求翻译为映射的模型。
+```toml
+[profiles.query_params]
+api-version = "2024-12-01-preview"
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `query_params` | map | 作为 URL 查询参数附加到每个请求的键值对 |
+
+主要用于 Azure OpenAI（`api-version`），但适用于任何提供商。
+
+### 模型槽位映射
+
+可选的 `[profiles.models]` 表将 Claude Code 的 `/model` 切换器槽位映射到提供商特定的模型名。当你在 Claude Code 中切换模型（例如 `/model opus`）时，Claudex 会将请求翻译为映射的模型。
 
 ```toml
 [profiles.models]
@@ -116,13 +143,13 @@ opus = "grok-3-beta"          # 映射 /model opus
 | `opus` | string | Claude Code 选择 `opus` 时使用的模型 |
 
 <Aside type="tip">
-  未定义的 slot 将回退到 profile 的 `default_model`。
+  未定义的槽位将回退到 profile 的 `default_model`。槽位也通过环境变量暴露：`ANTHROPIC_DEFAULT_HAIKU_MODEL`、`ANTHROPIC_DEFAULT_SONNET_MODEL`、`ANTHROPIC_DEFAULT_OPUS_MODEL`。
 </Aside>
 
 ### 提供商示例
 
 ```toml
-# Anthropic（DirectAnthropic — 无需翻译）
+# Anthropic（DirectAnthropic -- 无需翻译）
 [[profiles]]
 name = "anthropic"
 provider_type = "DirectAnthropic"
@@ -130,7 +157,7 @@ base_url = "https://api.anthropic.com"
 api_key = "sk-ant-..."
 default_model = "claude-sonnet-4-20250514"
 
-# MiniMax（DirectAnthropic — 无需翻译）
+# MiniMax（DirectAnthropic -- 无需翻译）
 [[profiles]]
 name = "minimax"
 provider_type = "DirectAnthropic"
@@ -139,7 +166,7 @@ api_key = "..."
 default_model = "claude-sonnet-4-20250514"
 backup_providers = ["anthropic"]
 
-# OpenRouter（OpenAICompatible — 需要翻译）
+# OpenRouter（OpenAICompatible -- 需要翻译）
 [[profiles]]
 name = "openrouter"
 provider_type = "OpenAICompatible"
@@ -147,7 +174,7 @@ base_url = "https://openrouter.ai/api/v1"
 api_key = "..."
 default_model = "anthropic/claude-sonnet-4"
 
-# Grok（OpenAICompatible — 需要翻译）
+# Grok（OpenAICompatible -- 需要翻译）
 [[profiles]]
 name = "grok"
 provider_type = "OpenAICompatible"
@@ -156,7 +183,7 @@ api_key = "xai-..."
 default_model = "grok-3-beta"
 backup_providers = ["deepseek"]
 
-# OpenAI（OpenAICompatible — 需要翻译）
+# OpenAI（OpenAICompatible -- 需要翻译）
 [[profiles]]
 name = "chatgpt"
 provider_type = "OpenAICompatible"
@@ -164,7 +191,7 @@ base_url = "https://api.openai.com/v1"
 api_key = "sk-..."
 default_model = "gpt-4o"
 
-# DeepSeek（OpenAICompatible — 需要翻译）
+# DeepSeek（OpenAICompatible -- 需要翻译）
 [[profiles]]
 name = "deepseek"
 provider_type = "OpenAICompatible"
@@ -173,21 +200,79 @@ api_key = "..."
 default_model = "deepseek-chat"
 backup_providers = ["grok"]
 
-# Kimi / Moonshot（OpenAICompatible — 需要翻译）
+# Kimi / Moonshot（OpenAICompatible -- 需要翻译）
 [[profiles]]
 name = "kimi"
 provider_type = "OpenAICompatible"
-base_url = "https://api.moonshot.cn/v1"
+base_url = "https://api.moonshot.ai/v1"
 api_key = "..."
-default_model = "moonshot-v1-128k"
+default_model = "kimi-k2-0905-preview"
 
-# GLM / 智谱（OpenAICompatible — 需要翻译）
+# GLM / 智谱（OpenAICompatible -- 需要翻译）
 [[profiles]]
 name = "glm"
 provider_type = "OpenAICompatible"
-base_url = "https://open.bigmodel.cn/api/paas/v4"
+base_url = "https://api.z.ai/api/paas/v4"
 api_key = "..."
-default_model = "glm-4-plus"
+default_model = "glm-4.6"
+
+# Groq（OpenAICompatible -- 快速推理）
+[[profiles]]
+name = "groq"
+provider_type = "OpenAICompatible"
+base_url = "https://api.groq.com/openai/v1"
+api_key = "gsk_..."
+default_model = "llama-3.3-70b-versatile"
+
+# Mistral AI（OpenAICompatible -- 需要翻译）
+[[profiles]]
+name = "mistral"
+provider_type = "OpenAICompatible"
+base_url = "https://api.mistral.ai/v1"
+api_key = "..."
+default_model = "mistral-large-latest"
+
+# Together AI（OpenAICompatible -- 需要翻译）
+[[profiles]]
+name = "together"
+provider_type = "OpenAICompatible"
+base_url = "https://api.together.xyz/v1"
+api_key = "..."
+default_model = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+
+# Perplexity（OpenAICompatible -- 联网搜索 + LLM）
+[[profiles]]
+name = "perplexity"
+provider_type = "OpenAICompatible"
+base_url = "https://api.perplexity.ai"
+api_key = "pplx-..."
+default_model = "sonar-pro"
+
+# Cerebras（OpenAICompatible -- 快速推理）
+[[profiles]]
+name = "cerebras"
+provider_type = "OpenAICompatible"
+base_url = "https://api.cerebras.ai/v1"
+api_key = "..."
+default_model = "llama-3.3-70b"
+
+# Azure OpenAI（OpenAICompatible -- api-key 头 + query_params）
+[[profiles]]
+name = "azure-openai"
+provider_type = "OpenAICompatible"
+base_url = "https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT"
+api_key = "YOUR_AZURE_KEY"
+default_model = "gpt-4o"
+[profiles.query_params]
+api-version = "2024-12-01-preview"
+
+# Google Vertex AI（DirectAnthropic）
+[[profiles]]
+name = "vertex-ai"
+provider_type = "DirectAnthropic"
+base_url = "https://us-east5-aiplatform.googleapis.com/v1/projects/YOUR_PROJECT/locations/us-east5/publishers/anthropic/models"
+api_key = "YOUR_GCLOUD_TOKEN"
+default_model = "claude-sonnet-4@20250514"
 
 # Ollama（本地，无需 API 密钥）
 [[profiles]]
@@ -206,39 +291,16 @@ base_url = "http://localhost:8000/v1"
 api_key = ""
 default_model = "llama-3.3-70b"
 enabled = false
-
-# ChatGPT/Codex 订阅（OpenAIResponses — Responses API 翻译）
-[[profiles]]
-name = "codex-sub"
-provider_type = "OpenAIResponses"
-base_url = "https://chatgpt.com/backend-api/codex"
-default_model = "gpt-4o"
-auth_type = "oauth"
-oauth_provider = "openai"
 ```
 
 ### OAuth Profile 示例
 
 ```toml
-# OpenAI OAuth（从 Codex CLI ~/.codex/auth.json 读取 token）
+# Claude Max（跳过代理，使用 Claude 原生 OAuth，从 ~/.claude 读取）
 [[profiles]]
-name = "chatgpt-oauth"
-provider_type = "OpenAICompatible"
-base_url = "https://api.openai.com/v1"
-default_model = "gpt-4o"
-auth_type = "oauth"
-oauth_provider = "openai"
-
-[profiles.models]
-haiku = "gpt-4o-mini"
-sonnet = "gpt-4o"
-opus = "o1"
-
-# Claude 订阅（跳过代理，使用 Claude 原生 OAuth，从 ~/.claude 读取）
-[[profiles]]
-name = "claude-sub"
+name = "claude-max"
 provider_type = "DirectAnthropic"
-base_url = "https://api.anthropic.com"
+base_url = "https://api.claude.ai"
 default_model = "claude-sonnet-4-20250514"
 auth_type = "oauth"
 oauth_provider = "claude"
@@ -248,9 +310,23 @@ haiku = "claude-haiku-4-20250514"
 sonnet = "claude-sonnet-4-20250514"
 opus = "claude-opus-4-20250514"
 
+# ChatGPT/Codex 订阅（OpenAIResponses）
+[[profiles]]
+name = "codex-sub"
+provider_type = "OpenAIResponses"
+base_url = "https://chatgpt.com/backend-api/codex"
+default_model = "gpt-5.3-codex"
+auth_type = "oauth"
+oauth_provider = "openai"
+
+[profiles.models]
+haiku = "codex-mini-latest"
+sonnet = "gpt-5.3-codex"
+opus = "gpt-5.3-codex"
+
 # Google Gemini OAuth
 [[profiles]]
-name = "gemini"
+name = "gemini-sub"
 provider_type = "OpenAICompatible"
 base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
 default_model = "gemini-2.5-pro"
@@ -266,41 +342,36 @@ default_model = "moonshot-v1-128k"
 auth_type = "oauth"
 oauth_provider = "kimi"
 
-# Qwen OAuth（通义千问）
+# Qwen OAuth
 [[profiles]]
 name = "qwen-oauth"
 provider_type = "OpenAICompatible"
-base_url = "https://chat.qwenlm.ai/api/chat/v1"
-default_model = "qwen-max"
+base_url = "https://chat.qwen.ai/api"
+default_model = "qwen3-235b-a22b"
 auth_type = "oauth"
 oauth_provider = "qwen"
 
 # GitHub Copilot OAuth
 [[profiles]]
-name = "github-copilot"
+name = "copilot"
 provider_type = "OpenAICompatible"
 base_url = "https://api.githubcopilot.com"
 default_model = "gpt-4o"
 auth_type = "oauth"
 oauth_provider = "github"
 
-# ChatGPT/Codex 订阅 OAuth（OpenAIResponses）
+# GitLab Duo（通过 GITLAB_TOKEN）
 [[profiles]]
-name = "codex-sub"
-provider_type = "OpenAIResponses"
-base_url = "https://chatgpt.com/backend-api/codex"
-default_model = "gpt-4o"
+name = "gitlab-duo"
+provider_type = "OpenAICompatible"
+base_url = "https://gitlab.com/api/v4/ai/llm/proxy"
+default_model = "claude-sonnet-4-20250514"
 auth_type = "oauth"
-oauth_provider = "openai"
-
-[profiles.models]
-haiku = "gpt-4o-mini"
-sonnet = "gpt-4o"
-opus = "o1-pro"
+oauth_provider = "gitlab"
 ```
 
 <Aside type="caution">
-  对于 `claude` OAuth 提供商，Claudex 使用 Gateway 认证模式：设置 `ANTHROPIC_AUTH_TOKEN`（而非 `ANTHROPIC_API_KEY`）以避免与 Claude Code 自身订阅登录流程冲突。
+  对于 `claude` OAuth 提供商，Claudex 跳过代理，让 Claude Code 直接使用自身的 OAuth。对于所有其他 OAuth 提供商，代理负责 token 管理和刷新。
 </Aside>
 
 ## 智能路由
@@ -357,8 +428,8 @@ model = "qwen2.5:3b"      # 覆盖模型（可选）
 | `enabled` | boolean | `false` | 启用对话压缩 |
 | `threshold_tokens` | integer | `50000` | token 数超过此值时触发压缩 |
 | `keep_recent` | integer | `10` | 始终保留最近 N 条消息不压缩 |
-| `profile` | string | `""` | 复用的 profile 名（使用其 `base_url` + `api_key`） |
-| `model` | string | `""` | 摘要模型覆盖（默认用 profile 的 `default_model`） |
+| `profile` | string | `""` | 复用的 profile 名（用于摘要生成） |
+| `model` | string | `""` | 摘要模型覆盖 |
 
 ### 跨 Profile 共享
 
@@ -389,7 +460,7 @@ top_k = 5
 |------|------|--------|------|
 | `enabled` | boolean | `false` | 启用本地 RAG |
 | `index_paths` | string[] | `[]` | 要索引的目录 |
-| `profile` | string | `""` | 复用的 profile 名（使用其 `base_url` + `api_key`） |
-| `model` | string | `""` | embedding 模型名称（默认用 profile 的 `default_model`） |
+| `profile` | string | `""` | 复用的 profile 名（用于 embedding） |
+| `model` | string | `""` | embedding 模型名称 |
 | `chunk_size` | integer | `512` | 文本块大小（token） |
 | `top_k` | integer | `5` | 注入的结果数量 |

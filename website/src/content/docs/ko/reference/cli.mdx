@@ -1,13 +1,19 @@
 ---
 title: CLI 레퍼런스
-description: Claudex CLI의 완전한 명령 레퍼런스
+description: Claudex CLI의 전체 명령 레퍼런스
 ---
 
 ## 전역 사용법
 
 ```
-claudex [COMMAND]
+claudex [OPTIONS] [COMMAND]
 ```
+
+| 옵션 | 설명 |
+|--------|-------------|
+| `--config <PATH>` | 설정 파일 경로 오버라이드 |
+| `--version` | 버전 출력 |
+| `--help` | 도움말 출력 |
 
 명령 없이 실행하면, 프로파일이 설정된 경우 TUI 대시보드를 실행하고, 프로파일이 없으면 환영 메시지를 표시합니다.
 
@@ -15,20 +21,21 @@ claudex [COMMAND]
 
 ### `run`
 
-특정 제공자 프로파일로 Claude Code를 실행합니다.
+특정 프로바이더 프로파일로 Claude Code를 실행합니다.
 
 ```bash
-claudex run <PROFILE> [PROMPT] [-m MODEL] [--print] [--dangerously-skip-permissions] [ARGS...]
+claudex run <PROFILE> [PROMPT] [OPTIONS] [-- ARGS...]
 ```
 
-| 인수 | 설명 |
+| 인수 / 옵션 | 설명 |
 |----------|-------------|
 | `PROFILE` | 프로파일 이름, 또는 스마트 라우팅을 위한 `auto` |
-| `PROMPT` | 비대화형(단발성) 실행을 위한 선택적 프롬프트 |
+| `PROMPT` | 비대화형(원샷) 실행을 위한 선택적 프롬프트 |
 | `-m, --model MODEL` | 이 세션의 기본 모델 오버라이드 |
+| `--hyperlinks` | OSC 8 터미널 하이퍼링크 강제 활성화 |
 | `--print` | 응답을 출력하고 종료 (비대화형 모드) |
 | `--dangerously-skip-permissions` | 모든 권한 프롬프트 건너뛰기 (CI/CD용 `--print`와 함께 사용) |
-| `ARGS...` | `claude`에 전달할 추가 인수 |
+| `ARGS...` | `claude`에 전달할 추가 인수 (`--` 뒤에 배치) |
 
 ```bash
 # Grok 사용 (대화형)
@@ -40,7 +47,10 @@ claudex run grok -m grok-3-mini-beta
 # 스마트 라우팅
 claudex run auto
 
-# 비대화형 단발성 실행
+# 터미널 하이퍼링크 강제 활성화
+claudex run grok --hyperlinks
+
+# 비대화형 원샷 실행
 claudex run grok "Explain this codebase" --print
 
 # CI/CD 파이프라인 사용 (프롬프트 없음, 권한 없음)
@@ -52,7 +62,7 @@ claudex run grok -- --verbose
 
 ### `profile`
 
-제공자 프로파일을 관리합니다.
+프로바이더 프로파일을 관리합니다.
 
 #### `profile list`
 
@@ -60,7 +70,7 @@ claudex run grok -- --verbose
 claudex profile list
 ```
 
-상태와 함께 설정된 모든 프로파일을 나열합니다.
+상태, 프로바이더 유형, 모델과 함께 설정된 모든 프로파일을 나열합니다.
 
 #### `profile add`
 
@@ -68,7 +78,7 @@ claudex profile list
 claudex profile add
 ```
 
-새 프로파일을 추가하는 대화형 마법사. 제공자 선택, API 키 입력(선택적 키링 저장), 모델 선택, 연결 테스트를 안내합니다.
+새 프로파일을 추가하는 대화형 마법사. 프로바이더 선택, API 키 입력(선택적 키링 저장), 모델 선택, 연결 테스트를 안내합니다.
 
 #### `profile show`
 
@@ -76,7 +86,7 @@ claudex profile add
 claudex profile show <NAME>
 ```
 
-특정 프로파일의 세부 정보를 표시합니다.
+모든 설정 필드를 포함한 특정 프로파일의 상세 정보를 표시합니다.
 
 #### `profile remove`
 
@@ -92,31 +102,41 @@ claudex profile remove <NAME>
 claudex profile test <NAME|all>
 ```
 
-특정 프로파일 또는 모든 프로파일의 연결을 테스트합니다.
+특정 프로파일 또는 모든 프로파일의 연결을 테스트합니다. 프로바이더의 `/models` 엔드포인트에 경량 요청을 전송합니다.
 
 ### `auth`
 
-제공자 프로파일의 OAuth 구독 인증을 관리합니다.
+프로바이더 프로파일의 OAuth 구독 인증을 관리합니다.
 
 #### `auth login`
 
 ```bash
-claudex auth login <PROVIDER>
+claudex auth login <PROVIDER> [OPTIONS]
 ```
 
-OAuth를 사용하여 제공자에 로그인합니다. 지원 제공자: `claude`, `openai`, `google`, `qwen`, `kimi`, `github`.
+| 옵션 | 설명 |
+|--------|-------------|
+| `--profile <NAME>` | 특정 프로파일과 연결 |
+| `--enterprise-url <URL>` | 커스텀 엔터프라이즈 서버 URL (자체 호스팅 GitLab 등) |
+| `--headless` | 헤드리스(디바이스 코드) 플로우 사용, 브라우저 실행 건너뛰기 |
 
-**OpenAI**의 경우, Claudex가 Codex CLI 설정(`~/.codex/auth.json`)에서 토큰을 읽습니다. **Claude**의 경우, `~/.claude`에서 읽습니다. 다른 제공자는 로컬 콜백 서버 또는 device code 플로우를 사용합니다.
+OAuth를 사용하여 프로바이더에 로그인합니다. 지원 프로바이더: `claude`, `openai`, `google`, `qwen`, `kimi`, `github`, `gitlab`.
 
 ```bash
 # OpenAI 로그인 (Codex CLI에서 읽기)
-claudex auth login openai
+claudex auth login openai --profile codex-sub
 
 # Claude 로그인 (~/.claude에서 읽기)
 claudex auth login claude
 
 # Google 로그인
-claudex auth login google
+claudex auth login google --profile gemini-sub
+
+# 엔터프라이즈 URL로 GitLab 로그인
+claudex auth login gitlab --enterprise-url https://gitlab.mycompany.com
+
+# 헤드리스 모드 (브라우저 없음, 디바이스 코드만)
+claudex auth login github --headless
 ```
 
 #### `auth status`
@@ -125,13 +145,13 @@ claudex auth login google
 claudex auth status [PROVIDER]
 ```
 
-현재 인증 상태를 표시합니다. 제공자 인수 없이 실행하면 설정된 모든 OAuth 프로파일의 상태를 표시합니다.
+현재 인증 상태를 표시합니다. 프로바이더 인수 없이 실행하면 설정된 모든 OAuth 프로파일의 상태를 표시합니다.
 
 ```bash
 # 모든 OAuth 프로파일 확인
 claudex auth status
 
-# 특정 제공자 확인
+# 특정 프로바이더 확인
 claudex auth status openai
 ```
 
@@ -141,7 +161,7 @@ claudex auth status openai
 claudex auth refresh <PROVIDER>
 ```
 
-제공자의 OAuth 토큰을 수동으로 갱신합니다. 토큰은 만료 시 프록시에 의해 자동으로 갱신됩니다.
+프로바이더의 OAuth 토큰을 수동으로 갱신합니다. 토큰은 만료 시 프록시에 의해 자동으로도 갱신됩니다.
 
 #### `auth logout`
 
@@ -149,7 +169,7 @@ claudex auth refresh <PROVIDER>
 claudex auth logout <PROVIDER>
 ```
 
-제공자의 저장된 OAuth 토큰을 제거합니다.
+시스템 키링에서 프로바이더의 저장된 OAuth 토큰을 제거합니다.
 
 ### `proxy`
 
@@ -158,7 +178,7 @@ claudex auth logout <PROVIDER>
 #### `proxy start`
 
 ```bash
-claudex proxy start [-p PORT] [-d]
+claudex proxy start [OPTIONS]
 ```
 
 | 플래그 | 설명 |
@@ -172,7 +192,7 @@ claudex proxy start [-p PORT] [-d]
 claudex proxy stop
 ```
 
-프록시 데몬을 중지합니다 (SIGTERM 전송).
+프록시 데몬을 중지합니다 (PID 파일을 통해 SIGTERM 전송).
 
 #### `proxy status`
 
@@ -192,24 +212,132 @@ claudex dashboard
 
 ### `config`
 
+설정 파일을 관리합니다.
+
+#### `config show`
+
 ```bash
-claudex config [--init]
+claudex config show
 ```
 
-| 플래그 | 설명 |
-|------|-------------|
-| `--init` | 현재 디렉토리에 새 설정 파일 생성 |
+로드된 설정 파일 경로, 검색 순서, 현재 설정 값을 표시합니다.
 
-`--init` 없이 실행하면 로드된 설정 파일 경로와 탐색 순서를 표시합니다.
+#### `config path`
+
+```bash
+claudex config path
+```
+
+해석된 설정 파일 경로만 출력합니다.
+
+#### `config init`
+
+```bash
+claudex config init
+```
+
+내장 템플릿에서 현재 디렉토리에 새 설정 파일을 생성합니다.
+
+#### `config recreate`
+
+```bash
+claudex config recreate
+```
+
+`config.example.toml`에서 설정 파일을 재생성하여 기존 설정을 덮어씁니다.
+
+#### `config edit`
+
+```bash
+claudex config edit
+```
+
+`$EDITOR`(또는 `$VISUAL`)로 설정 파일을 엽니다.
+
+#### `config validate`
+
+```bash
+claudex config validate
+```
+
+설정 문법, 프로파일 참조(backup_providers, 라우터 규칙), OAuth 프로바이더 설정을 검증합니다. 오류와 경고를 보고합니다.
+
+#### `config get`
+
+```bash
+claudex config get <KEY>
+```
+
+키 경로(예: `proxy_port`, `profiles.0.name`)로 특정 설정 값을 조회합니다.
+
+#### `config set`
+
+```bash
+claudex config set <KEY> <VALUE>
+```
+
+키 경로로 특정 설정 값을 변경합니다.
+
+#### `config export`
+
+```bash
+claudex config export
+```
+
+현재 병합된 설정을 TOML 형식으로 stdout에 출력합니다.
+
+### `sets`
+
+설정 세트(규칙, 스킬, MCP 서버의 설치 가능한 번들)를 관리합니다.
+
+#### `sets add`
+
+```bash
+claudex sets add <PATH>
+```
+
+`manifest.json`(또는 `manifest.yaml`)이 포함된 로컬 디렉토리에서 설정 세트를 설치합니다.
+
+#### `sets remove`
+
+```bash
+claudex sets remove <NAME>
+```
+
+이름으로 설치된 설정 세트를 제거합니다.
+
+#### `sets list`
+
+```bash
+claudex sets list
+```
+
+모든 설치된 설정 세트의 버전, 설명, 컴포넌트 요약을 표시합니다.
+
+#### `sets update`
+
+```bash
+claudex sets update <NAME> <PATH>
+```
+
+새 매니페스트 경로에서 기존 설정 세트를 업데이트합니다.
+
+#### `sets show`
+
+```bash
+claudex sets show <NAME>
+```
+
+모든 컴포넌트를 포함한 설치된 설정 세트의 상세 정보를 표시합니다.
 
 ### `update`
 
 ```bash
-claudex update [--check]
+claudex update [OPTIONS]
 ```
 
 | 플래그 | 설명 |
 |------|-------------|
 | `--check` | 업데이트만 확인하고 설치하지 않음 |
 
-`--check` 없이 실행하면 최신 버전을 다운로드하고 설치합니다.
+`--check` 없이 실행하면 GitHub Releases에서 최신 버전을 다운로드하고 설치합니다.

@@ -1,42 +1,42 @@
 ---
-title: Circuit Breaker e Failover
-description: Rilevamento automatico dei guasti e failover del provider
+title: Circuit Breaker e failover
+description: Rilevamento automatico dei guasti e failover del fornitore
 ---
 
-Claudex include un circuit breaker integrato per ogni profilo provider, con failover automatico verso provider di backup quando vengono rilevati guasti.
+Claudex include un circuit breaker integrato per ogni profilo fornitore, con failover automatico verso fornitori di backup quando vengono rilevati guasti.
 
-## Stati del Circuit Breaker
+## Stati del circuit breaker
 
 ```
-         successo
+         success
     ┌──────────────┐
     │              │
-    ▼    guasto    │
- Chiuso ────────► Aperto
+    ▼    failure   │
+ Closed ────────► Open
     ▲              │
     │   timeout    │
-    │   scaduto    ▼
-    └─────────── SemiAperto
+    │   expired    ▼
+    └─────────── HalfOpen
                    │
-                guasto → torna ad Aperto
+                failure → back to Open
 ```
 
 | Stato | Comportamento |
-|-------|--------------|
-| **Chiuso** | Funzionamento normale. Le richieste passano. I guasti vengono contati. |
-| **Aperto** | Le richieste vengono bloccate. Attiva il failover verso i provider di backup. |
-| **SemiAperto** | Dopo il timeout di recupero, viene consentita una richiesta sonda. Successo → Chiuso; Guasto → torna ad Aperto. |
+|-------|---------------|
+| **Closed** | Funzionamento normale. Le richieste passano. I guasti vengono contati. |
+| **Open** | Le richieste vengono bloccate. Attiva il failover verso i fornitori di backup. |
+| **HalfOpen** | Dopo il timeout di recupero, viene consentita una richiesta sonda. Successo -> Closed; Guasto -> torna a Open. |
 
-## Parametri Predefiniti
+## Parametri predefiniti
 
 | Parametro | Valore |
 |-----------|--------|
 | Soglia di guasto | 3 guasti consecutivi |
 | Timeout di recupero | 30 secondi |
 
-## Configurazione del Failover
+## Configurazione del failover
 
-Definisci provider di backup nel tuo profilo per abilitare il failover automatico:
+Definisci fornitori di backup nel tuo profilo per abilitare il failover automatico:
 
 ```toml
 [[profiles]]
@@ -48,13 +48,24 @@ default_model = "grok-3-beta"
 backup_providers = ["deepseek", "chatgpt"]   # catena di failover
 ```
 
-Quando `grok` fallisce 3 volte di seguito:
+Quando `grok` fallisce 3 volte consecutivamente:
 1. Il circuit breaker si apre per `grok`
 2. La richiesta viene riprovata con `deepseek`
 3. Se anche `deepseek` fallisce, si prova `chatgpt`
-4. Ogni provider di backup ha il proprio circuit breaker indipendente
+4. Ogni fornitore di backup ha il proprio circuit breaker indipendente
 
-## Verifica dello Stato
+## Retry OAuth 401
+
+Per i profili OAuth, le risposte HTTP 401 ricevono un trattamento speciale:
+
+1. Il proxy invalida il token OAuth corrente
+2. Tenta un caricamento fresco del token dalla catena di credenziali
+3. Riprova la richiesta con il nuovo token
+4. Conta come guasto per il circuit breaker solo se anche il retry fallisce
+
+Questo impedisce che la scadenza temporanea dei token attivi failover non necessari.
+
+## Controllo dello stato
 
 Un controllo dello stato in background viene eseguito ogni ~30 secondi, inviando richieste sonda leggere a tutti i profili abilitati. Lo stato viene visualizzato nella dashboard TUI con codifica a colori:
 

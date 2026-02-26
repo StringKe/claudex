@@ -1,10 +1,10 @@
 ---
 title: 多实例 Claude Code 管理器
-description: 多实例 Claude Code 管理器，内置智能翻译代理
+description: 内置智能翻译代理的多实例 Claude Code 管理器
 template: splash
 hero:
   title: Claudex
-  tagline: 让 Claude Code 无缝使用任何 AI 提供商 — Grok、ChatGPT、DeepSeek、Kimi、GLM、Ollama 等。
+  tagline: 让 Claude Code 支持任意 AI 提供商 -- Grok、ChatGPT、DeepSeek、Gemini、Kimi、GLM、Ollama、Azure、Groq、Mistral 等 20+ 服务。
   actions:
     - text: 快速开始
       link: /zh-cn/installation/
@@ -22,36 +22,53 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 
 <CardGrid stagger>
   <Card title="翻译代理" icon="translate">
-    自动 Anthropic-to-OpenAI 协议翻译。让 Claude Code 无缝使用 Grok、ChatGPT、DeepSeek、Kimi、GLM 等任何 OpenAI 兼容提供商。
+    自动完成 Anthropic 与 OpenAI 协议之间的双向翻译。支持 20+ 提供商，包括 Grok、ChatGPT、DeepSeek、Gemini、Kimi、GLM、Azure OpenAI、Groq、Mistral、Together AI、Perplexity、Cerebras，以及任何 OpenAI 兼容端点。
   </Card>
   <Card title="断路器" icon="warning">
-    内置断路器，自动故障转移到备用提供商。可配置阈值和恢复超时，确保工作流不中断。
+    每个 profile 独立的断路器，支持自动故障转移到备用提供商。可配置失败阈值、恢复超时，以及 OAuth 401 自动重试与 token 刷新。
   </Card>
   <Card title="智能路由" icon="random">
-    基于意图的自动路由，通过本地分类器将 code、analysis、creative、search、math 任务自动分配到最优提供商。
+    基于意图的自动路由，使用本地分类器。自动将代码、分析、创意写作、搜索和数学任务分配到最优的提供商 profile。
   </Card>
   <Card title="上下文引擎" icon="document">
-    对话压缩、跨 profile 上下文共享、本地 RAG 向量检索。用更丰富的上下文增强 AI 交互体验。
+    对话压缩、跨 profile 上下文共享和本地 RAG 嵌入检索。通过更丰富的上下文增强你的 AI 交互体验。
   </Card>
   <Card title="TUI 仪表盘" icon="laptop">
-    实时终端仪表盘，显示 profile 健康状态、请求指标、日志和快速启动。完整键盘导航支持。
+    实时终端仪表盘，显示 profile 健康状态、请求指标、日志和快速启动功能。支持全键盘导航。
   </Card>
-  <Card title="自更新" icon="up-caret">
-    一条命令检查并安装最新版本，直接从 GitHub Releases 下载。轻松保持最新。
+  <Card title="自动更新" icon="up-caret">
+    一条命令即可检查并安装最新版本，直接从 GitHub Releases 获取。轻松保持最新状态。
   </Card>
   <Card title="OAuth 订阅认证" icon="approve-check">
-    直接使用现有的 Claude、OpenAI、Google、Qwen、Kimi 或 GitHub 订阅，无需 API 密钥。`claudex auth login` 从各提供商原生 CLI 配置中读取 token。
+    使用现有的 Claude、ChatGPT、Google、Qwen、Kimi、GitHub Copilot 或 GitLab Duo 订阅。支持浏览器 PKCE、设备码流程，以及从原生 CLI 读取凭证链。
+  </Card>
+  <Card title="配置集" icon="setting">
+    通过 `claudex sets add` 安装和管理可复用的 CLAUDE.md 规则、技能和 MCP 服务器包。支持版本化清单与冲突检测。
+  </Card>
+  <Card title="终端超链接" icon="external">
+    终端输出中的 OSC 8 可点击超链接。自动检测终端支持（iTerm、WezTerm、Kitty、Ghostty、VS Code、Windows Terminal），支持 PTY 代理模式。
+  </Card>
+  <Card title="模型槽位映射" icon="puzzle">
+    通过 `[profiles.models]` 将 Claude Code 的 `/model` 切换器（haiku、sonnet、opus）映射到任意提供商模型。支持按 profile 配置模型，可用环境变量覆盖。
   </Card>
   <Card title="非交互模式" icon="rocket">
-    通过 `claudex run <profile> "prompt" --print` 一次性执行。适用于 CI/CD 流水线和脚本自动化。
+    通过 `claudex run <profile> "prompt" --print` 实现一次性执行。适用于 CI/CD 流水线和脚本自动化。
   </Card>
-  <Card title="模型 Slot 映射" icon="setting">
-    通过 `[profiles.models]` 配置，将 Claude Code 的 `/model` 切换器（haiku、sonnet、opus）映射到任意提供商模型。
-  </Card>
-  <Card title="工具名兼容" icon="puzzle">
-    自动截断超过 64 字符的工具名以兼容 OpenAI，响应时透明还原原始名称。
+  <Card title="工具名称兼容" icon="list-format">
+    自动截断超过 64 字符的工具名称以兼容 OpenAI，响应中透明恢复原始名称。
   </Card>
 </CardGrid>
+
+## 支持的提供商
+
+| 类别 | 提供商 |
+|------|--------|
+| **原生 Anthropic** | Anthropic、MiniMax |
+| **OpenAI 兼容** | Grok (xAI)、OpenAI、DeepSeek、Kimi/Moonshot、GLM (智谱)、OpenRouter、Groq、Mistral、Together AI、Perplexity、Cerebras |
+| **云平台** | Azure OpenAI、Google Vertex AI |
+| **OAuth 订阅** | Claude Max/Pro、ChatGPT Plus/Pro (Codex)、Google Gemini、GitHub Copilot、GitLab Duo、Qwen、Kimi |
+| **本地模型** | Ollama、vLLM、LM Studio、llama.cpp |
+| **通过 LiteLLM** | AWS Bedrock，以及任何 LiteLLM 支持的提供商 |
 
 ## 快速安装
 
@@ -64,12 +81,12 @@ curl -fsSL https://raw.githubusercontent.com/StringKe/claudex/main/install.sh | 
 ```
 claudex run grok
     │
-    ├── 启动代理 → 127.0.0.1:13456
+    ├── Start proxy → 127.0.0.1:13456
     │
-    └── 执行 claude，设置：
+    └── exec claude with:
         ANTHROPIC_BASE_URL=http://127.0.0.1:13456/proxy/grok
         ANTHROPIC_AUTH_TOKEN=<session-token>
         ANTHROPIC_MODEL=grok-3-beta
 ```
 
-代理透明地在 Anthropic 和 OpenAI 协议之间进行翻译，让 Claude Code 与任何支持的提供商无缝协作。使用 OAuth profile 时，设置 `ANTHROPIC_AUTH_TOKEN`（而非 `ANTHROPIC_API_KEY`）以避免与 Claude 自身订阅登录冲突。
+代理在 Anthropic 和 OpenAI 协议之间透明翻译，让 Claude Code 与任何支持的提供商无缝协作。使用 OAuth profile 时，设置 `ANTHROPIC_AUTH_TOKEN`（非 `ANTHROPIC_API_KEY`）以避免与 Claude 自身的订阅登录机制冲突。

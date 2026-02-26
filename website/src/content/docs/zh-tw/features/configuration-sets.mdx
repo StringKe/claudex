@@ -1,0 +1,196 @@
+---
+title: 設定集
+description: 安裝和管理可重用的規則、技能和 MCP 伺服器套件包
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+設定集是可安裝的版本化套件包，捆綁 CLAUDE.md 規則、技能和 MCP 伺服器設定。它們提供一種可攜帶的方式，讓團隊和專案之間共享和重用 Claude Code 設定。
+
+## 概述
+
+設定集是一個包含 `manifest.json`（或 `manifest.yaml`）的目錄，宣告其組件：
+
+```
+my-set/
+├── manifest.json
+├── rules/
+│   └── coding-standards.md
+├── skills/
+│   └── deploy.md
+└── claude.md
+```
+
+## Manifest Schema
+
+```json
+{
+  "name": "my-config-set",
+  "version": "1.0.0",
+  "description": "My team's coding standards and tools",
+  "author": "team-name",
+  "components": {
+    "claude_md": {
+      "path": "claude.md",
+      "strategy": "append"
+    },
+    "rules": [
+      {
+        "name": "coding-standards",
+        "path": "rules/coding-standards.md"
+      }
+    ],
+    "skills": [
+      {
+        "name": "deploy",
+        "path": "skills/deploy.md"
+      }
+    ],
+    "mcp_servers": [
+      {
+        "name": "my-server",
+        "server_type": "stdio",
+        "command": "npx",
+        "args": ["-y", "@myorg/mcp-server"],
+        "env": {
+          "API_KEY": "${MY_API_KEY}"
+        }
+      }
+    ]
+  },
+  "env": [
+    {
+      "name": "MY_API_KEY",
+      "description": "API key for the MCP server",
+      "required": true
+    }
+  ]
+}
+```
+
+### 名稱驗證
+
+設定集名稱必須匹配模式 `^[a-z0-9][a-z0-9._-]*$`：
+- 以小寫字母或數字開頭
+- 只包含小寫字母、數字、點、底線和連字號
+
+### 組件
+
+| 組件 | 說明 |
+|------|------|
+| `claude_md` | 合併到專案 CLAUDE.md 的內容 |
+| `rules` | 安裝到 `.claude/rules/` 的規則檔案 |
+| `skills` | 安裝到 `.claude/skills/` 的技能定義 |
+| `mcp_servers` | 加入 `.claude/settings.json` 的 MCP 伺服器設定 |
+
+### MCP 伺服器類型
+
+| 類型 | 必填欄位 | 說明 |
+|------|---------|------|
+| `stdio` | `command` | 透過 stdin/stdout 的本地程序 |
+| `http` | `url` | 遠端 HTTP MCP 伺服器 |
+
+```json
+// stdio 伺服器
+{
+  "name": "local-tools",
+  "server_type": "stdio",
+  "command": "node",
+  "args": ["./server.js"],
+  "env": {"DEBUG": "true"}
+}
+
+// http 伺服器
+{
+  "name": "remote-api",
+  "server_type": "http",
+  "url": "https://mcp.example.com/api",
+  "headers": {"Authorization": "Bearer ${TOKEN}"}
+}
+```
+
+### 環境變數
+
+`env` 陣列宣告必要或選用的環境變數：
+
+```json
+{
+  "env": [
+    {
+      "name": "API_KEY",
+      "description": "API key for the service",
+      "required": true
+    },
+    {
+      "name": "DEBUG",
+      "description": "Enable debug mode",
+      "required": false,
+      "default": "false"
+    }
+  ]
+}
+```
+
+MCP 伺服器設定中以 `${VAR_NAME}` 引用的變數，會在安裝時從環境中解析。
+
+## CLI 指令
+
+### 安裝設定集
+
+```bash
+claudex sets add ./path/to/set
+```
+
+這會驗證 manifest、檢查與現有設定集的衝突，並安裝所有組件。
+
+### 列出已安裝的設定集
+
+```bash
+claudex sets list
+```
+
+顯示所有已安裝的設定集及其版本、說明和組件數量。
+
+### 顯示設定集詳情
+
+```bash
+claudex sets show <NAME>
+```
+
+顯示已安裝設定集的詳細資訊，包括所有規則、技能和 MCP 伺服器。
+
+### 更新設定集
+
+```bash
+claudex sets update <NAME> ./path/to/new-version
+```
+
+將現有設定集更新到新版本。移除舊組件並安裝新組件。
+
+### 移除設定集
+
+```bash
+claudex sets remove <NAME>
+```
+
+移除已安裝的設定集及其所有組件。
+
+## 衝突偵測
+
+安裝設定集時，Claudex 會檢查衝突：
+
+- **規則名稱衝突**：兩個設定集不能安裝相同檔名的規則
+- **技能名稱衝突**：兩個設定集不能安裝相同名稱的技能
+- **MCP 伺服器衝突**：兩個設定集不能定義相同名稱的 MCP 伺服器
+
+偵測到衝突時，安裝會中止，並顯示描述性錯誤訊息，指出哪個現有設定集擁有衝突的組件。
+
+## Lock 檔案
+
+已安裝的設定集會在 lock 檔案中追蹤，記錄：
+
+- 設定集名稱和版本
+- 已安裝的組件路徑
+- 安裝時間戳記
+
+這確保了移除和更新操作的乾淨執行。

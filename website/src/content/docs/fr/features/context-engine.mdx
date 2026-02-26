@@ -1,69 +1,69 @@
 ---
 title: Moteur de contexte
-description: Compression de conversation, partage entre profils, et RAG local
+description: Compression de conversation, partage inter-profils, et RAG local
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Le moteur de contexte améliore vos interactions IA grâce à trois mécanismes : la compression de conversation, le partage de contexte entre profils, et le RAG local (Retrieval-Augmented Generation).
+Le moteur de contexte ameliore vos interactions IA grace a trois mecanismes : la compression de conversation, le partage de contexte inter-profils, et le RAG local (Retrieval-Augmented Generation).
 
 <Aside type="caution">
-  Les fonctionnalités du moteur de contexte nécessitent un service LLM pour la synthèse et la génération d'embeddings. Vous pouvez utiliser n'importe quel profil existant (Ollama local, fournisseurs cloud comme OpenRouter, etc.).
+  Les fonctionnalites du moteur de contexte necessitent un service LLM pour la synthese et la generation d'embeddings. Vous pouvez utiliser n'importe quel profil existant (Ollama local, fournisseurs cloud comme OpenRouter, etc.).
 </Aside>
 
 ## Compression de conversation
 
-Lorsque les conversations dépassent un seuil de tokens, Claudex utilise un LLM pour résumer les messages plus anciens, en conservant les plus récents intacts.
+Lorsque les conversations depassent un seuil de tokens, Claudex utilise un LLM pour resumer les messages plus anciens, en conservant les plus recents intacts.
 
 ```toml
 [context.compression]
 enabled = true
-threshold_tokens = 50000    # compresser quand le total de tokens dépasse ce seuil
+threshold_tokens = 50000    # compresser quand le total de tokens depasse ce seuil
 keep_recent = 10            # toujours conserver les N derniers messages
-profile = "openrouter"      # réutiliser le base_url + api_key d'un profil
-model = "qwen/qwen-2.5-7b-instruct"  # remplacer le modèle (optionnel)
+profile = "openrouter"      # reutiliser le base_url + api_key d'un profil
+model = "qwen/qwen-2.5-7b-instruct"  # remplacer le modele (optionnel)
 ```
 
-### Comment ça fonctionne
+### Fonctionnement
 
-1. Avant de transmettre une requête, Claudex estime le nombre total de tokens
-2. Si les tokens dépassent `threshold_tokens`, les messages plus anciens (au-delà de `keep_recent`) sont remplacés par un résumé
-3. Le résumé est généré par le LLM local configuré
-4. La conversation compressée est ensuite transmise au fournisseur
+1. Avant de transmettre une requete, Claudex estime le nombre total de tokens
+2. Si les tokens depassent `threshold_tokens`, les messages plus anciens (au-dela de `keep_recent`) sont remplaces par un resume
+3. Le resume est genere par le LLM local configure
+4. La conversation compressee est ensuite transmise au fournisseur
 
-## Partage entre profils
+## Partage inter-profils
 
-Partagez le contexte entre différents profils de fournisseurs au sein de la même session.
+Partagez le contexte entre differents profils de fournisseurs au sein de la meme session.
 
 ```toml
 [context.sharing]
 enabled = true
-max_context_size = 2000    # nombre maximum de tokens à injecter depuis d'autres profils
+max_context_size = 2000    # nombre maximum de tokens a injecter depuis d'autres profils
 ```
 
-C'est utile lorsque vous changez de fournisseur en cours de tâche — le contexte pertinent des interactions précédentes est automatiquement inclus.
+Utile lorsque vous changez de fournisseur en cours de tache : le contexte pertinent des interactions precedentes est automatiquement inclus.
 
 ## RAG local
 
-Indexez le code et la documentation locaux pour la génération augmentée par récupération. Les extraits de code pertinents sont automatiquement injectés dans les requêtes.
+Indexez le code et la documentation locaux pour la generation augmentee par recuperation. Les extraits de code pertinents sont automatiquement injectes dans les requetes.
 
 ```toml
 [context.rag]
 enabled = true
-index_paths = ["./src", "./docs"]     # répertoires à indexer
-profile = "openrouter"                 # réutiliser le base_url + api_key d'un profil
-model = "openai/text-embedding-3-small"  # modèle d'embedding
+index_paths = ["./src", "./docs"]     # repertoires a indexer
+profile = "openrouter"                 # reutiliser le base_url + api_key d'un profil
+model = "openai/text-embedding-3-small"  # modele d'embedding
 chunk_size = 512                       # taille des chunks de texte
-top_k = 5                             # nombre de résultats à injecter
+top_k = 5                             # nombre de resultats a injecter
 ```
 
-### Comment ça fonctionne
+### Fonctionnement
 
-1. Au démarrage, Claudex indexe les fichiers dans `index_paths` en utilisant le modèle d'embedding
-2. Pour chaque requête, le message de l'utilisateur est transformé en embedding et comparé à l'index
-3. Les top-k chunks les plus pertinents sont injectés comme contexte supplémentaire dans la requête
-4. Le fournisseur reçoit un contexte plus riche sur votre base de code
+1. Au demarrage, Claudex indexe les fichiers dans `index_paths` en utilisant le modele d'embedding
+2. Pour chaque requete, le message de l'utilisateur est transforme en embedding et compare a l'index
+3. Les top-k chunks les plus pertinents sont injectes comme contexte supplementaire dans la requete
+4. Le fournisseur recoit un contexte plus riche sur votre base de code
 
 <Aside type="tip">
-  Pour de meilleurs résultats avec le RAG local, utilisez un modèle d'embedding dédié comme `nomic-embed-text` via Ollama.
+  Pour de meilleurs resultats avec le RAG local, utilisez un modele d'embedding dedie comme `nomic-embed-text` via Ollama.
 </Aside>

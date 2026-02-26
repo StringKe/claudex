@@ -5,16 +5,16 @@ description: Como instalar Claudex en tu sistema
 
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 
-## Metodos de Instalacion
+## Metodos de instalacion
 
 <Tabs>
-  <TabItem label="Una sola linea" icon="terminal">
+  <TabItem label="One-liner" icon="terminal">
     ```bash
     curl -fsSL https://raw.githubusercontent.com/StringKe/claudex/main/install.sh | bash
     ```
-    El script de instalacion detecta automaticamente tu sistema operativo y arquitectura, descarga la ultima version desde GitHub y la instala en `~/.local/bin/claudex`.
+    El script de instalacion detecta automaticamente tu sistema operativo y arquitectura, descarga la ultima version desde GitHub e instala en `~/.local/bin/claudex`.
 
-    Cambia el directorio de instalacion:
+    Cambiar el directorio de instalacion:
     ```bash
     CLAUDEX_INSTALL_DIR=/usr/local/bin curl -fsSL https://raw.githubusercontent.com/StringKe/claudex/main/install.sh | bash
     ```
@@ -23,12 +23,12 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
     ```bash
     cargo install --git https://github.com/StringKe/claudex
     ```
-    Requiere la cadena de herramientas de Rust. El binario se instalara en `~/.cargo/bin/claudex`.
+    Requiere el toolchain de Rust. El binario se instalara en `~/.cargo/bin/claudex`.
   </TabItem>
   <TabItem label="GitHub Releases" icon="github">
     Descarga el binario precompilado para tu plataforma desde [GitHub Releases](https://github.com/StringKe/claudex/releases).
 
-    Destinos disponibles:
+    Targets disponibles:
     - `x86_64-unknown-linux-gnu`
     - `x86_64-unknown-linux-musl`
     - `aarch64-unknown-linux-gnu`
@@ -46,20 +46,20 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
   </TabItem>
 </Tabs>
 
-## Requisitos del Sistema
+## Requisitos del sistema
 
 | Requisito | Detalles |
-|-----------|---------|
+|-----------|----------|
 | **SO** | macOS (Intel / Apple Silicon), Linux (x86_64 / ARM64), Windows (x86_64) |
 | **Claude Code** | Debe estar instalado y accesible como `claude` en tu PATH |
-| **Opcional** | [Ollama](https://ollama.com) para funciones de enrutamiento inteligente y motor de contexto |
+| **Opcional** | [Ollama](https://ollama.com) para las funcionalidades de enrutamiento inteligente y motor de contexto |
 
-## Verificar la Instalacion
+## Verificar la instalacion
 
 ```bash
 claudex --version
 ```
 
-## Proximos Pasos
+## Siguientes pasos
 
-Tras la instalacion, [configura tu primer perfil de proveedor](/es/configuration/).
+Despues de la instalacion, [configura tu primer perfil de proveedor](/es/configuration/).

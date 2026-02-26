@@ -1,58 +1,58 @@
 ---
 title: Routage intelligent
-description: Routage automatique des fournisseurs basé sur l'intention
+description: Routage automatique des fournisseurs base sur l'intention
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Le routage intelligent sélectionne automatiquement le meilleur fournisseur pour chaque requête en fonction de la classification de l'intention. Utilisez `claudex run auto` pour l'activer.
+Le routage intelligent selectionne automatiquement le meilleur fournisseur pour chaque requete en fonction de la classification de l'intention. Utilisez `claudex run auto` pour l'activer.
 
-## Comment ça fonctionne
+## Fonctionnement
 
-1. L'utilisateur exécute `claudex run auto`
-2. Claude Code envoie une requête au proxy
-3. Le proxy extrait le message de l'utilisateur et l'envoie à un classificateur local (ex. Ollama)
-4. Le classificateur retourne une catégorie d'intention (code, analyse, créatif, recherche, math)
-5. Les règles de routage font correspondre l'intention au profil de fournisseur optimal
-6. La requête est transmise au fournisseur sélectionné
+1. L'utilisateur execute `claudex run auto`
+2. Claude Code envoie une requete au proxy
+3. Le proxy extrait le message de l'utilisateur et l'envoie a un classificateur local (par ex. Ollama)
+4. Le classificateur retourne une categorie d'intention (code, analysis, creative, search, math)
+5. Les regles de routage font correspondre l'intention au profil fournisseur optimal
+6. La requete est transmise au fournisseur selectionne
 
 ## Configuration
 
 ```toml
 [router]
 enabled = true
-profile = "local-qwen"      # réutiliser le base_url + api_key d'un profil pour la classification
-model = "qwen2.5:3b"        # remplacer le modèle (optionnel, par défaut le default_model du profil)
+profile = "local-qwen"      # reutiliser le base_url + api_key d'un profil pour la classification
+model = "qwen2.5:3b"        # remplacer le modele (optionnel, par defaut le default_model du profil)
 
 [router.rules]
-code = "deepseek"       # tâches de codage → DeepSeek
-analysis = "grok"       # tâches analytiques → Grok
-creative = "chatgpt"    # écriture créative → ChatGPT
+code = "deepseek"       # taches de codage → DeepSeek
+analysis = "grok"       # taches analytiques → Grok
+creative = "chatgpt"    # ecriture creative → ChatGPT
 search = "kimi"         # recherche/documentation → Kimi
 math = "deepseek"       # math/logique → DeepSeek
-default = "grok"        # repli pour les intentions non classifiées
+default = "grok"        # repli pour les intentions non classifiees
 ```
 
-## Catégories d'intentions
+## Categories d'intentions
 
-| Intention | Description | Exemples de tâches |
+| Intention | Description | Exemples de taches |
 |-----------|-------------|-------------------|
-| `code` | Programmation et génération de code | Écrire une fonction, corriger un bug, refactoriser du code |
-| `analysis` | Analyse de données et raisonnement | Analyser des journaux, comparer des approches, expliquer des concepts |
-| `creative` | Écriture créative et idéation | Rédiger de la documentation, trouver des noms, rédiger des emails |
-| `search` | Récupération d'informations | Trouver des docs API, rechercher des codes d'erreur |
-| `math` | Tâches mathématiques et logiques | Calculer la complexité, prouver la correction |
+| `code` | Programmation et generation de code | Ecrire une fonction, corriger un bug, refactoriser du code |
+| `analysis` | Analyse de donnees et raisonnement | Analyser des logs, comparer des approches, expliquer des concepts |
+| `creative` | Ecriture creative et ideation | Rediger de la documentation, trouver des noms, rediger des emails |
+| `search` | Recuperation d'informations | Trouver des docs API, rechercher des codes d'erreur |
+| `math` | Taches mathematiques et logiques | Calculer la complexite, prouver la correction |
 
 <Aside type="note">
-  Le routage intelligent nécessite un service LLM pour la classification des intentions. Il réutilise le `base_url` et `api_key` d'un profil existant. Le modèle classificateur doit être petit et rapide — `qwen2.5:3b` fonctionne bien.
+  Le routage intelligent necessite un service LLM pour la classification des intentions. Il reutilise le `base_url` et `api_key` d'un profil existant. Le modele classificateur doit etre petit et rapide. `qwen2.5:3b` fonctionne bien.
 </Aside>
 
 ## Utilisation
 
 ```bash
-# Exécuter avec le routage intelligent
+# Executer avec le routage intelligent
 claudex run auto
 
-# Remplacer le modèle même avec le routage automatique
+# Remplacer le modele meme avec le routage automatique
 claudex run auto -m grok-3-mini-beta
 ```

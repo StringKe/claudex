@@ -7,32 +7,56 @@ import { Aside } from '@astrojs/starlight/components';
 
 ## 配置文件发现
 
-Claudex 按以下顺序搜索配置文件：
+Claudex 使用 [figment](https://docs.rs/figment) 实现分层配置。配置源按以下顺序合并（后者覆盖前者）：
 
-1. `$CLAUDEX_CONFIG` 环境变量
-2. `./claudex.toml`（当前目录）
-3. `./.claudex/config.toml`（当前目录）
-4. 父目录（最多向上 10 级），检查上述两种模式
+1. **程序内置默认值**（内置回退值）
+2. **全局配置**（`~/.config/claudex/config.toml` 或 `config.yaml`）
+3. **项目配置**（当前目录或最多向上 10 级父目录中的 `claudex.toml` 或 `claudex.yaml`，或 `$CLAUDEX_CONFIG`）
+4. **环境变量**（`CLAUDEX_` 前缀，`__` 作为分隔符）
+
+同时支持 TOML 和 YAML 格式。文件格式通过扩展名（`.toml` 或 `.yaml`/`.yml`）自动检测。
 
 <Aside type="note">
+  XDG 路径（`~/.config/claudex/config.toml`）是默认位置。如果任何位置都不存在配置文件，创建新配置时将使用此路径。
 </Aside>
 
 ```bash
-# 查看加载的配置路径和搜索顺序
-claudex config
+# 显示已加载的配置路径和所有搜索位置
+claudex config show
 
-# 在当前目录创建本地配置
-claudex config --init
+# 仅显示配置文件路径
+claudex config path
+
+# 在当前目录创建新配置
+claudex config init
+
+# 从 config.example.toml 重新创建配置
+claudex config recreate
+
+# 在 $EDITOR 中打开配置
+claudex config edit
+
+# 验证配置语法和 profile 引用
+claudex config validate
+
+# 获取特定配置值
+claudex config get proxy_port
+
+# 设置特定配置值
+claudex config set proxy_port 8080
+
+# 导出当前配置到标准输出
+claudex config export
 ```
 
 <Aside type="tip">
-  项目级配置（`./claudex.toml`）优先于全局配置，可以为不同项目定制提供商。
+  项目级配置（`./claudex.toml`）优先于全局配置，因此你可以按项目自定义提供商。
 </Aside>
 
 ## 全局设置
 
 ```toml
-# Claude 二进制文件路径（默认：从 PATH 中查找 "claude"）
+# claude 二进制文件路径（默认：PATH 中的 "claude"）
 # claude_binary = "/usr/local/bin/claude"
 
 # 代理设置
@@ -42,6 +66,10 @@ proxy_host = "127.0.0.1"
 # 日志级别：trace, debug, info, warn, error
 log_level = "info"
 
+# 终端超链接（OSC 8）："auto" | true | false
+# "auto" 自动检测终端支持；true/false 强制开启/关闭
+hyperlinks = "auto"
+
 # 模型别名（简称 → 完整模型名）
 [model_aliases]
 grok3 = "grok-3-beta"
@@ -49,7 +77,7 @@ gpt4o = "gpt-4o"
 ds3 = "deepseek-chat"
 ```
 
-## Profile 配置
+## Profile
 
 每个 profile 代表一个 AI 提供商连接。有三种提供商类型：
 
@@ -68,7 +96,7 @@ priority = 100
 enabled = true
 ```
 
-兼容提供商：**Anthropic**、**MiniMax**
+兼容提供商：**Anthropic**、**MiniMax**、**Google Vertex AI**
 
 ### OpenAICompatible
 
@@ -86,18 +114,18 @@ priority = 100
 enabled = true
 ```
 
-兼容提供商：**Grok (xAI)**、**OpenAI**、**DeepSeek**、**Kimi/Moonshot**、**GLM（智谱）**、**OpenRouter**、**Ollama**、**vLLM**、**LM Studio**
+兼容提供商：**Grok (xAI)**、**OpenAI**、**DeepSeek**、**Kimi/Moonshot**、**GLM (智谱)**、**OpenRouter**、**Groq**、**Mistral**、**Together AI**、**Perplexity**、**Cerebras**、**Azure OpenAI**、**GitHub Copilot**、**GitLab Duo**、**Ollama**、**vLLM**、**LM Studio**
 
 ### OpenAIResponses
 
-用于使用 OpenAI Responses API 的提供商（如 ChatGPT/Codex 订阅）。Claudex 自动在 Anthropic Messages API 和 OpenAI Responses API 之间翻译。
+用于使用 OpenAI Responses API 的提供商（例如 ChatGPT/Codex 订阅）。Claudex 在 Anthropic Messages API 和 OpenAI Responses API 之间翻译。
 
 ```toml
 [[profiles]]
 name = "codex-sub"
 provider_type = "OpenAIResponses"
 base_url = "https://chatgpt.com/backend-api/codex"
-default_model = "gpt-4o"
+default_model = "gpt-5.3-codex"
 auth_type = "oauth"
 oauth_provider = "openai"
 ```
@@ -105,27 +133,30 @@ oauth_provider = "openai"
 兼容提供商：**ChatGPT/Codex 订阅**（通过 Codex CLI）
 
 <Aside type="tip">
-  此类型主要用于 OAuth 订阅。详细的 Codex CLI 配置步骤请参见 [Provider 配置指南](/zh-cn/guides/provider-setup/)。
+  此提供商类型主要用于 OAuth 订阅。详细的 Codex CLI 设置说明请参阅[提供商设置指南](/zh-cn/guides/provider-setup/)。
 </Aside>
 
 ### Profile 字段
 
 | 字段 | 默认值 | 说明 |
 |------|--------|------|
-| `name` | *必填* | 唯一标识名 |
+| `name` | *必填* | 唯一的 profile 标识符 |
 | `provider_type` | `DirectAnthropic` | `DirectAnthropic`、`OpenAICompatible` 或 `OpenAIResponses` |
 | `base_url` | *必填* | 提供商 API 端点 |
 | `api_key` | `""` | API 密钥（明文） |
-| `api_key_keyring` | — | 从 OS 钥匙链读取 API 密钥 |
+| `api_key_keyring` | -- | 从操作系统密钥链读取 API 密钥 |
 | `default_model` | *必填* | 默认使用的模型 |
 | `auth_type` | `"api-key"` | `"api-key"` 或 `"oauth"` |
-| `oauth_provider` | — | OAuth 提供商（`claude`、`openai`、`google`、`qwen`、`kimi`、`github`）。`auth_type = "oauth"` 时必填 |
-| `backup_providers` | `[]` | 故障转移 profile 名列表 |
-| `custom_headers` | `{}` | 额外 HTTP 请求头 |
-| `extra_env` | `{}` | 启动 Claude 时的额外环境变量 |
+| `oauth_provider` | -- | OAuth 提供商（`claude`、`openai`、`google`、`qwen`、`kimi`、`github`、`gitlab`）。`auth_type = "oauth"` 时必填 |
+| `backup_providers` | `[]` | 故障转移 profile 名称 |
+| `custom_headers` | `{}` | 额外的 HTTP 请求头 |
+| `extra_env` | `{}` | Claude 的额外环境变量 |
 | `priority` | `100` | 智能路由优先级 |
-| `enabled` | `true` | 是否启用 |
-| `[profiles.models]` | — | 模型 slot 映射表（`haiku`、`sonnet`、`opus` 字段） |
+| `enabled` | `true` | 是否启用此 profile |
+| `max_tokens` | -- | 限制发送给提供商的最大输出 token 数（可选） |
+| `strip_params` | `"auto"` | `"auto"`、`"none"` 或 `["temperature", "top_p"]`。自动检测不支持的参数（例如 ChatGPT Codex 端点） |
+| `[profiles.query_params]` | `{}` | URL 查询参数（例如 Azure 的 `api-version`） |
+| `[profiles.models]` | -- | 模型槽位映射表（`haiku`、`sonnet`、`opus` 字段） |
 
 ### 交互式设置
 
@@ -135,16 +166,16 @@ oauth_provider = "openai"
 claudex profile add
 ```
 
-它会引导你完成提供商选择、API 密钥输入（支持 keyring 存储）、模型选择和连通性测试。
+它会引导你完成提供商选择、API 密钥输入（可选密钥链存储）、模型选择和连接测试。
 
-## 密钥环集成
+## 密钥链集成
 
-将 API 密钥安全存储在 OS 钥匙链中，而非明文配置：
+将 API 密钥安全地存储在操作系统密钥链中，避免明文存放在配置文件中：
 
 ```toml
 [[profiles]]
 name = "grok"
-api_key_keyring = "grok-api-key"   # 从 OS 钥匙链读取
+api_key_keyring = "grok-api-key"   # 从操作系统密钥链读取
 ```
 
 支持的后端：
@@ -153,7 +184,7 @@ api_key_keyring = "grok-api-key"   # 从 OS 钥匙链读取
 
 ## OAuth 订阅认证
 
-除了 API 密钥，你还可以通过 OAuth 使用现有的提供商订阅进行认证。适用于 Claude Pro/Team、ChatGPT Plus 或其他订阅方案。
+除了 API 密钥，你还可以通过 OAuth 使用现有的提供商订阅进行认证。这对于拥有 Claude Pro/Team、ChatGPT Plus 或其他订阅计划的用户很有用。
 
 ### 设置
 
@@ -161,10 +192,10 @@ api_key_keyring = "grok-api-key"   # 从 OS 钥匙链读取
 
 ```toml
 [[profiles]]
-name = "chatgpt-oauth"
-provider_type = "OpenAICompatible"
-base_url = "https://api.openai.com/v1"
-default_model = "gpt-4o"
+name = "codex-sub"
+provider_type = "OpenAIResponses"
+base_url = "https://chatgpt.com/backend-api/codex"
+default_model = "gpt-5.3-codex"
 auth_type = "oauth"
 oauth_provider = "openai"
 ```
@@ -175,7 +206,7 @@ oauth_provider = "openai"
 claudex auth login openai
 ```
 
-3. 检查认证状态：
+3. 查看认证状态：
 
 ```bash
 claudex auth status
@@ -185,24 +216,19 @@ claudex auth status
 
 | 提供商 | `oauth_provider` | Token 来源 |
 |--------|-----------------|------------|
-| Claude | `claude` | 从 `~/.claude` 读取（Claude Code 原生配置） |
-| OpenAI | `openai` | 从 `~/.codex/auth.json` 读取（Codex CLI） |
-| Google | `google` | OAuth 设备码流程 |
-| Qwen | `qwen` | OAuth 设备码流程 |
-| Kimi | `kimi` | OAuth 设备码流程 |
-| GitHub | `github` | OAuth 设备码流程 |
+| Claude | `claude` | 读取 `~/.claude/.credentials.json`（Claude Code 的原生配置） |
+| ChatGPT | `openai` | 浏览器 PKCE 或 Device Code，回退到 `~/.codex/auth.json`（Codex CLI） |
+| Google | `google` | 读取 Gemini CLI 凭证 |
+| Qwen | `qwen` | Device Code 流程 |
+| Kimi | `kimi` | 读取 Kimi CLI 凭证 |
+| GitHub | `github` | Device Code 流程，回退到 `~/.config/github-copilot/` |
+| GitLab | `gitlab` | `GITLAB_TOKEN` 环境变量 |
 
-<Aside type="tip">
-  对于 **OpenAI**，请确保已安装 [Codex CLI](https://github.com/openai/codex) 并已登录（`codex auth`）。Claudex 自动从 `~/.codex/auth.json` 读取 token。Profile 应使用 `provider_type = "OpenAIResponses"` 以通过 Responses API 通信。
-</Aside>
+各提供商 OAuth 流程的详细说明请参阅 [OAuth 订阅认证](/zh-cn/features/oauth-subscriptions/)。
 
-<Aside type="tip">
-  对于 **Claude**，Claudex 读取已有的 Claude Code OAuth 会话（`~/.claude`）。如果你已登录 Claude Code，无需额外登录步骤。
-</Aside>
+### 网关认证模式
 
-### Gateway 认证模式
-
-使用 OAuth profile 时，Claudex 启动 Claude Code 时设置 `ANTHROPIC_AUTH_TOKEN`（而非 `ANTHROPIC_API_KEY`）。这可以避免与 Claude Code 自身订阅登录机制冲突，因为 Claude Code 内部使用 `ANTHROPIC_API_KEY`。
+使用 OAuth profile 时，Claudex 在启动 Claude Code 时设置 `ANTHROPIC_AUTH_TOKEN`（非 `ANTHROPIC_API_KEY`）。这可以防止与 Claude Code 内部使用 `ANTHROPIC_API_KEY` 的订阅登录机制产生冲突。
 
 代理会在 OAuth token 过期前自动刷新。你也可以手动刷新：
 
@@ -210,92 +236,84 @@ claudex auth status
 claudex auth refresh openai
 ```
 
-## 模型 Slot 映射
+## 查询参数
 
-Claude Code 内置 `/model` 切换器，包含三个 slot：**haiku**、**sonnet** 和 **opus**。默认映射到 Anthropic 模型，但通过 Claudex 可以将它们映射到任意提供商的模型。
-
-### 配置
-
-在任意 profile 中添加 `[profiles.models]` 表：
+某些提供商需要 URL 查询参数（例如 Azure OpenAI 的 `api-version`）。使用 `[profiles.query_params]` 表：
 
 ```toml
 [[profiles]]
-name = "grok"
+name = "azure-openai"
 provider_type = "OpenAICompatible"
-base_url = "https://api.x.ai/v1"
-api_key = "xai-..."
-default_model = "grok-3-beta"
+base_url = "https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT"
+api_key = "YOUR_AZURE_KEY"
+default_model = "gpt-4o"
 
-[profiles.models]
-haiku = "grok-3-mini-beta"
-sonnet = "grok-3-beta"
-opus = "grok-3-beta"
+[profiles.query_params]
+api-version = "2024-12-01-preview"
 ```
 
-在 Claude Code 中输入 `/model sonnet` 时，Claudex 会将请求翻译为使用 `grok-3-beta`。`/model opus` 命令映射到 `grok-3-beta`，以此类推。
+Claudex 会将这些参数附加到该 profile 的每个请求 URL 上。Azure OpenAI 通过 `base_url` 中包含 `openai.azure.com` 自动检测，并使用 `api-key` 请求头进行认证（取代 `Authorization: Bearer`）。
 
-### 常见提供商示例
+## 参数剥离
+
+某些提供商不支持特定参数（例如 ChatGPT Codex 端点拒绝 `temperature`、`top_p`）。`strip_params` 字段控制在发送前移除哪些参数：
 
 ```toml
-# OpenAI 模型映射
-[profiles.models]
-haiku = "gpt-4o-mini"
-sonnet = "gpt-4o"
-opus = "o1"
-
-# DeepSeek 模型映射
-[profiles.models]
-haiku = "deepseek-chat"
-sonnet = "deepseek-chat"
-opus = "deepseek-reasoner"
-
-# Google Gemini 模型映射
-[profiles.models]
-haiku = "gemini-2.0-flash"
-sonnet = "gemini-2.5-pro"
-opus = "gemini-2.5-pro"
+strip_params = "auto"       # 自动检测并剥离不支持的参数（默认）
+strip_params = "none"       # 原样发送所有参数
+strip_params = ["temperature", "top_p", "top_k"]  # 剥离指定参数
 ```
 
-<Aside type="note">
-  未配置的模型 slot 将回退到 profile 的 `default_model`。
-</Aside>
+设为 `"auto"` 时，Claudex 检测已知端点（例如 `chatgpt.com`）并剥离会导致错误的参数。
 
-## 工具名兼容
+## 模型槽位映射
 
-部分提供商（尤其是 OpenAI）对工具（函数）名称有 64 字符长度限制。Claude Code 生成的工具名可能超过此限制。
+Claude Code 内置 `/model` 切换器，有三个槽位：**haiku**、**sonnet** 和 **opus**。详见[模型槽位映射](/zh-cn/features/model-slot-mapping/)。
 
-Claudex 在向 OpenAI 兼容提供商发送请求时，自动截断超过 64 字符的工具名，并在处理响应时透明还原原始名称。整个往返过程完全透明，无需额外配置。
+## 工具名称兼容
+
+某些提供商（特别是 OpenAI）对工具（函数）名称有 64 字符的长度限制。Claude Code 可能生成超过此限制的工具名称。
+
+Claudex 在向 OpenAI 兼容提供商发送请求时自动截断超过 64 字符的工具名称，并在处理响应时透明恢复原始名称。这一往返过程完全透明。
 
 ## 非交互模式
 
 Claudex 支持一次性（非交互）执行，适用于 CI/CD 流水线、脚本和自动化：
 
 ```bash
-# 输出响应后退出
+# 输出响应并退出
 claudex run grok "Explain this codebase" --print
 
-# 跳过所有权限提示（用于全自动流水线）
+# 跳过所有权限提示（用于完全自动化的流水线）
 claudex run grok "Fix lint errors" --print --dangerously-skip-permissions
 ```
 
 <Aside type="caution">
-  `--dangerously-skip-permissions` 会禁用所有安全提示。仅在受信任的自动化环境中使用。
+  `--dangerously-skip-permissions` 会禁用所有安全提示。仅在可信的自动化环境中使用。
 </Aside>
 
-非交互模式下，日志写入每实例日志文件 `~/Library/Caches/claudex/proxy-{timestamp}-{pid}.log`（而非 stderr），保持 stdout 输出干净，便于管道和自动化处理。
+非交互模式下，日志写入每个实例的日志文件 `~/Library/Caches/claudex/proxy-{timestamp}-{pid}.log`（取代 stderr），保持 stdout 输出干净以便管道和自动化使用。
 
-## 每实例日志文件
+## 终端超链接
 
-每个 Claudex 代理实例将日志写入独立文件：
+Claudex 支持终端输出中的 OSC 8 可点击超链接。详见[终端超链接](/zh-cn/features/terminal-hyperlinks/)。
 
+```toml
+# "auto" 自动检测终端支持；true/false 强制开启/关闭
+hyperlinks = "auto"
 ```
-~/Library/Caches/claudex/proxy-{timestamp}-{pid}.log
-```
 
-这避免了多实例运行时的日志交错，并在 `claudex run` 期间（尤其是非交互模式下）保持 stderr 干净。日志内容包括代理启动、请求翻译、OAuth token 刷新事件和断路器状态变化。
+## 配置集
+
+安装可复用的规则、技能和 MCP 服务器包。详见[配置集](/zh-cn/features/configuration-sets/)。
+
+```bash
+claudex sets add ./my-set
+claudex sets list
+```
 
 ## 完整示例
 
 参见 [`config.example.toml`](https://github.com/StringKe/claudex/blob/main/config.example.toml) 获取包含所有提供商和选项的完整配置文件。
 
-每个提供商的详细配置步骤（包括 API 密钥获取链接和 OAuth 流程），请参见 [Provider 配置指南](/zh-cn/guides/provider-setup/)。
+各提供商的分步设置说明（包括 API 密钥链接和 OAuth 流程），请参阅[提供商设置指南](/zh-cn/guides/provider-setup/)。

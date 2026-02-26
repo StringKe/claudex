@@ -5,36 +5,58 @@ description: Claudex のプロファイルと設定の構成方法
 
 import { Aside } from '@astrojs/starlight/components';
 
-## 設定ファイルの検索順序
+## 設定ファイルの探索
 
-Claudex は以下の順序で設定ファイルを検索します:
+Claudex は [figment](https://docs.rs/figment) を使用してレイヤード設定を行います。以下の順序でソースがマージされます（後のソースが前のソースを上書き）:
 
-1. `$CLAUDEX_CONFIG` 環境変数
-2. `./claudex.toml` (カレントディレクトリ)
-3. `./.claudex/config.toml` (カレントディレクトリ)
-4. 親ディレクトリ (最大10階層)、両方のパターンを確認
-5. `~/.config/claudex/config.toml` (XDG — プラットフォーム固有のパスより**先に**確認)
+1. **プログラムデフォルト**（組み込みフォールバック）
+2. **グローバル設定**（`~/.config/claudex/config.toml` または `config.yaml`）
+3. **プロジェクト設定**（カレントディレクトリまたは最大 10 階層上の親ディレクトリにある `claudex.toml` または `claudex.yaml`、もしくは `$CLAUDEX_CONFIG`）
+4. **環境変数**（`CLAUDEX_` プレフィックス、`__` をセパレータとして使用）
+
+TOML と YAML の両フォーマットに対応しています。ファイルフォーマットは拡張子（`.toml` または `.yaml`/`.yml`）で判別されます。
 
 <Aside type="note">
-  XDG パス (`~/.config/claudex/config.toml`) はプラットフォーム固有のパスより先に確認されるようになりました。設定ファイルが存在しない場合、デフォルト設定の作成時に XDG パスが使用されます。
+  XDG パス（`~/.config/claudex/config.toml`）がデフォルトの場所です。どこにも設定ファイルが存在しない場合、新規作成時にこのパスが使用されます。
 </Aside>
 
 ```bash
-# 読み込まれた設定ファイルのパスと検索順序を表示
-claudex config
+# 読み込まれた設定パスと全探索場所を表示
+claudex config show
 
-# カレントディレクトリにローカル設定を作成
-claudex config --init
+# 設定ファイルパスのみ表示
+claudex config path
+
+# カレントディレクトリに新しい設定ファイルを作成
+claudex config init
+
+# config.example.toml から設定を再作成
+claudex config recreate
+
+# $EDITOR で設定ファイルを開く
+claudex config edit
+
+# 設定の構文とプロファイル参照を検証
+claudex config validate
+
+# 特定の設定値を取得
+claudex config get proxy_port
+
+# 特定の設定値を設定
+claudex config set proxy_port 8080
+
+# 現在の設定を標準出力にエクスポート
+claudex config export
 ```
 
 <Aside type="tip">
-  プロジェクトレベルの設定 (`./claudex.toml`) はグローバル設定より優先されるため、プロジェクトごとにプロバイダーをカスタマイズできます。
+  プロジェクトレベルの設定（`./claudex.toml`）はグローバル設定より優先されるため、プロジェクトごとにプロバイダーをカスタマイズできます。
 </Aside>
 
 ## グローバル設定
 
 ```toml
-# claude バイナリのパス (デフォルト: PATH から "claude")
+# claude バイナリのパス（デフォルト: PATH から "claude"）
 # claude_binary = "/usr/local/bin/claude"
 
 # プロキシ設定
@@ -44,7 +66,11 @@ proxy_host = "127.0.0.1"
 # ログレベル: trace, debug, info, warn, error
 log_level = "info"
 
-# モデルエイリアス (短縮名 → 完全なモデル名)
+# ターミナルハイパーリンク（OSC 8）: "auto" | true | false
+# "auto" はターミナルのサポートを自動検出、true/false で強制オン/オフ
+hyperlinks = "auto"
+
+# モデルエイリアス（短縮名 → 完全モデル名）
 [model_aliases]
 grok3 = "grok-3-beta"
 gpt4o = "gpt-4o"
@@ -53,11 +79,11 @@ ds3 = "deepseek-chat"
 
 ## プロファイル
 
-各プロファイルは AI プロバイダー接続を表します。プロバイダータイプは3種類あります:
+各プロファイルは AI プロバイダーへの接続を表します。3 種類のプロバイダータイプがあります:
 
 ### DirectAnthropic
 
-Anthropic Messages API をネイティブにサポートするプロバイダー向けです。リクエストは最小限の変更でそのまま転送されます。
+Anthropic Messages API をネイティブにサポートするプロバイダー向けです。リクエストは最小限の変更で転送されます。
 
 ```toml
 [[profiles]]
@@ -70,7 +96,7 @@ priority = 100
 enabled = true
 ```
 
-対応プロバイダー: **Anthropic**、**MiniMax**
+互換プロバイダー: **Anthropic**、**MiniMax**、**Google Vertex AI**
 
 ### OpenAICompatible
 
@@ -88,65 +114,68 @@ priority = 100
 enabled = true
 ```
 
-対応プロバイダー: **Grok (xAI)**、**OpenAI**、**DeepSeek**、**Kimi/Moonshot**、**GLM (Zhipu)**、**OpenRouter**、**Ollama**、**vLLM**、**LM Studio**
+互換プロバイダー: **Grok (xAI)**、**OpenAI**、**DeepSeek**、**Kimi/Moonshot**、**GLM (Zhipu)**、**OpenRouter**、**Groq**、**Mistral**、**Together AI**、**Perplexity**、**Cerebras**、**Azure OpenAI**、**GitHub Copilot**、**GitLab Duo**、**Ollama**、**vLLM**、**LM Studio**
 
 ### OpenAIResponses
 
-OpenAI Responses API を使用するプロバイダー向けです (例: ChatGPT/Codex サブスクリプション)。Claudex が Anthropic Messages API と OpenAI Responses API 間を翻訳します。
+OpenAI Responses API を使用するプロバイダー（例: ChatGPT/Codex サブスクリプション）向けです。Claudex が Anthropic Messages API と OpenAI Responses API の間を翻訳します。
 
 ```toml
 [[profiles]]
 name = "codex-sub"
 provider_type = "OpenAIResponses"
 base_url = "https://chatgpt.com/backend-api/codex"
-default_model = "gpt-4o"
+default_model = "gpt-5.3-codex"
 auth_type = "oauth"
 oauth_provider = "openai"
 ```
 
-対応プロバイダー: **ChatGPT/Codex サブスクリプション** (Codex CLI 経由)
+互換プロバイダー: **ChatGPT/Codex サブスクリプション**（Codex CLI 経由）
 
 <Aside type="tip">
-  このプロバイダータイプは主に OAuth サブスクリプションで使用されます。Codex CLI のセットアップ手順の詳細は [プロバイダーセットアップガイド](/ja/guides/provider-setup/) を参照してください。
+  このプロバイダータイプは主に OAuth サブスクリプションで使用されます。Codex CLI のセットアップ手順については[プロバイダーセットアップガイド](/ja/guides/provider-setup/)を参照してください。
 </Aside>
 
 ### プロファイルフィールド
 
 | フィールド | デフォルト | 説明 |
-|------------|------------|------|
-| `name` | *必須* | ユニークなプロファイル識別子 |
+|-----------|----------|------|
+| `name` | *必須* | プロファイルの一意な識別子 |
 | `provider_type` | `DirectAnthropic` | `DirectAnthropic`、`OpenAICompatible`、または `OpenAIResponses` |
 | `base_url` | *必須* | プロバイダー API エンドポイント |
-| `api_key` | `""` | API キー (平文) |
-| `api_key_keyring` | — | OS キーチェーンから API キーを読み取る |
+| `api_key` | `""` | API キー（プレーンテキスト） |
+| `api_key_keyring` | — | OS キーチェーンから API キーを読み取り |
 | `default_model` | *必須* | 使用するデフォルトモデル |
 | `auth_type` | `"api-key"` | `"api-key"` または `"oauth"` |
-| `oauth_provider` | — | OAuth プロバイダー (`claude`、`openai`、`google`、`qwen`、`kimi`、`github`)。`auth_type = "oauth"` の場合に必須 |
-| `backup_providers` | `[]` | フェイルオーバー用プロファイル名 |
+| `oauth_provider` | — | OAuth プロバイダー（`claude`、`openai`、`google`、`qwen`、`kimi`、`github`、`gitlab`）。`auth_type = "oauth"` の場合に必須 |
+| `backup_providers` | `[]` | フェイルオーバー先のプロファイル名 |
 | `custom_headers` | `{}` | 追加 HTTP ヘッダー |
-| `extra_env` | `{}` | Claude 用の追加環境変数 |
+| `extra_env` | `{}` | Claude 起動時の追加環境変数 |
 | `priority` | `100` | スマートルーティングの優先度 |
 | `enabled` | `true` | このプロファイルが有効かどうか |
-| `[profiles.models]` | — | モデルスロットマッピングテーブル (`haiku`、`sonnet`、`opus` フィールド) |
+| `max_tokens` | — | プロバイダーに送信する最大出力トークン数の上限（オプション） |
+| `strip_params` | `"auto"` | `"auto"`、`"none"`、または `["temperature", "top_p"]`。未対応パラメータを自動検出（例: ChatGPT Codex エンドポイント） |
+| `[profiles.query_params]` | `{}` | URL クエリパラメータ（例: Azure の `api-version`） |
+| `[profiles.models]` | — | モデルスロットマッピングテーブル（`haiku`、`sonnet`、`opus` フィールド） |
 
-### インタラクティブセットアップ
+### 対話型セットアップ
 
-プロファイルを追加する最も簡単な方法はインタラクティブウィザードです:
+プロファイルを追加する最も簡単な方法は対話型ウィザードです:
 
 ```bash
 claudex profile add
 ```
 
-プロバイダーの選択、API キーの入力 (キーリングへの保存オプション付き)、モデルの選択、接続テストをガイドしてくれます。
+プロバイダー選択、API キー入力（オプションでキーリング保存）、モデル選択、接続テストをガイドします。
 
 ## キーリング連携
 
-平文の設定ファイルではなく OS キーチェーンに API キーを安全に保存できます:
+API キーをプレーンテキストの設定ファイルではなく、OS キーチェーンに安全に保存できます:
 
 ```toml
 [[profiles]]
 name = "grok"
-api_key_keyring = "grok-api-key"   # OS キーチェーンから読み取る
+api_key_keyring = "grok-api-key"   # OS キーチェーンから読み取り
 ```
 
 対応バックエンド:
@@ -155,7 +184,7 @@ api_key_keyring = "grok-api-key"   # OS キーチェーンから読み取る
 
 ## OAuth サブスクリプション認証
 
-API キーの代わりに、OAuth を通じて既存のプロバイダーサブスクリプションで認証できます。Claude Pro/Team、ChatGPT Plus などのサブスクリプションプランをお持ちの場合に便利です。
+API キーの代わりに、OAuth を使用して既存のプロバイダーサブスクリプションで認証できます。Claude Pro/Team、ChatGPT Plus などのサブスクリプションプランをお持ちの場合に便利です。
 
 ### セットアップ
 
@@ -163,10 +192,10 @@ API キーの代わりに、OAuth を通じて既存のプロバイダーサブ�
 
 ```toml
 [[profiles]]
-name = "chatgpt-oauth"
-provider_type = "OpenAICompatible"
-base_url = "https://api.openai.com/v1"
-default_model = "gpt-4o"
+name = "codex-sub"
+provider_type = "OpenAIResponses"
+base_url = "https://chatgpt.com/backend-api/codex"
+default_model = "gpt-5.3-codex"
 auth_type = "oauth"
 oauth_provider = "openai"
 ```
@@ -177,7 +206,7 @@ oauth_provider = "openai"
 claudex auth login openai
 ```
 
-3. 認証状態を確認します:
+3. 認証ステータスを確認します:
 
 ```bash
 claudex auth status
@@ -186,118 +215,105 @@ claudex auth status
 ### 対応プロバイダー
 
 | プロバイダー | `oauth_provider` | トークンソース |
-|--------------|-----------------|----------------|
-| Claude | `claude` | `~/.claude` から読み取り (Claude Code のネイティブ設定) |
-| OpenAI | `openai` | `~/.codex/auth.json` から読み取り (Codex CLI) |
-| Google | `google` | OAuth デバイスコードフロー |
-| Qwen | `qwen` | OAuth デバイスコードフロー |
-| Kimi | `kimi` | OAuth デバイスコードフロー |
-| GitHub | `github` | OAuth デバイスコードフロー |
+|-------------|-----------------|---------------|
+| Claude | `claude` | `~/.claude/.credentials.json`（Claude Code のネイティブ設定）から読み取り |
+| ChatGPT | `openai` | ブラウザ PKCE またはデバイスコード、`~/.codex/auth.json`（Codex CLI）にフォールバック |
+| Google | `google` | Gemini CLI のクレデンシャルから読み取り |
+| Qwen | `qwen` | デバイスコードフロー |
+| Kimi | `kimi` | Kimi CLI のクレデンシャルから読み取り |
+| GitHub | `github` | デバイスコードフロー、`~/.config/github-copilot/` にフォールバック |
+| GitLab | `gitlab` | `GITLAB_TOKEN` 環境変数 |
 
-<Aside type="tip">
-  **OpenAI** の場合、[Codex CLI](https://github.com/openai/codex) をインストールしてログイン済み (`codex auth`) であることを確認してください。Claudex は `~/.codex/auth.json` からトークンを自動的に読み取ります。プロファイルは Responses API 経由で通信するため `provider_type = "OpenAIResponses"` を使用してください。
-</Aside>
-
-<Aside type="tip">
-  **Claude** の場合、Claudex は `~/.claude` から既存の Claude Code OAuth セッションを読み取ります。Claude Code にすでにログインしていれば、別途ログインする手順は不要です。
-</Aside>
+各プロバイダーの OAuth フローの詳細は [OAuth サブスクリプション](/ja/features/oauth-subscriptions/)を参照してください。
 
 ### ゲートウェイ認証モード
 
-OAuth プロファイルを使用する場合、Claudex は Claude Code を起動する際に `ANTHROPIC_API_KEY` ではなく `ANTHROPIC_AUTH_TOKEN` を設定します。これにより、内部で `ANTHROPIC_API_KEY` を使用する Claude Code 自身のサブスクリプションログインメカニズムとの競合を防ぎます。
+OAuth プロファイル使用時、Claudex は Claude Code 起動時に `ANTHROPIC_API_KEY` ではなく `ANTHROPIC_AUTH_TOKEN` を設定します。これにより、`ANTHROPIC_API_KEY` を内部的に使用する Claude Code 自体のサブスクリプションログイン機構との競合を防ぎます。
 
-プロキシは OAuth トークンの有効期限が切れる前に自動的に更新します。以下のコマンドで手動で更新することもできます:
+プロキシは OAuth トークンの有効期限切れ前に自動リフレッシュを行います。手動でリフレッシュすることも可能です:
 
 ```bash
 claudex auth refresh openai
 ```
 
-## モデルスロットマッピング
+## クエリパラメータ
 
-Claude Code には **haiku**、**sonnet**、**opus** の3つのスロットを持つ組み込み `/model` スイッチャーがあります。デフォルトでは Anthropic モデルにマッピングされますが、Claudex を使用することでどのプロバイダーのモデルにもマッピングできます。
-
-### 設定
-
-任意のプロファイルに `[profiles.models]` テーブルを追加します:
+一部のプロバイダーは URL クエリパラメータを必要とします（例: Azure OpenAI の `api-version`）。`[profiles.query_params]` テーブルを使用します:
 
 ```toml
 [[profiles]]
-name = "grok"
+name = "azure-openai"
 provider_type = "OpenAICompatible"
-base_url = "https://api.x.ai/v1"
-api_key = "xai-..."
-default_model = "grok-3-beta"
+base_url = "https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT"
+api_key = "YOUR_AZURE_KEY"
+default_model = "gpt-4o"
 
-[profiles.models]
-haiku = "grok-3-mini-beta"
-sonnet = "grok-3-beta"
-opus = "grok-3-beta"
+[profiles.query_params]
+api-version = "2024-12-01-preview"
 ```
 
-Claude Code 内で `/model sonnet` と入力すると、Claudex はリクエストを `grok-3-beta` を使用するように変換します。`/model opus` コマンドも `grok-3-beta` にマッピングされます。
+Claudex はこれらのパラメータをプロファイルのすべてのリクエスト URL に付加します。Azure OpenAI は `base_url` に `openai.azure.com` が含まれることで自動検出され、`Authorization: Bearer` の代わりに `api-key` ヘッダーが認証に使用されます。
 
-### 主要プロバイダーの設定例
+## パラメータストリッピング
+
+一部のプロバイダーは特定のパラメータをサポートしていません（例: ChatGPT Codex エンドポイントは `temperature`、`top_p` を拒否します）。`strip_params` フィールドで送信前に除去するパラメータを制御します:
 
 ```toml
-# OpenAI モデルマッピング
-[profiles.models]
-haiku = "gpt-4o-mini"
-sonnet = "gpt-4o"
-opus = "o1"
-
-# DeepSeek モデルマッピング
-[profiles.models]
-haiku = "deepseek-chat"
-sonnet = "deepseek-chat"
-opus = "deepseek-reasoner"
-
-# Google Gemini モデルマッピング
-[profiles.models]
-haiku = "gemini-2.0-flash"
-sonnet = "gemini-2.5-pro"
-opus = "gemini-2.5-pro"
+strip_params = "auto"       # 未対応パラメータを自動検出して除去（デフォルト）
+strip_params = "none"       # すべてのパラメータをそのまま送信
+strip_params = ["temperature", "top_p", "top_k"]  # 指定パラメータを除去
 ```
 
-<Aside type="note">
-  モデルスロットが設定されていない場合、プロファイルの `default_model` がフォールバックとして使用されます。
-</Aside>
+`"auto"` に設定すると、Claudex は既知のエンドポイント（例: `chatgpt.com`）を検出し、エラーの原因となるパラメータを除去します。
 
-## ツール名の互換性
+## モデルスロットマッピング
 
-一部のプロバイダー (特に OpenAI) はツール (ファンクション) 名に64文字の制限を設けています。Claude Code はこの制限を超えるツール名を生成することがあります。
+Claude Code には haiku、sonnet、opus の 3 つのスロットを持つ `/model` スイッチャーが組み込まれています。詳細は[モデルスロットマッピング](/ja/features/model-slot-mapping/)を参照してください。
 
-Claudex は OpenAI 互換プロバイダーにリクエストを送信する際に64文字を超えるツール名を自動的に短縮し、レスポンス処理時に元の名前を透過的に復元します。このラウンドトリップは完全に透過的で、設定は不要です。
+## ツール名互換性
 
-## 非インタラクティブモード
+一部のプロバイダー（特に OpenAI）はツール（関数）名に 64 文字の制限を課しています。Claude Code はこの制限を超えるツール名を生成することがあります。
 
-Claudex は CI/CD パイプライン、スクリプト、自動化での使用のためにワンショット (非インタラクティブ) 実行をサポートしています:
+Claudex は OpenAI 互換プロバイダーへのリクエスト送信時に 64 文字を超えるツール名を自動的に短縮し、レスポンス処理時に元の名前を透過的に復元します。このラウンドトリップは完全に透過的です。
+
+## 非対話モード
+
+Claudex は CI/CD パイプライン、スクリプト、自動化で使用するためのワンショット（非対話）実行をサポートしています:
 
 ```bash
 # レスポンスを出力して終了
 claudex run grok "Explain this codebase" --print
 
-# すべての許可プロンプトをスキップ (完全自動化パイプライン向け)
+# すべての権限プロンプトをスキップ（完全自動化パイプライン用）
 claudex run grok "Fix lint errors" --print --dangerously-skip-permissions
 ```
 
 <Aside type="caution">
-  `--dangerously-skip-permissions` はすべての安全プロンプトを無効化します。信頼できる自動化環境でのみ使用してください。
+  `--dangerously-skip-permissions` はすべての安全プロンプトを無効にします。信頼された自動化環境でのみ使用してください。
 </Aside>
 
-非インタラクティブモードでは、ログは stderr ではなく `~/Library/Caches/claudex/proxy-{timestamp}-{pid}.log` のインスタンスごとのログファイルに書き込まれ、パイプと自動化のために標準出力をクリーンに保ちます。
+非対話モードでは、ログは stderr ではなくインスタンスごとのログファイル `~/Library/Caches/claudex/proxy-{timestamp}-{pid}.log` に書き込まれ、パイプラインや自動化のための stdout 出力をクリーンに保ちます。
 
-## インスタンスごとのログファイル
+## ターミナルハイパーリンク
 
-各 Claudex プロキシインスタンスは独自のファイルにログを書き込みます:
+Claudex はターミナル出力で OSC 8 クリック可能なハイパーリンクをサポートしています。詳細は[ターミナルハイパーリンク](/ja/features/terminal-hyperlinks/)を参照してください。
 
+```toml
+# "auto" はターミナルのサポートを自動検出、true/false で強制オン/オフ
+hyperlinks = "auto"
 ```
-~/Library/Caches/claudex/proxy-{timestamp}-{pid}.log
-```
 
-これにより、複数インスタンスを実行する際のログの混在を防ぎ、`claudex run` 中 (特に非インタラクティブモード時) に stderr をクリーンに保ちます。ログにはプロキシの起動、リクエスト変換、OAuth トークン更新イベント、サーキットブレーカーの状態変化が含まれます。
+## コンフィギュレーションセット
+
+ルール、スキル、MCP サーバーの再利用可能なバンドルをインストールできます。詳細は[コンフィギュレーションセット](/ja/features/configuration-sets/)を参照してください。
+
+```bash
+claudex sets add ./my-set
+claudex sets list
+```
 
 ## 完全な設定例
 
 すべてのプロバイダーとオプションを含む完全な設定ファイルは [`config.example.toml`](https://github.com/StringKe/claudex/blob/main/config.example.toml) を参照してください。
 
-各プロバイダーのステップバイステップのセットアップ手順 (API キーのリンクや OAuth フローを含む) は [プロバイダーセットアップガイド](/ja/guides/provider-setup/) を参照してください。
+各プロバイダーのステップバイステップのセットアップ手順（API キーリンクや OAuth フローを含む）は、[プロバイダーセットアップガイド](/ja/guides/provider-setup/)を参照してください。

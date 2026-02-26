@@ -1,0 +1,196 @@
+---
+title: Configuration Sets
+description: Install and manage reusable bundles of rules, skills, and MCP servers
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Configuration sets are installable, versioned packages that bundle CLAUDE.md rules, skills, and MCP server configurations. They provide a portable way to share and reuse Claude Code configurations across projects and teams.
+
+## Overview
+
+A configuration set is a directory containing a `manifest.json` (or `manifest.yaml`) that declares its components:
+
+```
+my-set/
+├── manifest.json
+├── rules/
+│   └── coding-standards.md
+├── skills/
+│   └── deploy.md
+└── claude.md
+```
+
+## Manifest Schema
+
+```json
+{
+  "name": "my-config-set",
+  "version": "1.0.0",
+  "description": "My team's coding standards and tools",
+  "author": "team-name",
+  "components": {
+    "claude_md": {
+      "path": "claude.md",
+      "strategy": "append"
+    },
+    "rules": [
+      {
+        "name": "coding-standards",
+        "path": "rules/coding-standards.md"
+      }
+    ],
+    "skills": [
+      {
+        "name": "deploy",
+        "path": "skills/deploy.md"
+      }
+    ],
+    "mcp_servers": [
+      {
+        "name": "my-server",
+        "server_type": "stdio",
+        "command": "npx",
+        "args": ["-y", "@myorg/mcp-server"],
+        "env": {
+          "API_KEY": "${MY_API_KEY}"
+        }
+      }
+    ]
+  },
+  "env": [
+    {
+      "name": "MY_API_KEY",
+      "description": "API key for the MCP server",
+      "required": true
+    }
+  ]
+}
+```
+
+### Name Validation
+
+Set names must match the pattern `^[a-z0-9][a-z0-9._-]*$`:
+- Start with a lowercase letter or digit
+- Contain only lowercase letters, digits, dots, underscores, and hyphens
+
+### Components
+
+| Component | Description |
+|-----------|-------------|
+| `claude_md` | Content to merge into the project's CLAUDE.md |
+| `rules` | Rule files installed to `.claude/rules/` |
+| `skills` | Skill definitions installed to `.claude/skills/` |
+| `mcp_servers` | MCP server configurations added to `.claude/settings.json` |
+
+### MCP Server Types
+
+| Type | Required Fields | Description |
+|------|----------------|-------------|
+| `stdio` | `command` | Local process via stdin/stdout |
+| `http` | `url` | Remote HTTP-based MCP server |
+
+```json
+// stdio server
+{
+  "name": "local-tools",
+  "server_type": "stdio",
+  "command": "node",
+  "args": ["./server.js"],
+  "env": {"DEBUG": "true"}
+}
+
+// http server
+{
+  "name": "remote-api",
+  "server_type": "http",
+  "url": "https://mcp.example.com/api",
+  "headers": {"Authorization": "Bearer ${TOKEN}"}
+}
+```
+
+### Environment Variables
+
+The `env` array declares required or optional environment variables:
+
+```json
+{
+  "env": [
+    {
+      "name": "API_KEY",
+      "description": "API key for the service",
+      "required": true
+    },
+    {
+      "name": "DEBUG",
+      "description": "Enable debug mode",
+      "required": false,
+      "default": "false"
+    }
+  ]
+}
+```
+
+Variables referenced as `${VAR_NAME}` in MCP server configs are resolved from the environment at install time.
+
+## CLI Commands
+
+### Install a Set
+
+```bash
+claudex sets add ./path/to/set
+```
+
+This validates the manifest, checks for conflicts with existing sets, and installs all components.
+
+### List Installed Sets
+
+```bash
+claudex sets list
+```
+
+Displays all installed sets with their version, description, and component count.
+
+### Show Set Details
+
+```bash
+claudex sets show <NAME>
+```
+
+Shows detailed information about an installed set, including all rules, skills, and MCP servers.
+
+### Update a Set
+
+```bash
+claudex sets update <NAME> ./path/to/new-version
+```
+
+Updates an existing set to a new version. Removes old components and installs new ones.
+
+### Remove a Set
+
+```bash
+claudex sets remove <NAME>
+```
+
+Removes an installed set and all its components.
+
+## Conflict Detection
+
+When installing a set, Claudex checks for conflicts:
+
+- **Rule name conflicts**: Two sets cannot install rules with the same filename
+- **Skill name conflicts**: Two sets cannot install skills with the same name
+- **MCP server conflicts**: Two sets cannot define MCP servers with the same name
+
+If a conflict is detected, the installation is aborted with a descriptive error message indicating which existing set owns the conflicting component.
+
+## Lock File
+
+Installed sets are tracked in a lock file that records:
+
+- Set name and version
+- Installed component paths
+- Installation timestamp
+
+This enables clean removal and update operations.

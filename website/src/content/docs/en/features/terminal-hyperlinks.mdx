@@ -1,0 +1,111 @@
+---
+title: Terminal Hyperlinks
+description: OSC 8 clickable hyperlinks in terminal output with automatic detection
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Claudex supports OSC 8 terminal hyperlinks, making file paths, URLs, and references in Claude Code output clickable in supported terminals.
+
+## Overview
+
+OSC 8 is a terminal escape sequence standard that embeds hyperlinks directly in terminal output. When supported, clicking a link opens it in the default handler (browser for URLs, editor for file paths).
+
+The escape sequence format:
+
+```
+\x1b]8;;URL\x07DISPLAY_TEXT\x1b]8;;\x07
+```
+
+## Configuration
+
+```toml
+# In config.toml (global setting)
+hyperlinks = "auto"    # "auto" | true | false
+```
+
+| Value | Behavior |
+|-------|----------|
+| `"auto"` | Detect terminal support automatically (default) |
+| `true` | Force enable hyperlinks |
+| `false` | Force disable hyperlinks |
+
+You can also enable hyperlinks per-session via the CLI flag:
+
+```bash
+claudex run grok --hyperlinks
+```
+
+## Terminal Detection
+
+When `hyperlinks = "auto"`, Claudex checks the following in order:
+
+| Priority | Check | Result |
+|----------|-------|--------|
+| 1 | `FORCE_HYPERLINKS=1` env var | Enable |
+| 2 | Not a TTY | Disable |
+| 3 | `DOMTERM` env var set | Enable |
+| 4 | `TERM_PROGRAM` = iTerm.app | Enable |
+| 5 | `TERM_PROGRAM` = WezTerm | Enable |
+| 6 | `TERM_PROGRAM` = vscode | Enable |
+| 7 | `TERM_PROGRAM` = Tabby | Enable |
+| 8 | `TERM_PROGRAM` = Hyper | Enable |
+| 9 | `TERM_PROGRAM` = mintty | Enable |
+| 10 | `TERM_PROGRAM` = WarpTerminal | Enable |
+| 11 | `TERM` = xterm-kitty | Enable |
+| 12 | `TERM` = xterm-ghostty | Enable |
+| 13 | `VTE_VERSION` >= 5000 | Enable |
+| 14 | `WT_SESSION` env var set (Windows Terminal) | Enable |
+| 15 | None of the above | Disable (safe default) |
+
+<Aside type="note">
+  VTE_VERSION >= 5000 covers GNOME Terminal (3.68+), xfce4-terminal, and other VTE-based terminals.
+</Aside>
+
+## Supported Terminals
+
+| Terminal | Platform | Detection Method |
+|----------|----------|-----------------|
+| iTerm2 | macOS | `TERM_PROGRAM` |
+| WezTerm | Cross-platform | `TERM_PROGRAM` |
+| Kitty | Cross-platform | `TERM` (xterm-kitty) |
+| Ghostty | Cross-platform | `TERM` (xterm-ghostty) |
+| VS Code Terminal | Cross-platform | `TERM_PROGRAM` |
+| Windows Terminal | Windows | `WT_SESSION` |
+| GNOME Terminal | Linux | `VTE_VERSION` |
+| Tabby | Cross-platform | `TERM_PROGRAM` |
+| Hyper | Cross-platform | `TERM_PROGRAM` |
+| mintty (Git Bash) | Windows | `TERM_PROGRAM` |
+| WarpTerminal | macOS | `TERM_PROGRAM` |
+| DomTerm | Cross-platform | `DOMTERM` |
+
+## PTY Proxy Mode
+
+When hyperlinks are enabled on Unix systems, Claudex spawns the Claude Code process under a PTY (pseudo-terminal) proxy. This allows Claudex to intercept and enhance terminal output with hyperlinks while preserving the full terminal experience (colors, cursor movement, etc.).
+
+The PTY proxy is transparent to the user. It is only activated for interactive sessions (non-interactive mode with `--print` skips the PTY).
+
+<Aside type="tip">
+  If you experience issues with terminal rendering, you can disable hyperlinks with `hyperlinks = false` in your config or by omitting the `--hyperlinks` flag.
+</Aside>
+
+## Force Enable/Disable
+
+For terminals not in the auto-detection list, you can force hyperlinks:
+
+```bash
+# Via environment variable
+FORCE_HYPERLINKS=1 claudex run grok
+
+# Via config
+hyperlinks = true
+
+# Via CLI flag
+claudex run grok --hyperlinks
+```
+
+To force disable (e.g., when piping output):
+
+```toml
+hyperlinks = false
+```

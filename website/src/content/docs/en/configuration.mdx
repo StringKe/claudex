@@ -7,24 +7,46 @@ import { Aside } from '@astrojs/starlight/components';
 
 ## Config File Discovery
 
-Claudex searches for config files in this order:
+Claudex uses [figment](https://docs.rs/figment) for layered configuration. Sources are merged in this order (later sources override earlier ones):
 
-1. `$CLAUDEX_CONFIG` environment variable
-2. `./claudex.toml` (current directory)
-3. `./.claudex/config.toml` (current directory)
-4. Parent directories (up to 10 levels), checking both patterns
-5. `~/.config/claudex/config.toml` (XDG — checked **before** platform-specific paths)
+1. **Programmatic defaults** (built-in fallbacks)
+2. **Global config** (`~/.config/claudex/config.toml` or `config.yaml`)
+3. **Project config** (`claudex.toml` or `claudex.yaml` in the current directory or parent directories up to 10 levels, or `$CLAUDEX_CONFIG`)
+4. **Environment variables** (`CLAUDEX_` prefix, `__` as separator)
+
+Both TOML and YAML formats are supported. The file format is detected by extension (`.toml` or `.yaml`/`.yml`).
 
 <Aside type="note">
-  The XDG path (`~/.config/claudex/config.toml`) is now checked before platform-specific paths. If no config file exists anywhere, the XDG path is used when creating the default config.
+  The XDG path (`~/.config/claudex/config.toml`) is the default location. If no config file exists anywhere, this path is used when creating a new config.
 </Aside>
 
 ```bash
-# Show loaded config path and search order
-claudex config
+# Show loaded config path and all search locations
+claudex config show
 
-# Create a local config in the current directory
-claudex config --init
+# Show just the config file path
+claudex config path
+
+# Create a new config in the current directory
+claudex config init
+
+# Recreate config from config.example.toml
+claudex config recreate
+
+# Open config in your $EDITOR
+claudex config edit
+
+# Validate config syntax and profile references
+claudex config validate
+
+# Get a specific config value
+claudex config get proxy_port
+
+# Set a specific config value
+claudex config set proxy_port 8080
+
+# Export current config to stdout
+claudex config export
 ```
 
 <Aside type="tip">
@@ -43,6 +65,10 @@ proxy_host = "127.0.0.1"
 
 # Log level: trace, debug, info, warn, error
 log_level = "info"
+
+# Terminal hyperlinks (OSC 8): "auto" | true | false
+# "auto" detects terminal support; true/false force on/off
+hyperlinks = "auto"
 
 # Model aliases (shorthand → full model name)
 [model_aliases]
@@ -70,7 +96,7 @@ priority = 100
 enabled = true
 ```
 
-Compatible providers: **Anthropic**, **MiniMax**
+Compatible providers: **Anthropic**, **MiniMax**, **Google Vertex AI**
 
 ### OpenAICompatible
 
@@ -88,7 +114,7 @@ priority = 100
 enabled = true
 ```
 
-Compatible providers: **Grok (xAI)**, **OpenAI**, **DeepSeek**, **Kimi/Moonshot**, **GLM (Zhipu)**, **OpenRouter**, **Ollama**, **vLLM**, **LM Studio**
+Compatible providers: **Grok (xAI)**, **OpenAI**, **DeepSeek**, **Kimi/Moonshot**, **GLM (Zhipu)**, **OpenRouter**, **Groq**, **Mistral**, **Together AI**, **Perplexity**, **Cerebras**, **Azure OpenAI**, **GitHub Copilot**, **GitLab Duo**, **Ollama**, **vLLM**, **LM Studio**
 
 ### OpenAIResponses
 
@@ -99,7 +125,7 @@ For providers using the OpenAI Responses API (e.g., ChatGPT/Codex subscriptions)
 name = "codex-sub"
 provider_type = "OpenAIResponses"
 base_url = "https://chatgpt.com/backend-api/codex"
-default_model = "gpt-4o"
+default_model = "gpt-5.3-codex"
 auth_type = "oauth"
 oauth_provider = "openai"
 ```
@@ -121,12 +147,15 @@ Compatible providers: **ChatGPT/Codex subscriptions** (via Codex CLI)
 | `api_key_keyring` | — | Read API key from OS keychain instead |
 | `default_model` | *required* | Default model to use |
 | `auth_type` | `"api-key"` | `"api-key"` or `"oauth"` |
-| `oauth_provider` | — | OAuth provider (`claude`, `openai`, `google`, `qwen`, `kimi`, `github`). Required when `auth_type = "oauth"` |
+| `oauth_provider` | — | OAuth provider (`claude`, `openai`, `google`, `qwen`, `kimi`, `github`, `gitlab`). Required when `auth_type = "oauth"` |
 | `backup_providers` | `[]` | Failover profile names |
 | `custom_headers` | `{}` | Extra HTTP headers |
 | `extra_env` | `{}` | Extra environment variables for Claude |
 | `priority` | `100` | Priority for smart routing |
 | `enabled` | `true` | Whether this profile is active |
+| `max_tokens` | — | Cap max output tokens sent to provider (optional) |
+| `strip_params` | `"auto"` | `"auto"`, `"none"`, or `["temperature", "top_p"]`. Auto-detects unsupported params (e.g., ChatGPT Codex endpoint) |
+| `[profiles.query_params]` | `{}` | URL query parameters (e.g., Azure `api-version`) |
 | `[profiles.models]` | — | Model slot mapping table (`haiku`, `sonnet`, `opus` fields) |
 
 ### Interactive Setup
@@ -163,10 +192,10 @@ Instead of API keys, you can authenticate with your existing provider subscripti
 
 ```toml
 [[profiles]]
-name = "chatgpt-oauth"
-provider_type = "OpenAICompatible"
-base_url = "https://api.openai.com/v1"
-default_model = "gpt-4o"
+name = "codex-sub"
+provider_type = "OpenAIResponses"
+base_url = "https://chatgpt.com/backend-api/codex"
+default_model = "gpt-5.3-codex"
 auth_type = "oauth"
 oauth_provider = "openai"
 ```
@@ -187,20 +216,15 @@ claudex auth status
 
 | Provider | `oauth_provider` | Token Source |
 |----------|-----------------|-------------|
-| Claude | `claude` | Reads from `~/.claude` (Claude Code's native config) |
-| OpenAI | `openai` | Reads from `~/.codex/auth.json` (Codex CLI) |
-| Google | `google` | OAuth device code flow |
-| Qwen | `qwen` | OAuth device code flow |
-| Kimi | `kimi` | OAuth device code flow |
-| GitHub | `github` | OAuth device code flow |
+| Claude | `claude` | Reads from `~/.claude/.credentials.json` (Claude Code's native config) |
+| ChatGPT | `openai` | Browser PKCE or Device Code, falls back to `~/.codex/auth.json` (Codex CLI) |
+| Google | `google` | Reads from Gemini CLI credentials |
+| Qwen | `qwen` | Device Code flow |
+| Kimi | `kimi` | Reads from Kimi CLI credentials |
+| GitHub | `github` | Device Code flow, falls back to `~/.config/github-copilot/` |
+| GitLab | `gitlab` | `GITLAB_TOKEN` environment variable |
 
-<Aside type="tip">
-  For **OpenAI**, make sure you have the [Codex CLI](https://github.com/openai/codex) installed and logged in (`codex auth`). Claudex reads the token from `~/.codex/auth.json` automatically. The profile should use `provider_type = "OpenAIResponses"` to communicate via the Responses API.
-</Aside>
-
-<Aside type="tip">
-  For **Claude**, Claudex reads the existing Claude Code OAuth session from `~/.claude`. No separate login step is needed if you are already logged in to Claude Code.
-</Aside>
+For details on each provider's OAuth flow, see [OAuth Subscriptions](/en/features/oauth-subscriptions/).
 
 ### Gateway Auth Mode
 
@@ -212,61 +236,45 @@ The proxy automatically refreshes OAuth tokens before they expire. You can also 
 claudex auth refresh openai
 ```
 
-## Model Slot Mapping
+## Query Parameters
 
-Claude Code has a built-in `/model` switcher with three slots: **haiku**, **sonnet**, and **opus**. By default, these map to Anthropic models, but with Claudex you can map them to any provider's models.
-
-### Configuration
-
-Add a `[profiles.models]` table to any profile:
+Some providers require URL query parameters (e.g., Azure OpenAI's `api-version`). Use the `[profiles.query_params]` table:
 
 ```toml
 [[profiles]]
-name = "grok"
+name = "azure-openai"
 provider_type = "OpenAICompatible"
-base_url = "https://api.x.ai/v1"
-api_key = "xai-..."
-default_model = "grok-3-beta"
+base_url = "https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT"
+api_key = "YOUR_AZURE_KEY"
+default_model = "gpt-4o"
 
-[profiles.models]
-haiku = "grok-3-mini-beta"
-sonnet = "grok-3-beta"
-opus = "grok-3-beta"
+[profiles.query_params]
+api-version = "2024-12-01-preview"
 ```
 
-When you type `/model sonnet` inside Claude Code, Claudex translates the request to use `grok-3-beta`. The `/model opus` command maps to `grok-3-beta`, and so on.
+Claudex appends these parameters to every request URL for the profile. Azure OpenAI is auto-detected by `base_url` containing `openai.azure.com` and uses the `api-key` header for authentication instead of `Authorization: Bearer`.
 
-### Examples for Common Providers
+## Parameter Stripping
+
+Some providers do not support certain parameters (e.g., ChatGPT Codex endpoint rejects `temperature`, `top_p`). The `strip_params` field controls which parameters are removed before sending:
 
 ```toml
-# OpenAI model mapping
-[profiles.models]
-haiku = "gpt-4o-mini"
-sonnet = "gpt-4o"
-opus = "o1"
-
-# DeepSeek model mapping
-[profiles.models]
-haiku = "deepseek-chat"
-sonnet = "deepseek-chat"
-opus = "deepseek-reasoner"
-
-# Google Gemini model mapping
-[profiles.models]
-haiku = "gemini-2.0-flash"
-sonnet = "gemini-2.5-pro"
-opus = "gemini-2.5-pro"
+strip_params = "auto"       # auto-detect and strip unsupported params (default)
+strip_params = "none"       # send all params as-is
+strip_params = ["temperature", "top_p", "top_k"]  # strip specific params
 ```
 
-<Aside type="note">
-  If a model slot is not configured, the profile's `default_model` is used as fallback.
-</Aside>
+When set to `"auto"`, Claudex detects known endpoints (e.g., `chatgpt.com`) and strips parameters that would cause errors.
+
+## Model Slot Mapping
+
+Claude Code has a built-in `/model` switcher with three slots: **haiku**, **sonnet**, and **opus**. See [Model Slot Mapping](/en/features/model-slot-mapping/) for details.
 
 ## Tool Name Compatibility
 
 Some providers (notably OpenAI) enforce a 64-character limit on tool (function) names. Claude Code can generate tool names that exceed this limit.
 
-Claudex automatically truncates tool names longer than 64 characters when sending requests to OpenAI-compatible providers and transparently restores the original names when processing responses. This roundtrip is fully transparent — no configuration needed.
+Claudex automatically truncates tool names longer than 64 characters when sending requests to OpenAI-compatible providers and transparently restores the original names when processing responses. This roundtrip is fully transparent.
 
 ## Non-Interactive Mode
 
@@ -286,15 +294,23 @@ claudex run grok "Fix lint errors" --print --dangerously-skip-permissions
 
 In non-interactive mode, logs are written to per-instance log files at `~/Library/Caches/claudex/proxy-{timestamp}-{pid}.log` instead of stderr, keeping the stdout output clean for piping and automation.
 
-## Per-Instance Log Files
+## Terminal Hyperlinks
 
-Each Claudex proxy instance writes logs to its own file:
+Claudex supports OSC 8 clickable hyperlinks in terminal output. See [Terminal Hyperlinks](/en/features/terminal-hyperlinks/) for details.
 
+```toml
+# "auto" detects terminal support; true/false force on/off
+hyperlinks = "auto"
 ```
-~/Library/Caches/claudex/proxy-{timestamp}-{pid}.log
-```
 
-This avoids log interleaving when running multiple instances and keeps stderr clean during `claudex run` (especially in non-interactive mode). Logs include proxy startup, request translation, OAuth token refresh events, and circuit breaker state changes.
+## Configuration Sets
+
+Install reusable bundles of rules, skills, and MCP servers. See [Configuration Sets](/en/features/configuration-sets/) for details.
+
+```bash
+claudex sets add ./my-set
+claudex sets list
+```
 
 ## Full Example
 

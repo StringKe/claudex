@@ -7,20 +7,21 @@ import { Aside } from '@astrojs/starlight/components';
 
 ## 設定ファイルの場所
 
-Claudex は以下の順序で設定ファイルを検索します:
+Claudex は figment によるレイヤード設定を使用します。以下の順序でソースがマージされます（後のソースが前のソースを上書き）:
 
-1. `$CLAUDEX_CONFIG` 環境変数
-2. `./claudex.toml` (カレントディレクトリ)
-3. `./.claudex/config.toml` (カレントディレクトリ)
-4. 親ディレクトリ (最大10階層)、両方のパターンを確認
-5. `~/.config/claudex/config.toml` (XDG — プラットフォーム固有のパスより**先に**確認)
+1. **プログラムデフォルト**
+2. **グローバル設定**（`~/.config/claudex/config.toml` または `.yaml`）
+3. **プロジェクト設定**（カレントディレクトリまたは親ディレクトリの `claudex.toml`/`.claudex/config.toml`、もしくは `$CLAUDEX_CONFIG`）
+4. **環境変数**（`CLAUDEX_` プレフィックス、`__` セパレータ）
 
-詳細は [設定](/ja/configuration/) を参照してください。
+TOML と YAML の両フォーマットに対応しています。
+
+詳細は[設定](/ja/configuration/)を参照してください。
 
 ## グローバル設定
 
 ```toml
-# claude バイナリへのパス (デフォルト: PATH から "claude")
+# claude バイナリへのパス（デフォルト: PATH から "claude"）
 claude_binary = "claude"
 
 # プロキシサーバーのバインドポート
@@ -31,14 +32,18 @@ proxy_host = "127.0.0.1"
 
 # ログレベル: trace, debug, info, warn, error
 log_level = "info"
+
+# ターミナルハイパーリンク（OSC 8）: "auto" | true | false
+hyperlinks = "auto"
 ```
 
 | フィールド | 型 | デフォルト | 説明 |
-|------------|-----|------------|------|
+|-----------|-----|----------|------|
 | `claude_binary` | string | `"claude"` | Claude Code CLI バイナリへのパス |
 | `proxy_port` | integer | `13456` | 翻訳プロキシがリッスンするポート |
 | `proxy_host` | string | `"127.0.0.1"` | プロキシがバインドするアドレス |
 | `log_level` | string | `"info"` | 最小ログレベル |
+| `hyperlinks` | string/bool | `"auto"` | ターミナルハイパーリンク: `"auto"`（検出）、`true`（強制有効）、`false`（強制無効） |
 
 ## モデルエイリアス
 
@@ -52,7 +57,7 @@ ds3 = "deepseek-chat"
 claude = "claude-sonnet-4-20250514"
 ```
 
-`-m` でエイリアスを使用します:
+`-m` でエイリアスを使用できます:
 
 ```bash
 claudex run grok -m grok3
@@ -68,15 +73,21 @@ base_url = "https://api.x.ai/v1"
 api_key = "xai-..."
 # api_key_keyring = "grok-api-key"
 default_model = "grok-3-beta"
-auth_type = "api-key"              # "api-key" (デフォルト) または "oauth"
+auth_type = "api-key"              # "api-key"（デフォルト）または "oauth"
 # oauth_provider = "openai"        # auth_type = "oauth" の場合に必須
 backup_providers = ["deepseek"]
 custom_headers = {}
 extra_env = {}
 priority = 100
 enabled = true
+max_tokens = 16384                  # オプション: 出力トークン数の上限
+strip_params = "auto"               # "auto" | "none" | ["temperature", "top_p"]
 
-# モデルスロットマッピング (任意)
+# URL クエリパラメータ（例: Azure api-version）
+[profiles.query_params]
+# api-version = "2024-12-01-preview"
+
+# モデルスロットマッピング（オプション）
 [profiles.models]
 haiku = "grok-3-mini-beta"
 sonnet = "grok-3-beta"
@@ -84,24 +95,39 @@ opus = "grok-3-beta"
 ```
 
 | フィールド | 型 | デフォルト | 説明 |
-|------------|-----|------------|------|
-| `name` | string | *必須* | ユニークなプロファイル識別子 |
+|-----------|-----|----------|------|
+| `name` | string | *必須* | プロファイルの一意な識別子 |
 | `provider_type` | string | `"DirectAnthropic"` | `"DirectAnthropic"`、`"OpenAICompatible"`、または `"OpenAIResponses"` |
 | `base_url` | string | *必須* | プロバイダー API エンドポイント URL |
-| `api_key` | string | `""` | 平文の API キー |
-| `api_key_keyring` | string | — | OS キーチェーンのエントリ名 (`api_key` を上書き) |
+| `api_key` | string | `""` | プレーンテキストの API キー |
+| `api_key_keyring` | string | -- | OS キーチェーンのエントリ名（`api_key` を上書き） |
 | `default_model` | string | *必須* | デフォルトで使用するモデル識別子 |
 | `auth_type` | string | `"api-key"` | 認証方法: `"api-key"` または `"oauth"` |
-| `oauth_provider` | string | — | OAuth プロバイダー名 (`auth_type = "oauth"` の場合に必須)。`claude`、`openai`、`google`、`qwen`、`kimi`、`github` のいずれか |
-| `backup_providers` | string[] | `[]` | フェイルオーバー用プロファイル名 (順番通りに試みる) |
+| `oauth_provider` | string | -- | OAuth プロバイダー名。`claude`、`openai`、`google`、`qwen`、`kimi`、`github`、`gitlab` のいずれか |
+| `backup_providers` | string[] | `[]` | フェイルオーバー用プロファイル名（順番に試行） |
 | `custom_headers` | map | `{}` | すべてのリクエストに送信する追加 HTTP ヘッダー |
 | `extra_env` | map | `{}` | Claude 起動時に設定する環境変数 |
-| `priority` | integer | `100` | スマートルーティングの優先度ウェイト (高いほど優先) |
+| `priority` | integer | `100` | スマートルーティングの優先度ウェイト（高いほど優先） |
 | `enabled` | boolean | `true` | このプロファイルが有効かどうか |
+| `max_tokens` | integer | -- | プロバイダーに送信する最大出力トークン数の上限。設定時、リクエストの `max_tokens` を上書き |
+| `strip_params` | string/array | `"auto"` | リクエストから除去するパラメータ。`"auto"` は既知エンドポイントを検出、`"none"` はすべて送信、配列は指定パラメータを除去 |
+
+### クエリパラメータ
+
+```toml
+[profiles.query_params]
+api-version = "2024-12-01-preview"
+```
+
+| フィールド | 型 | 説明 |
+|-----------|-----|------|
+| `query_params` | map | すべてのリクエストの URL クエリパラメータとして付加されるキーバリューペア |
+
+主に Azure OpenAI（`api-version`）で使用されますが、任意のプロバイダーで動作します。
 
 ### モデルスロットマッピング
 
-任意の `[profiles.models]` テーブルは Claude Code の `/model` スイッチャースロットをプロバイダー固有のモデル名にマッピングします。Claude Code 内でモデルを切り替えると (例: `/model opus`)、Claudex はリクエストをマッピングされたモデルに変換します。
+オプションの `[profiles.models]` テーブルは Claude Code の `/model` スイッチャースロットをプロバイダー固有のモデル名にマッピングします。Claude Code 内でモデルを切り替えると（例: `/model opus`）、Claudex はリクエストをマッピングされたモデルに変換します。
 
 ```toml
 [profiles.models]
@@ -111,19 +137,19 @@ opus = "grok-3-beta"          # /model opus をマッピング
 ```
 
 | フィールド | 型 | 説明 |
-|------------|-----|------|
+|-----------|-----|------|
 | `haiku` | string | Claude Code が `haiku` を選択した際に使用するモデル |
 | `sonnet` | string | Claude Code が `sonnet` を選択した際に使用するモデル |
 | `opus` | string | Claude Code が `opus` を選択した際に使用するモデル |
 
 <Aside type="tip">
-  スロットが定義されていない場合、プロファイルの `default_model` がフォールバックとして使用されます。
+  スロットが定義されていない場合、プロファイルの `default_model` がフォールバックとして使用されます。スロットは環境変数としても公開されます: `ANTHROPIC_DEFAULT_HAIKU_MODEL`、`ANTHROPIC_DEFAULT_SONNET_MODEL`、`ANTHROPIC_DEFAULT_OPUS_MODEL`。
 </Aside>
 
 ### プロバイダー設定例
 
 ```toml
-# Anthropic (DirectAnthropic — 変換なし)
+# Anthropic（DirectAnthropic -- 翻訳なし）
 [[profiles]]
 name = "anthropic"
 provider_type = "DirectAnthropic"
@@ -131,7 +157,7 @@ base_url = "https://api.anthropic.com"
 api_key = "sk-ant-..."
 default_model = "claude-sonnet-4-20250514"
 
-# MiniMax (DirectAnthropic — 変換なし)
+# MiniMax（DirectAnthropic -- 翻訳なし）
 [[profiles]]
 name = "minimax"
 provider_type = "DirectAnthropic"
@@ -140,7 +166,7 @@ api_key = "..."
 default_model = "claude-sonnet-4-20250514"
 backup_providers = ["anthropic"]
 
-# OpenRouter (OpenAICompatible — 変換が必要)
+# OpenRouter（OpenAICompatible -- 翻訳が必要）
 [[profiles]]
 name = "openrouter"
 provider_type = "OpenAICompatible"
@@ -148,7 +174,7 @@ base_url = "https://openrouter.ai/api/v1"
 api_key = "..."
 default_model = "anthropic/claude-sonnet-4"
 
-# Grok (OpenAICompatible — 変換が必要)
+# Grok（OpenAICompatible -- 翻訳が必要）
 [[profiles]]
 name = "grok"
 provider_type = "OpenAICompatible"
@@ -157,7 +183,7 @@ api_key = "xai-..."
 default_model = "grok-3-beta"
 backup_providers = ["deepseek"]
 
-# OpenAI (OpenAICompatible — 変換が必要)
+# OpenAI（OpenAICompatible -- 翻訳が必要）
 [[profiles]]
 name = "chatgpt"
 provider_type = "OpenAICompatible"
@@ -165,7 +191,7 @@ base_url = "https://api.openai.com/v1"
 api_key = "sk-..."
 default_model = "gpt-4o"
 
-# DeepSeek (OpenAICompatible — 変換が必要)
+# DeepSeek（OpenAICompatible -- 翻訳が必要）
 [[profiles]]
 name = "deepseek"
 provider_type = "OpenAICompatible"
@@ -174,23 +200,81 @@ api_key = "..."
 default_model = "deepseek-chat"
 backup_providers = ["grok"]
 
-# Kimi / Moonshot (OpenAICompatible — 変換が必要)
+# Kimi / Moonshot（OpenAICompatible -- 翻訳が必要）
 [[profiles]]
 name = "kimi"
 provider_type = "OpenAICompatible"
-base_url = "https://api.moonshot.cn/v1"
+base_url = "https://api.moonshot.ai/v1"
 api_key = "..."
-default_model = "moonshot-v1-128k"
+default_model = "kimi-k2-0905-preview"
 
-# GLM / 智谱 (OpenAICompatible — 変換が必要)
+# GLM / 智谱（OpenAICompatible -- 翻訳が必要）
 [[profiles]]
 name = "glm"
 provider_type = "OpenAICompatible"
-base_url = "https://open.bigmodel.cn/api/paas/v4"
+base_url = "https://api.z.ai/api/paas/v4"
 api_key = "..."
-default_model = "glm-4-plus"
+default_model = "glm-4.6"
 
-# Ollama (ローカル、API キー不要)
+# Groq（OpenAICompatible -- 高速推論）
+[[profiles]]
+name = "groq"
+provider_type = "OpenAICompatible"
+base_url = "https://api.groq.com/openai/v1"
+api_key = "gsk_..."
+default_model = "llama-3.3-70b-versatile"
+
+# Mistral AI（OpenAICompatible -- 翻訳が必要）
+[[profiles]]
+name = "mistral"
+provider_type = "OpenAICompatible"
+base_url = "https://api.mistral.ai/v1"
+api_key = "..."
+default_model = "mistral-large-latest"
+
+# Together AI（OpenAICompatible -- 翻訳が必要）
+[[profiles]]
+name = "together"
+provider_type = "OpenAICompatible"
+base_url = "https://api.together.xyz/v1"
+api_key = "..."
+default_model = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+
+# Perplexity（OpenAICompatible -- オンライン検索 + LLM）
+[[profiles]]
+name = "perplexity"
+provider_type = "OpenAICompatible"
+base_url = "https://api.perplexity.ai"
+api_key = "pplx-..."
+default_model = "sonar-pro"
+
+# Cerebras（OpenAICompatible -- 高速推論）
+[[profiles]]
+name = "cerebras"
+provider_type = "OpenAICompatible"
+base_url = "https://api.cerebras.ai/v1"
+api_key = "..."
+default_model = "llama-3.3-70b"
+
+# Azure OpenAI（OpenAICompatible -- api-key ヘッダー + query_params）
+[[profiles]]
+name = "azure-openai"
+provider_type = "OpenAICompatible"
+base_url = "https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT"
+api_key = "YOUR_AZURE_KEY"
+default_model = "gpt-4o"
+[profiles.query_params]
+api-version = "2024-12-01-preview"
+
+# Google Vertex AI（DirectAnthropic）
+[[profiles]]
+name = "vertex-ai"
+provider_type = "DirectAnthropic"
+base_url = "https://us-east5-aiplatform.googleapis.com/v1/projects/YOUR_PROJECT/locations/us-east5/publishers/anthropic/models"
+api_key = "YOUR_GCLOUD_TOKEN"
+default_model = "claude-sonnet-4@20250514"
+
+# Ollama（ローカル、API キー不要）
 [[profiles]]
 name = "local-qwen"
 provider_type = "OpenAICompatible"
@@ -199,7 +283,7 @@ api_key = ""
 default_model = "qwen2.5:72b"
 enabled = false
 
-# vLLM / LM Studio (ローカル)
+# vLLM / LM Studio（ローカル）
 [[profiles]]
 name = "local-llama"
 provider_type = "OpenAICompatible"
@@ -207,39 +291,16 @@ base_url = "http://localhost:8000/v1"
 api_key = ""
 default_model = "llama-3.3-70b"
 enabled = false
-
-# ChatGPT/Codex サブスクリプション (OpenAIResponses — Responses API 変換)
-[[profiles]]
-name = "codex-sub"
-provider_type = "OpenAIResponses"
-base_url = "https://chatgpt.com/backend-api/codex"
-default_model = "gpt-4o"
-auth_type = "oauth"
-oauth_provider = "openai"
 ```
 
 ### OAuth プロファイル設定例
 
 ```toml
-# OpenAI via OAuth (Codex CLI ~/.codex/auth.json からトークンを読み取り)
+# Claude Max（プロキシをスキップ、~/.claude のネイティブ OAuth を使用）
 [[profiles]]
-name = "chatgpt-oauth"
-provider_type = "OpenAICompatible"
-base_url = "https://api.openai.com/v1"
-default_model = "gpt-4o"
-auth_type = "oauth"
-oauth_provider = "openai"
-
-[profiles.models]
-haiku = "gpt-4o-mini"
-sonnet = "gpt-4o"
-opus = "o1"
-
-# Claude サブスクリプション (プロキシをスキップ、~/.claude のネイティブ OAuth を使用)
-[[profiles]]
-name = "claude-sub"
+name = "claude-max"
 provider_type = "DirectAnthropic"
-base_url = "https://api.anthropic.com"
+base_url = "https://api.claude.ai"
 default_model = "claude-sonnet-4-20250514"
 auth_type = "oauth"
 oauth_provider = "claude"
@@ -249,9 +310,23 @@ haiku = "claude-haiku-4-20250514"
 sonnet = "claude-sonnet-4-20250514"
 opus = "claude-opus-4-20250514"
 
+# ChatGPT/Codex サブスクリプション（OpenAIResponses）
+[[profiles]]
+name = "codex-sub"
+provider_type = "OpenAIResponses"
+base_url = "https://chatgpt.com/backend-api/codex"
+default_model = "gpt-5.3-codex"
+auth_type = "oauth"
+oauth_provider = "openai"
+
+[profiles.models]
+haiku = "codex-mini-latest"
+sonnet = "gpt-5.3-codex"
+opus = "gpt-5.3-codex"
+
 # Google Gemini via OAuth
 [[profiles]]
-name = "gemini"
+name = "gemini-sub"
 provider_type = "OpenAICompatible"
 base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
 default_model = "gemini-2.5-pro"
@@ -271,37 +346,32 @@ oauth_provider = "kimi"
 [[profiles]]
 name = "qwen-oauth"
 provider_type = "OpenAICompatible"
-base_url = "https://chat.qwenlm.ai/api/chat/v1"
-default_model = "qwen-max"
+base_url = "https://chat.qwen.ai/api"
+default_model = "qwen3-235b-a22b"
 auth_type = "oauth"
 oauth_provider = "qwen"
 
 # GitHub Copilot via OAuth
 [[profiles]]
-name = "github-copilot"
+name = "copilot"
 provider_type = "OpenAICompatible"
 base_url = "https://api.githubcopilot.com"
 default_model = "gpt-4o"
 auth_type = "oauth"
 oauth_provider = "github"
 
-# ChatGPT/Codex サブスクリプション via OAuth (OpenAIResponses)
+# GitLab Duo via GITLAB_TOKEN
 [[profiles]]
-name = "codex-sub"
-provider_type = "OpenAIResponses"
-base_url = "https://chatgpt.com/backend-api/codex"
-default_model = "gpt-4o"
+name = "gitlab-duo"
+provider_type = "OpenAICompatible"
+base_url = "https://gitlab.com/api/v4/ai/llm/proxy"
+default_model = "claude-sonnet-4-20250514"
 auth_type = "oauth"
-oauth_provider = "openai"
-
-[profiles.models]
-haiku = "gpt-4o-mini"
-sonnet = "gpt-4o"
-opus = "o1-pro"
+oauth_provider = "gitlab"
 ```
 
 <Aside type="caution">
-  `claude` OAuth プロバイダーの場合、Claudex は特別なゲートウェイ認証モードを使用します: Claude Code 自身のサブスクリプションログインフローとの競合を避けるため、`ANTHROPIC_API_KEY` ではなく `ANTHROPIC_AUTH_TOKEN` を設定します。
+  `claude` OAuth プロバイダーの場合、Claudex はプロキシをスキップし、Claude Code が自身の OAuth を直接使用できるようにします。その他すべての OAuth プロバイダーでは、プロキシがトークン管理とリフレッシュを処理します。
 </Aside>
 
 ## スマートルーター
@@ -310,14 +380,14 @@ opus = "o1-pro"
 [router]
 enabled = false
 profile = "local-qwen"    # プロファイルの base_url + api_key を再利用
-model = "qwen2.5:3b"      # モデルを上書き (任意)
+model = "qwen2.5:3b"      # モデルを上書き（任意）
 ```
 
 | フィールド | 型 | デフォルト | 説明 |
-|------------|-----|------------|------|
+|-----------|-----|----------|------|
 | `enabled` | boolean | `false` | スマートルーティングを有効化 |
-| `profile` | string | `""` | 分類に再利用するプロファイル名 (その `base_url` + `api_key` を使用) |
-| `model` | string | `""` | 分類のモデル上書き (デフォルトはプロファイルの `default_model`) |
+| `profile` | string | `""` | 分類に再利用するプロファイル名（`base_url` + `api_key` を使用） |
+| `model` | string | `""` | 分類のモデル上書き（デフォルトはプロファイルの `default_model`） |
 
 ### ルーティングルール
 
@@ -336,7 +406,7 @@ default = "grok"
 | `code` | コーディングタスク用プロファイル |
 | `analysis` | 分析と推論用プロファイル |
 | `creative` | クリエイティブライティング用プロファイル |
-| `search` | 検索と調査用プロファイル |
+| `search` | 検索とリサーチ用プロファイル |
 | `math` | 数学と論理用プロファイル |
 | `default` | インテントが未分類の場合のフォールバック |
 
@@ -350,18 +420,18 @@ enabled = false
 threshold_tokens = 50000
 keep_recent = 10
 profile = "local-qwen"    # プロファイルの base_url + api_key を再利用
-model = "qwen2.5:3b"      # モデルを上書き (任意)
+model = "qwen2.5:3b"      # モデルを上書き（任意）
 ```
 
 | フィールド | 型 | デフォルト | 説明 |
-|------------|-----|------------|------|
-| `enabled` | boolean | `false` | 会話の圧縮を有効化 |
+|-----------|-----|----------|------|
+| `enabled` | boolean | `false` | 会話圧縮を有効化 |
 | `threshold_tokens` | integer | `50000` | トークン数がこれを超えると圧縮 |
 | `keep_recent` | integer | `10` | 常に最新 N 件のメッセージを非圧縮で保持 |
-| `profile` | string | `""` | 要約に再利用するプロファイル名 (その `base_url` + `api_key` を使用) |
-| `model` | string | `""` | 要約のモデル上書き (デフォルトはプロファイルの `default_model`) |
+| `profile` | string | `""` | 要約に再利用するプロファイル名 |
+| `model` | string | `""` | 要約のモデル上書き |
 
-### クロスプロファイル共有
+### プロファイル間共有
 
 ```toml
 [context.sharing]
@@ -370,8 +440,8 @@ max_context_size = 2000
 ```
 
 | フィールド | 型 | デフォルト | 説明 |
-|------------|-----|------------|------|
-| `enabled` | boolean | `false` | クロスプロファイルのコンテキスト共有を有効化 |
+|-----------|-----|----------|------|
+| `enabled` | boolean | `false` | プロファイル間コンテキスト共有を有効化 |
 | `max_context_size` | integer | `2000` | 他のプロファイルから注入する最大トークン数 |
 
 ### ローカル RAG
@@ -387,10 +457,10 @@ top_k = 5
 ```
 
 | フィールド | 型 | デフォルト | 説明 |
-|------------|-----|------------|------|
+|-----------|-----|----------|------|
 | `enabled` | boolean | `false` | ローカル RAG を有効化 |
 | `index_paths` | string[] | `[]` | インデックス化するディレクトリ |
-| `profile` | string | `""` | エンベディングに再利用するプロファイル名 (その `base_url` + `api_key` を使用) |
-| `model` | string | `""` | エンベディングモデル名 (デフォルトはプロファイルの `default_model`) |
+| `profile` | string | `""` | エンベディングに再利用するプロファイル名 |
+| `model` | string | `""` | エンベディングモデル名 |
 | `chunk_size` | integer | `512` | トークン単位のテキストチャンクサイズ |
 | `top_k` | integer | `5` | 注入する結果数 |

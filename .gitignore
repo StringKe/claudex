@@ -27,5 +27,5 @@ config.toml
 .claude/*.jsonl
 
 # Internal docs and scripts (local only)
-docs/
+/docs/
 scripts/

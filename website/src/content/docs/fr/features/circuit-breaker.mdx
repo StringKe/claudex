@@ -1,42 +1,42 @@
 ---
 title: Disjoncteur et basculement
-description: Détection automatique des pannes et basculement entre fournisseurs
+description: Detection automatique des pannes et basculement entre fournisseurs
 ---
 
-Claudex inclut un disjoncteur intégré pour chaque profil de fournisseur, avec basculement automatique vers des fournisseurs de secours lorsque des pannes sont détectées.
+Claudex inclut un disjoncteur integre pour chaque profil de fournisseur, avec basculement automatique vers des fournisseurs de secours lorsque des pannes sont detectees.
 
-## États du disjoncteur
+## Etats du disjoncteur
 
 ```
-         succès
+         success
     ┌──────────────┐
     │              │
-    ▼    échec     │
- Fermé ──────────► Ouvert
+    ▼    failure   │
+ Closed ────────► Open
     ▲              │
-    │   délai      │
-    │   expiré     ▼
-    └─────────── DemiOuvert
+    │   timeout    │
+    │   expired    ▼
+    └─────────── HalfOpen
                    │
-                échec → retour à Ouvert
+                failure → back to Open
 ```
 
-| État | Comportement |
+| Etat | Comportement |
 |------|-------------|
-| **Fermé** | Fonctionnement normal. Les requêtes passent. Les échecs sont comptés. |
-| **Ouvert** | Les requêtes sont bloquées. Déclenche le basculement vers les fournisseurs de secours. |
-| **DemiOuvert** | Après le délai de récupération, une requête sonde est autorisée. Succès → Fermé ; Échec → retour à Ouvert. |
+| **Closed** | Fonctionnement normal. Les requetes passent. Les echecs sont comptes. |
+| **Open** | Les requetes sont bloquees. Declenche le basculement vers les fournisseurs de secours. |
+| **HalfOpen** | Apres le delai de recuperation, une requete sonde est autorisee. Succes → Closed ; Echec → retour a Open. |
 
-## Paramètres par défaut
+## Parametres par defaut
 
-| Paramètre | Valeur |
+| Parametre | Valeur |
 |-----------|--------|
-| Seuil d'échec | 3 échecs consécutifs |
-| Délai de récupération | 30 secondes |
+| Seuil d'echec | 3 echecs consecutifs |
+| Delai de recuperation | 30 secondes |
 
 ## Configuration du basculement
 
-Définissez des fournisseurs de secours dans votre profil pour activer le basculement automatique :
+Definissez des fournisseurs de secours dans votre profil pour activer le basculement automatique :
 
 ```toml
 [[profiles]]
@@ -45,19 +45,30 @@ provider_type = "OpenAICompatible"
 base_url = "https://api.x.ai/v1"
 api_key = "xai-..."
 default_model = "grok-3-beta"
-backup_providers = ["deepseek", "chatgpt"]   # chaîne de basculement
+backup_providers = ["deepseek", "chatgpt"]   # chaine de basculement
 ```
 
-Lorsque `grok` échoue 3 fois consécutivement :
+Lorsque `grok` echoue 3 fois consecutivement :
 1. Le disjoncteur s'ouvre pour `grok`
-2. La requête est réessayée avec `deepseek`
-3. Si `deepseek` échoue également, essayer `chatgpt`
-4. Chaque fournisseur de secours dispose de son propre disjoncteur indépendant
+2. La requete est reessayee avec `deepseek`
+3. Si `deepseek` echoue egalement, essayer `chatgpt`
+4. Chaque fournisseur de secours dispose de son propre disjoncteur independant
 
-## Vérification de l'état de santé
+## Retry OAuth 401
 
-Un vérificateur de santé en arrière-plan s'exécute toutes les ~30 secondes, envoyant des requêtes sonde légères à tous les profils activés. L'état de santé est affiché dans le tableau de bord TUI avec un code couleur :
+Pour les profils OAuth, les reponses HTTP 401 recoivent un traitement special :
+
+1. Le proxy invalide le token OAuth actuel
+2. Tente un chargement frais du token depuis la chaine de credentials
+3. Retente la requete avec le nouveau token
+4. Ne compte comme echec du disjoncteur que si le retry echoue aussi
+
+Cela empeche une expiration temporaire de token de declencher des basculements inutiles.
+
+## Verification de la sante
+
+Un verificateur de sante en arriere-plan s'execute toutes les ~30 secondes, envoyant des requetes sonde legeres a tous les profils actives. L'etat de sante est affiche dans le tableau de bord TUI avec un code couleur :
 
 - Vert : sain
-- Jaune : dégradé (échecs récents)
+- Jaune : degrade (echecs recents)
 - Rouge : disjoncteur ouvert

@@ -7,15 +7,16 @@ import { Aside } from '@astrojs/starlight/components';
 
 ## Расположение файла конфигурации
 
-Claudex ищет файлы конфигурации в следующем порядке:
+Claudex использует многоуровневую конфигурацию через figment. Источники объединяются в следующем порядке (более поздние переопределяют более ранние):
 
-1. Переменная окружения `$CLAUDEX_CONFIG`
-2. `./claudex.toml` (текущая директория)
-3. `./.claudex/config.toml` (текущая директория)
-4. Родительские директории (до 10 уровней), проверяются оба варианта
-5. `~/.config/claudex/config.toml` (XDG — проверяется **до** путей, специфичных для платформы)
+1. **Программные значения по умолчанию**
+2. **Глобальная конфигурация** (`~/.config/claudex/config.toml` или `.yaml`)
+3. **Конфигурация проекта** (`claudex.toml`/`.claudex/config.toml` в текущем каталоге или родительских, либо `$CLAUDEX_CONFIG`)
+4. **Переменные окружения** (префикс `CLAUDEX_`, разделитель `__`)
 
-Полные сведения см. в разделе [Настройка](/ru/configuration/).
+Поддерживаются оба формата: TOML и YAML.
+
+Подробности настройки см. в разделе [Конфигурация](/ru/configuration/).
 
 ## Глобальные настройки
 
@@ -31,16 +32,20 @@ proxy_host = "127.0.0.1"
 
 # Уровень логирования: trace, debug, info, warn, error
 log_level = "info"
+
+# Терминальные гиперссылки (OSC 8): "auto" | true | false
+hyperlinks = "auto"
 ```
 
 | Поле | Тип | По умолчанию | Описание |
-|------|-----|--------------|----------|
+|------|-----|--------------|---------|
 | `claude_binary` | string | `"claude"` | Путь к бинарному файлу Claude Code CLI |
 | `proxy_port` | integer | `13456` | Порт, на котором слушает прокси-переводчик |
 | `proxy_host` | string | `"127.0.0.1"` | Адрес привязки прокси |
 | `log_level` | string | `"info"` | Минимальный уровень логирования |
+| `hyperlinks` | string/bool | `"auto"` | Терминальные гиперссылки: `"auto"` (определять), `true` (включить), `false` (выключить) |
 
-## Псевдонимы моделей
+## Алиасы моделей
 
 Определите сокращённые имена для идентификаторов моделей:
 
@@ -52,7 +57,7 @@ ds3 = "deepseek-chat"
 claude = "claude-sonnet-4-20250514"
 ```
 
-Используйте псевдонимы с `-m`:
+Используйте алиасы с `-m`:
 
 ```bash
 claudex run grok -m grok3
@@ -75,6 +80,12 @@ custom_headers = {}
 extra_env = {}
 priority = 100
 enabled = true
+max_tokens = 16384                  # опционально: ограничить выходные токены
+strip_params = "auto"               # "auto" | "none" | ["temperature", "top_p"]
+
+# URL query-параметры (например, Azure api-version)
+[profiles.query_params]
+# api-version = "2024-12-01-preview"
 
 # Маппинг слотов моделей (опционально)
 [profiles.models]
@@ -84,20 +95,35 @@ opus = "grok-3-beta"
 ```
 
 | Поле | Тип | По умолчанию | Описание |
-|------|-----|--------------|----------|
+|------|-----|--------------|---------|
 | `name` | string | *обязательно* | Уникальный идентификатор профиля |
 | `provider_type` | string | `"DirectAnthropic"` | `"DirectAnthropic"`, `"OpenAICompatible"` или `"OpenAIResponses"` |
-| `base_url` | string | *обязательно* | URL конечной точки API провайдера |
+| `base_url` | string | *обязательно* | URL endpoint API провайдера |
 | `api_key` | string | `""` | API-ключ в открытом тексте |
 | `api_key_keyring` | string | — | Имя записи в связке ключей ОС (переопределяет `api_key`) |
-| `default_model` | string | *обязательно* | Идентификатор модели, используемой по умолчанию |
+| `default_model` | string | *обязательно* | Идентификатор модели по умолчанию |
 | `auth_type` | string | `"api-key"` | Метод аутентификации: `"api-key"` или `"oauth"` |
-| `oauth_provider` | string | — | Имя OAuth-провайдера (обязательно при `auth_type = "oauth"`). Один из: `claude`, `openai`, `google`, `qwen`, `kimi`, `github` |
-| `backup_providers` | string[] | `[]` | Имена профилей для аварийного переключения, проверяются по порядку |
+| `oauth_provider` | string | — | Имя OAuth-провайдера. Один из: `claude`, `openai`, `google`, `qwen`, `kimi`, `github`, `gitlab` |
+| `backup_providers` | string[] | `[]` | Имена профилей для failover, проверяются по порядку |
 | `custom_headers` | map | `{}` | Дополнительные HTTP-заголовки, отправляемые с каждым запросом |
 | `extra_env` | map | `{}` | Переменные окружения, устанавливаемые при запуске Claude |
 | `priority` | integer | `100` | Вес приоритета для умной маршрутизации (выше = предпочтительнее) |
 | `enabled` | boolean | `true` | Активен ли данный профиль |
+| `max_tokens` | integer | — | Ограничить максимальное количество выходных токенов. При установке переопределяет `max_tokens` в запросах |
+| `strip_params` | string/array | `"auto"` | Параметры для удаления из запросов. `"auto"` определяет известные endpoint-ы; `"none"` отправляет все; массив удаляет конкретные параметры |
+
+### Query-параметры
+
+```toml
+[profiles.query_params]
+api-version = "2024-12-01-preview"
+```
+
+| Поле | Тип | Описание |
+|------|-----|---------|
+| `query_params` | map | Пары ключ-значение, добавляемые как URL query-параметры к каждому запросу |
+
+Используется в первую очередь для Azure OpenAI (`api-version`), но работает с любым провайдером.
 
 ### Маппинг слотов моделей
 
@@ -111,19 +137,19 @@ opus = "grok-3-beta"          # сопоставляет /model opus
 ```
 
 | Поле | Тип | Описание |
-|------|-----|----------|
-| `haiku` | string | Модель, используемая при выборе `haiku` в Claude Code |
-| `sonnet` | string | Модель, используемая при выборе `sonnet` в Claude Code |
-| `opus` | string | Модель, используемая при выборе `opus` в Claude Code |
+|------|-----|---------|
+| `haiku` | string | Модель при выборе `haiku` в Claude Code |
+| `sonnet` | string | Модель при выборе `sonnet` в Claude Code |
+| `opus` | string | Модель при выборе `opus` в Claude Code |
 
 <Aside type="tip">
-  Если слот не определён, в качестве резервного используется `default_model` профиля.
+  Если слот не определён, в качестве запасного значения используется `default_model` профиля. Слоты также экспортируются как переменные окружения: `ANTHROPIC_DEFAULT_HAIKU_MODEL`, `ANTHROPIC_DEFAULT_SONNET_MODEL`, `ANTHROPIC_DEFAULT_OPUS_MODEL`.
 </Aside>
 
 ### Примеры провайдеров
 
 ```toml
-# Anthropic (DirectAnthropic — без перевода)
+# Anthropic (DirectAnthropic — без трансляции)
 [[profiles]]
 name = "anthropic"
 provider_type = "DirectAnthropic"
@@ -131,7 +157,7 @@ base_url = "https://api.anthropic.com"
 api_key = "sk-ant-..."
 default_model = "claude-sonnet-4-20250514"
 
-# MiniMax (DirectAnthropic — без перевода)
+# MiniMax (DirectAnthropic — без трансляции)
 [[profiles]]
 name = "minimax"
 provider_type = "DirectAnthropic"
@@ -140,7 +166,7 @@ api_key = "..."
 default_model = "claude-sonnet-4-20250514"
 backup_providers = ["anthropic"]
 
-# OpenRouter (OpenAICompatible — требует перевода)
+# OpenRouter (OpenAICompatible — требует трансляции)
 [[profiles]]
 name = "openrouter"
 provider_type = "OpenAICompatible"
@@ -148,7 +174,7 @@ base_url = "https://openrouter.ai/api/v1"
 api_key = "..."
 default_model = "anthropic/claude-sonnet-4"
 
-# Grok (OpenAICompatible — требует перевода)
+# Grok (OpenAICompatible — требует трансляции)
 [[profiles]]
 name = "grok"
 provider_type = "OpenAICompatible"
@@ -157,7 +183,7 @@ api_key = "xai-..."
 default_model = "grok-3-beta"
 backup_providers = ["deepseek"]
 
-# OpenAI (OpenAICompatible — требует перевода)
+# OpenAI (OpenAICompatible — требует трансляции)
 [[profiles]]
 name = "chatgpt"
 provider_type = "OpenAICompatible"
@@ -165,7 +191,7 @@ base_url = "https://api.openai.com/v1"
 api_key = "sk-..."
 default_model = "gpt-4o"
 
-# DeepSeek (OpenAICompatible — требует перевода)
+# DeepSeek (OpenAICompatible — требует трансляции)
 [[profiles]]
 name = "deepseek"
 provider_type = "OpenAICompatible"
@@ -174,21 +200,79 @@ api_key = "..."
 default_model = "deepseek-chat"
 backup_providers = ["grok"]
 
-# Kimi / Moonshot (OpenAICompatible — требует перевода)
+# Kimi / Moonshot (OpenAICompatible — требует трансляции)
 [[profiles]]
 name = "kimi"
 provider_type = "OpenAICompatible"
-base_url = "https://api.moonshot.cn/v1"
+base_url = "https://api.moonshot.ai/v1"
 api_key = "..."
-default_model = "moonshot-v1-128k"
+default_model = "kimi-k2-0905-preview"
 
-# GLM / 智谱 (OpenAICompatible — требует перевода)
+# GLM / 智谱 (OpenAICompatible — требует трансляции)
 [[profiles]]
 name = "glm"
 provider_type = "OpenAICompatible"
-base_url = "https://open.bigmodel.cn/api/paas/v4"
+base_url = "https://api.z.ai/api/paas/v4"
 api_key = "..."
-default_model = "glm-4-plus"
+default_model = "glm-4.6"
+
+# Groq (OpenAICompatible — быстрый инференс)
+[[profiles]]
+name = "groq"
+provider_type = "OpenAICompatible"
+base_url = "https://api.groq.com/openai/v1"
+api_key = "gsk_..."
+default_model = "llama-3.3-70b-versatile"
+
+# Mistral AI (OpenAICompatible — требует трансляции)
+[[profiles]]
+name = "mistral"
+provider_type = "OpenAICompatible"
+base_url = "https://api.mistral.ai/v1"
+api_key = "..."
+default_model = "mistral-large-latest"
+
+# Together AI (OpenAICompatible — требует трансляции)
+[[profiles]]
+name = "together"
+provider_type = "OpenAICompatible"
+base_url = "https://api.together.xyz/v1"
+api_key = "..."
+default_model = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+
+# Perplexity (OpenAICompatible — онлайн-поиск + LLM)
+[[profiles]]
+name = "perplexity"
+provider_type = "OpenAICompatible"
+base_url = "https://api.perplexity.ai"
+api_key = "pplx-..."
+default_model = "sonar-pro"
+
+# Cerebras (OpenAICompatible — быстрый инференс)
+[[profiles]]
+name = "cerebras"
+provider_type = "OpenAICompatible"
+base_url = "https://api.cerebras.ai/v1"
+api_key = "..."
+default_model = "llama-3.3-70b"
+
+# Azure OpenAI (OpenAICompatible — заголовок api-key + query_params)
+[[profiles]]
+name = "azure-openai"
+provider_type = "OpenAICompatible"
+base_url = "https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT"
+api_key = "YOUR_AZURE_KEY"
+default_model = "gpt-4o"
+[profiles.query_params]
+api-version = "2024-12-01-preview"
+
+# Google Vertex AI (DirectAnthropic)
+[[profiles]]
+name = "vertex-ai"
+provider_type = "DirectAnthropic"
+base_url = "https://us-east5-aiplatform.googleapis.com/v1/projects/YOUR_PROJECT/locations/us-east5/publishers/anthropic/models"
+api_key = "YOUR_GCLOUD_TOKEN"
+default_model = "claude-sonnet-4@20250514"
 
 # Ollama (локальный, API-ключ не нужен)
 [[profiles]]
@@ -207,39 +291,16 @@ base_url = "http://localhost:8000/v1"
 api_key = ""
 default_model = "llama-3.3-70b"
 enabled = false
-
-# Подписка ChatGPT/Codex (OpenAIResponses — перевод через Responses API)
-[[profiles]]
-name = "codex-sub"
-provider_type = "OpenAIResponses"
-base_url = "https://chatgpt.com/backend-api/codex"
-default_model = "gpt-4o"
-auth_type = "oauth"
-oauth_provider = "openai"
 ```
 
 ### Примеры OAuth-профилей
 
 ```toml
-# OpenAI через OAuth (читает токен из Codex CLI ~/.codex/auth.json)
+# Claude Max (пропускает прокси, использует нативный OAuth Claude из ~/.claude)
 [[profiles]]
-name = "chatgpt-oauth"
-provider_type = "OpenAICompatible"
-base_url = "https://api.openai.com/v1"
-default_model = "gpt-4o"
-auth_type = "oauth"
-oauth_provider = "openai"
-
-[profiles.models]
-haiku = "gpt-4o-mini"
-sonnet = "gpt-4o"
-opus = "o1"
-
-# Подписка Claude (пропускает прокси, использует нативный OAuth Claude из ~/.claude)
-[[profiles]]
-name = "claude-sub"
+name = "claude-max"
 provider_type = "DirectAnthropic"
-base_url = "https://api.anthropic.com"
+base_url = "https://api.claude.ai"
 default_model = "claude-sonnet-4-20250514"
 auth_type = "oauth"
 oauth_provider = "claude"
@@ -249,9 +310,23 @@ haiku = "claude-haiku-4-20250514"
 sonnet = "claude-sonnet-4-20250514"
 opus = "claude-opus-4-20250514"
 
+# Подписка ChatGPT/Codex (OpenAIResponses)
+[[profiles]]
+name = "codex-sub"
+provider_type = "OpenAIResponses"
+base_url = "https://chatgpt.com/backend-api/codex"
+default_model = "gpt-5.3-codex"
+auth_type = "oauth"
+oauth_provider = "openai"
+
+[profiles.models]
+haiku = "codex-mini-latest"
+sonnet = "gpt-5.3-codex"
+opus = "gpt-5.3-codex"
+
 # Google Gemini через OAuth
 [[profiles]]
-name = "gemini"
+name = "gemini-sub"
 provider_type = "OpenAICompatible"
 base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
 default_model = "gemini-2.5-pro"
@@ -271,37 +346,32 @@ oauth_provider = "kimi"
 [[profiles]]
 name = "qwen-oauth"
 provider_type = "OpenAICompatible"
-base_url = "https://chat.qwenlm.ai/api/chat/v1"
-default_model = "qwen-max"
+base_url = "https://chat.qwen.ai/api"
+default_model = "qwen3-235b-a22b"
 auth_type = "oauth"
 oauth_provider = "qwen"
 
 # GitHub Copilot через OAuth
 [[profiles]]
-name = "github-copilot"
+name = "copilot"
 provider_type = "OpenAICompatible"
 base_url = "https://api.githubcopilot.com"
 default_model = "gpt-4o"
 auth_type = "oauth"
 oauth_provider = "github"
 
-# Подписка ChatGPT/Codex через OAuth (OpenAIResponses)
+# GitLab Duo через GITLAB_TOKEN
 [[profiles]]
-name = "codex-sub"
-provider_type = "OpenAIResponses"
-base_url = "https://chatgpt.com/backend-api/codex"
-default_model = "gpt-4o"
+name = "gitlab-duo"
+provider_type = "OpenAICompatible"
+base_url = "https://gitlab.com/api/v4/ai/llm/proxy"
+default_model = "claude-sonnet-4-20250514"
 auth_type = "oauth"
-oauth_provider = "openai"
-
-[profiles.models]
-haiku = "gpt-4o-mini"
-sonnet = "gpt-4o"
-opus = "o1-pro"
+oauth_provider = "gitlab"
 ```
 
 <Aside type="caution">
-  Для OAuth-провайдера `claude` Claudex использует специальный режим аутентификации через шлюз: устанавливается `ANTHROPIC_AUTH_TOKEN` (не `ANTHROPIC_API_KEY`), чтобы не конфликтовать с собственным потоком входа Claude Code по подписке.
+  Для OAuth-провайдера `claude` Claudex пропускает прокси и позволяет Claude Code использовать собственный OAuth напрямую. Для всех остальных OAuth-провайдеров прокси управляет токенами и их обновлением.
 </Aside>
 
 ## Умный маршрутизатор
@@ -314,7 +384,7 @@ model = "qwen2.5:3b"      # переопределение модели (опц�
 ```
 
 | Поле | Тип | По умолчанию | Описание |
-|------|-----|--------------|----------|
+|------|-----|--------------|---------|
 | `enabled` | boolean | `false` | Включить умную маршрутизацию |
 | `profile` | string | `""` | Имя профиля для переиспользования при классификации (использует его `base_url` + `api_key`) |
 | `model` | string | `""` | Переопределение модели для классификации (по умолчанию `default_model` профиля) |
@@ -332,8 +402,8 @@ default = "grok"
 ```
 
 | Ключ | Описание |
-|------|----------|
-| `code` | Профиль для задач по программированию |
+|------|---------|
+| `code` | Профиль для задач программирования |
 | `analysis` | Профиль для анализа и логического рассуждения |
 | `creative` | Профиль для творческого письма |
 | `search` | Профиль для поиска и исследований |
@@ -354,14 +424,14 @@ model = "qwen2.5:3b"      # переопределение модели (опц�
 ```
 
 | Поле | Тип | По умолчанию | Описание |
-|------|-----|--------------|----------|
+|------|-----|--------------|---------|
 | `enabled` | boolean | `false` | Включить сжатие диалогов |
 | `threshold_tokens` | integer | `50000` | Сжимать при превышении количества токенов |
 | `keep_recent` | integer | `10` | Всегда хранить последние N сообщений несжатыми |
-| `profile` | string | `""` | Имя профиля для переиспользования при создании резюме (использует его `base_url` + `api_key`) |
-| `model` | string | `""` | Переопределение модели для создания резюме (по умолчанию `default_model` профиля) |
+| `profile` | string | `""` | Имя профиля для переиспользования при суммаризации |
+| `model` | string | `""` | Переопределение модели для суммаризации |
 
-### Совместное использование контекста между профилями
+### Обмен контекстом между профилями
 
 ```toml
 [context.sharing]
@@ -370,8 +440,8 @@ max_context_size = 2000
 ```
 
 | Поле | Тип | По умолчанию | Описание |
-|------|-----|--------------|----------|
-| `enabled` | boolean | `false` | Включить совместное использование контекста между профилями |
+|------|-----|--------------|---------|
+| `enabled` | boolean | `false` | Включить обмен контекстом между профилями |
 | `max_context_size` | integer | `2000` | Максимальное количество токенов для внедрения из других профилей |
 
 ### Локальный RAG
@@ -387,10 +457,10 @@ top_k = 5
 ```
 
 | Поле | Тип | По умолчанию | Описание |
-|------|-----|--------------|----------|
+|------|-----|--------------|---------|
 | `enabled` | boolean | `false` | Включить локальный RAG |
-| `index_paths` | string[] | `[]` | Директории для индексирования |
-| `profile` | string | `""` | Имя профиля для переиспользования при создании эмбеддингов (использует его `base_url` + `api_key`) |
-| `model` | string | `""` | Имя модели эмбеддингов (по умолчанию `default_model` профиля) |
+| `index_paths` | string[] | `[]` | Каталоги для индексирования |
+| `profile` | string | `""` | Имя профиля для переиспользования при создании эмбеддингов |
+| `model` | string | `""` | Имя модели эмбеддингов |
 | `chunk_size` | integer | `512` | Размер фрагмента текста в токенах |
 | `top_k` | integer | `5` | Количество результатов для внедрения |

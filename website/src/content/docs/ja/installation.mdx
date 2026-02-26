@@ -1,6 +1,6 @@
 ---
 title: インストール
-description: システムへの Claudex のインストール方法
+description: Claudex のインストール方法
 ---
 
 import { Tabs, TabItem } from '@astrojs/starlight/components';
@@ -12,7 +12,7 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
     ```bash
     curl -fsSL https://raw.githubusercontent.com/StringKe/claudex/main/install.sh | bash
     ```
-    インストールスクリプトは OS とアーキテクチャを自動検出し、GitHub から最新リリースをダウンロードして `~/.local/bin/claudex` にインストールします。
+    インストールスクリプトが OS とアーキテクチャを自動検出し、GitHub から最新リリースをダウンロードして `~/.local/bin/claudex` にインストールします。
 
     インストールディレクトリを変更する場合:
     ```bash
@@ -26,7 +26,7 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
     Rust ツールチェーンが必要です。バイナリは `~/.cargo/bin/claudex` にインストールされます。
   </TabItem>
   <TabItem label="GitHub Releases" icon="github">
-    [GitHub Releases](https://github.com/StringKe/claudex/releases) からプラットフォーム向けのビルド済みバイナリをダウンロードしてください。
+    [GitHub Releases](https://github.com/StringKe/claudex/releases) からお使いのプラットフォーム向けのビルド済みバイナリをダウンロードしてください。
 
     利用可能なターゲット:
     - `x86_64-unknown-linux-gnu`
@@ -37,7 +37,7 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
     - `aarch64-apple-darwin`
     - `x86_64-pc-windows-msvc`
 
-    バイナリを展開して `PATH` に配置してください:
+    展開してバイナリを `PATH` に配置します:
     ```bash
     tar xzf claudex-v*.tar.gz
     chmod +x claudex
@@ -51,10 +51,10 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
 | 要件 | 詳細 |
 |------|------|
 | **OS** | macOS (Intel / Apple Silicon)、Linux (x86_64 / ARM64)、Windows (x86_64) |
-| **Claude Code** | インストール済みで `claude` として PATH からアクセス可能であること |
-| **任意** | スマートルーティングとコンテキストエンジン機能用に [Ollama](https://ollama.com) |
+| **Claude Code** | `claude` コマンドとして PATH からアクセス可能な状態でインストール済みであること |
+| **オプション** | スマートルーティングやコンテキストエンジン機能に [Ollama](https://ollama.com) |
 
-## インストールの確認
+## インストール確認
 
 ```bash
 claudex --version
@@ -62,4 +62,4 @@ claudex --version
 
 ## 次のステップ
 
-インストール後、[最初のプロバイダープロファイルを設定](/ja/configuration/)してください。
+インストール後、[最初のプロバイダープロファイルを設定](/ja/configuration/)しましょう。

@@ -8,13 +8,13 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
 ## Metodos de Instalacao
 
 <Tabs>
-  <TabItem label="Linha unica" icon="terminal">
+  <TabItem label="One-liner" icon="terminal">
     ```bash
     curl -fsSL https://raw.githubusercontent.com/StringKe/claudex/main/install.sh | bash
     ```
-    O script de instalacao detecta automaticamente seu sistema operacional e arquitetura, baixa a versao mais recente do GitHub e instala em `~/.local/bin/claudex`.
+    O script de instalacao detecta automaticamente seu SO e arquitetura, baixa a versao mais recente do GitHub e instala em `~/.local/bin/claudex`.
 
-    Substituir o diretorio de instalacao:
+    Para alterar o diretorio de instalacao:
     ```bash
     CLAUDEX_INSTALL_DIR=/usr/local/bin curl -fsSL https://raw.githubusercontent.com/StringKe/claudex/main/install.sh | bash
     ```
@@ -23,12 +23,12 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
     ```bash
     cargo install --git https://github.com/StringKe/claudex
     ```
-    Requer a toolchain do Rust. O binario sera instalado em `~/.cargo/bin/claudex`.
+    Requer o toolchain Rust. O binario sera instalado em `~/.cargo/bin/claudex`.
   </TabItem>
   <TabItem label="GitHub Releases" icon="github">
     Baixe o binario pre-compilado para sua plataforma em [GitHub Releases](https://github.com/StringKe/claudex/releases).
 
-    Alvos disponiveis:
+    Targets disponiveis:
     - `x86_64-unknown-linux-gnu`
     - `x86_64-unknown-linux-musl`
     - `aarch64-unknown-linux-gnu`
@@ -52,9 +52,9 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
 |-----------|---------|
 | **SO** | macOS (Intel / Apple Silicon), Linux (x86_64 / ARM64), Windows (x86_64) |
 | **Claude Code** | Deve estar instalado e acessivel como `claude` no seu PATH |
-| **Opcional** | [Ollama](https://ollama.com) para roteamento inteligente e funcionalidades do motor de contexto |
+| **Opcional** | [Ollama](https://ollama.com) para funcionalidades de roteamento inteligente e motor de contexto |
 
-## Verificar Instalacao
+## Verificar a Instalacao
 
 ```bash
 claudex --version
@@ -62,4 +62,4 @@ claudex --version
 
 ## Proximos Passos
 
-Apos a instalacao, [configure seu primeiro perfil de provedor](/pt-br/configuration/).
+Apos a instalacao, [configure seu primeiro profile de provedor](/pt-br/configuration/).

@@ -1,5 +1,5 @@
 ---
-title: Enrutamiento Inteligente
+title: Enrutamiento inteligente
 description: Enrutamiento automatico de proveedores basado en intencion
 ---
 
@@ -7,14 +7,14 @@ import { Aside } from '@astrojs/starlight/components';
 
 El enrutamiento inteligente selecciona automaticamente el mejor proveedor para cada solicitud basandose en la clasificacion de la intencion. Usa `claudex run auto` para activarlo.
 
-## Como Funciona
+## Como funciona
 
 1. El usuario ejecuta `claudex run auto`
 2. Claude Code envia una solicitud al proxy
 3. El proxy extrae el mensaje del usuario y lo envia a un clasificador local (por ejemplo, Ollama)
 4. El clasificador devuelve una categoria de intencion (code, analysis, creative, search, math)
 5. Las reglas de enrutamiento asignan la intencion al perfil de proveedor optimo
-6. La solicitud se reenvfa al proveedor seleccionado
+6. La solicitud se reenvia al proveedor seleccionado
 
 ## Configuracion
 
@@ -33,15 +33,15 @@ math = "deepseek"       # matematicas/logica → DeepSeek
 default = "grok"        # respaldo para lo no clasificado
 ```
 
-## Categorias de Intencion
+## Categorias de intencion
 
-| Intencion | Descripcion | Tareas de Ejemplo |
+| Intencion | Descripcion | Tareas de ejemplo |
 |-----------|-------------|-------------------|
 | `code` | Programacion y generacion de codigo | Escribir una funcion, corregir un error, refactorizar codigo |
-| `analysis` | Analisis de datos y razonamiento | Analizar registros, comparar enfoques, explicar conceptos |
+| `analysis` | Analisis de datos y razonamiento | Analizar logs, comparar enfoques, explicar conceptos |
 | `creative` | Escritura creativa e ideacion | Escribir documentacion, hacer lluvia de ideas, redactar correos |
 | `search` | Recuperacion de informacion | Buscar documentacion de API, consultar codigos de error |
-| `math` | Tareas matematicas y logicas | Calcular complejidad, demostrar corrección |
+| `math` | Tareas matematicas y logicas | Calcular complejidad, demostrar correccion |
 
 <Aside type="note">
   El enrutamiento inteligente requiere un servicio LLM para la clasificacion de intenciones. Reutiliza la `base_url` y `api_key` de un perfil existente. El modelo clasificador debe ser pequeno y rapido: `qwen2.5:3b` funciona bien.

@@ -1,0 +1,239 @@
+---
+title: 프로바이더 호환성
+description: 지원되는 모든 AI 프로바이더의 전체 호환성 테이블
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## 프로바이더 호환성 테이블
+
+| 프로바이더 | 유형 | 인증 | 스트리밍 | 도구 사용 | 모델 슬롯 | 비고 |
+|----------|------|------|-----------|----------|-------------|-------|
+| Anthropic | DirectAnthropic | API 키 | 예 | 예 | 예 | 네이티브, 변환 없음 |
+| MiniMax | DirectAnthropic | API 키 | 예 | 예 | 예 | Anthropic 호환 프록시 |
+| Google Vertex AI | DirectAnthropic | 액세스 토큰 | 예 | 예 | 예 | `gcloud auth print-access-token` |
+| OpenRouter | OpenAICompatible | API 키 | 예 | 예 | 예 | 단일 API로 200개 이상 모델 |
+| Grok (xAI) | OpenAICompatible | API 키 | 예 | 예 | 예 | |
+| OpenAI | OpenAICompatible | API 키 | 예 | 예 | 예 | |
+| DeepSeek | OpenAICompatible | API 키 | 예 | 예 | 예 | |
+| Kimi / Moonshot | OpenAICompatible | API 키 / OAuth | 예 | 예 | 예 | |
+| GLM (Zhipu) | OpenAICompatible | API 키 | 예 | 예 | 예 | |
+| Groq | OpenAICompatible | API 키 | 예 | 예 | 예 | 초고속 추론 |
+| Mistral AI | OpenAICompatible | API 키 | 예 | 예 | 예 | |
+| Together AI | OpenAICompatible | API 키 | 예 | 예 | 예 | |
+| Perplexity | OpenAICompatible | API 키 | 예 | 제한적 | 예 | 웹 검색 내장 |
+| Cerebras | OpenAICompatible | API 키 | 예 | 예 | 예 | 빠른 추론 |
+| Azure OpenAI | OpenAICompatible | API 키 | 예 | 예 | 예 | `api-key` 헤더 + `query_params` |
+| GitHub Copilot | OpenAICompatible | OAuth | 예 | 예 | 예 | Device Code 플로우 |
+| GitLab Duo | OpenAICompatible | OAuth (PAT) | 예 | 예 | 예 | `GITLAB_TOKEN` 환경 변수 |
+| ChatGPT/Codex | OpenAIResponses | OAuth | 예 | 예 | 예 | Responses API |
+| Claude (구독) | DirectAnthropic | OAuth | 예 | 예 | 예 | 프록시 건너뜀 |
+| Google Gemini (구독) | OpenAICompatible | OAuth | 예 | 예 | 예 | Gemini CLI 자격 증명 |
+| Qwen (구독) | OpenAICompatible | OAuth | 예 | 예 | 예 | Device Code 플로우 |
+| Ollama | OpenAICompatible | 없음 | 예 | 모델 의존 | 예 | 로컬, API 키 불필요 |
+| vLLM | OpenAICompatible | 없음 | 예 | 모델 의존 | 예 | 로컬 |
+| LM Studio | OpenAICompatible | 없음 | 예 | 모델 의존 | 예 | 로컬 |
+| Bedrock (LiteLLM) | OpenAICompatible | API 키 | 예 | 예 | 예 | LiteLLM 프록시 경유 |
+
+## 프로바이더 상세
+
+### Anthropic
+
+- **Base URL**: `https://api.anthropic.com`
+- **유형**: DirectAnthropic (변환 불필요)
+- **인증**: API 키 (`sk-ant-*`)
+- **모델**: claude-opus-4, claude-sonnet-4, claude-haiku-4
+- **API 키 발급**: [console.anthropic.com](https://console.anthropic.com/)
+
+### MiniMax
+
+- **Base URL**: `https://api.minimax.io/anthropic`
+- **유형**: DirectAnthropic (변환 불필요)
+- **인증**: API 키
+- **모델**: Anthropic 모델명 사용 (프록시됨)
+- **API 키 발급**: [platform.minimaxi.com](https://platform.minimaxi.com/)
+
+### Google Vertex AI
+
+- **Base URL**: `https://REGION-aiplatform.googleapis.com/v1/projects/PROJECT/locations/REGION/publishers/anthropic/models`
+- **유형**: DirectAnthropic
+- **인증**: GCP 액세스 토큰 (`gcloud auth print-access-token`)
+- **모델**: claude-sonnet-4@20250514, claude-opus-4@20250514
+- **설정**: [Vertex AI Console](https://console.cloud.google.com/vertex-ai)
+
+### OpenRouter
+
+- **Base URL**: `https://openrouter.ai/api/v1`
+- **유형**: OpenAICompatible
+- **인증**: API 키 (`sk-or-*`)
+- **모델**: 다양한 프로바이더의 200개 이상 모델
+- **API 키 발급**: [openrouter.ai/keys](https://openrouter.ai/keys)
+
+### Grok (xAI)
+
+- **Base URL**: `https://api.x.ai/v1`
+- **유형**: OpenAICompatible
+- **인증**: API 키 (`xai-*`)
+- **모델**: grok-3-beta, grok-3-mini-beta
+- **API 키 발급**: [console.x.ai](https://console.x.ai/)
+
+### OpenAI
+
+- **Base URL**: `https://api.openai.com/v1`
+- **유형**: OpenAICompatible
+- **인증**: API 키 (`sk-*`)
+- **모델**: gpt-4o, gpt-4o-mini, o1, o1-mini
+- **API 키 발급**: [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+
+### DeepSeek
+
+- **Base URL**: `https://api.deepseek.com`
+- **유형**: OpenAICompatible
+- **인증**: API 키
+- **모델**: deepseek-chat, deepseek-reasoner
+- **API 키 발급**: [platform.deepseek.com](https://platform.deepseek.com/)
+
+### Kimi / Moonshot
+
+- **Base URL**: `https://api.moonshot.ai/v1`
+- **유형**: OpenAICompatible
+- **인증**: API 키 / OAuth
+- **모델**: kimi-k2-0905-preview, moonshot-v1-128k
+- **API 키 발급**: [platform.moonshot.cn](https://platform.moonshot.cn/)
+
+### GLM (Zhipu)
+
+- **Base URL**: `https://api.z.ai/api/paas/v4`
+- **유형**: OpenAICompatible
+- **인증**: API 키
+- **모델**: glm-4.6, glm-4-plus
+- **API 키 발급**: [open.bigmodel.cn](https://open.bigmodel.cn/)
+
+### Groq
+
+- **Base URL**: `https://api.groq.com/openai/v1`
+- **유형**: OpenAICompatible
+- **인증**: API 키 (`gsk_*`)
+- **모델**: llama-3.3-70b-versatile, mixtral-8x7b-32768, gemma2-9b-it
+- **API 키 발급**: [console.groq.com](https://console.groq.com/)
+- **참고**: 오픈소스 모델에 대한 초고속 추론
+
+### Mistral AI
+
+- **Base URL**: `https://api.mistral.ai/v1`
+- **유형**: OpenAICompatible
+- **인증**: API 키
+- **모델**: mistral-large-latest, mistral-small-latest
+- **API 키 발급**: [console.mistral.ai](https://console.mistral.ai/)
+
+### Together AI
+
+- **Base URL**: `https://api.together.xyz/v1`
+- **유형**: OpenAICompatible
+- **인증**: API 키
+- **모델**: meta-llama/Llama-3.3-70B-Instruct-Turbo 및 다수의 오픈소스 모델
+- **API 키 발급**: [api.together.ai](https://api.together.ai/)
+
+### Perplexity
+
+- **Base URL**: `https://api.perplexity.ai`
+- **유형**: OpenAICompatible
+- **인증**: API 키 (`pplx-*`)
+- **모델**: sonar-pro, sonar
+- **API 키 발급**: [perplexity.ai/settings/api](https://www.perplexity.ai/settings/api)
+- **참고**: 웹 검색 기능이 내장된 모델
+
+### Cerebras
+
+- **Base URL**: `https://api.cerebras.ai/v1`
+- **유형**: OpenAICompatible
+- **인증**: API 키
+- **모델**: llama-3.3-70b
+- **API 키 발급**: [cloud.cerebras.ai](https://cloud.cerebras.ai/)
+- **참고**: 빠른 추론 플랫폼
+
+### Azure OpenAI
+
+- **Base URL**: `https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT`
+- **유형**: OpenAICompatible
+- **인증**: API 키 (`api-key` 헤더 경유, 자동 감지)
+- **모델**: 배포에 따라 다름 (gpt-4o, gpt-4 등)
+- **설정**: [Azure Portal](https://portal.azure.com/)
+- **참고**: `query_params`에 `api-version` 필수
+
+### GitHub Copilot
+
+- **Base URL**: `https://api.githubcopilot.com`
+- **유형**: OpenAICompatible
+- **인증**: OAuth (Device Code 플로우)
+- **모델**: gpt-4o (기본)
+- **참고**: 활성 GitHub Copilot 구독 필요
+
+### GitLab Duo
+
+- **Base URL**: `https://gitlab.com/api/v4/ai/llm/proxy` (또는 자체 호스팅)
+- **유형**: OpenAICompatible
+- **인증**: OAuth (`GITLAB_TOKEN`을 통한 Personal Access Token)
+- **모델**: claude-sonnet-4-20250514
+- **참고**: 자체 호스팅 인스턴스용 `--enterprise-url` 지원
+
+### ChatGPT / Codex (구독)
+
+- **Base URL**: `https://chatgpt.com/backend-api/codex`
+- **유형**: OpenAIResponses
+- **인증**: OAuth (Browser PKCE / Device Code)
+- **모델**: gpt-5.3-codex, gpt-5.1-codex, codex-mini-latest
+- **참고**: Chat Completions가 아닌 Responses API 사용. `strip_params = "auto"`가 지원되지 않는 파라미터를 자동 제거.
+
+### Claude (구독)
+
+- **Base URL**: `https://api.claude.ai`
+- **유형**: DirectAnthropic
+- **인증**: OAuth (`~/.claude/.credentials.json` 읽기)
+- **모델**: claude-sonnet-4, claude-opus-4, claude-haiku-4
+- **참고**: 프록시 건너뜀. Claude Code가 자체 OAuth를 직접 사용.
+
+### Google Gemini (구독)
+
+- **Base URL**: `https://generativelanguage.googleapis.com/v1beta/openai`
+- **유형**: OpenAICompatible
+- **인증**: OAuth (Gemini CLI 자격 증명)
+- **모델**: gemini-2.5-pro, gemini-2.0-flash
+
+### Qwen (구독)
+
+- **Base URL**: `https://chat.qwen.ai/api`
+- **유형**: OpenAICompatible
+- **인증**: OAuth (Device Code 플로우)
+- **모델**: qwen3-235b-a22b, qwen-max
+
+### Ollama
+
+- **Base URL**: `http://localhost:11434/v1`
+- **유형**: OpenAICompatible
+- **인증**: 불필요
+- **모델**: 다운로드한 모델 (qwen2.5, llama3.3 등)
+- **설정**: [ollama.com](https://ollama.com/)
+
+### vLLM
+
+- **Base URL**: `http://localhost:8000/v1`
+- **유형**: OpenAICompatible
+- **인증**: 불필요
+- **모델**: 서빙 중인 모델에 따라 다름
+
+### LM Studio
+
+- **Base URL**: `http://localhost:1234/v1`
+- **유형**: OpenAICompatible
+- **인증**: 없음 / `"lm-studio"`
+- **모델**: 로드된 모델에 따라 다름
+- **설정**: [lmstudio.ai](https://lmstudio.ai/)
+
+### AWS Bedrock (LiteLLM 경유)
+
+- **Base URL**: `http://localhost:4000/v1` (LiteLLM 프록시)
+- **유형**: OpenAICompatible
+- **인증**: API 키 (LiteLLM 키)
+- **모델**: bedrock/anthropic.claude-sonnet-4-20250514-v2:0
+- **설정**: [docs.litellm.ai/docs/providers/bedrock](https://docs.litellm.ai/docs/providers/bedrock)

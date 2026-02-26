@@ -1,0 +1,111 @@
+---
+title: 终端超链接
+description: 终端输出中的 OSC 8 可点击超链接与自动检测
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Claudex 支持 OSC 8 终端超链接，使 Claude Code 输出中的文件路径、URL 和引用在支持的终端中可点击。
+
+## 概述
+
+OSC 8 是一种终端转义序列标准，可在终端输出中直接嵌入超链接。支持时，点击链接会在默认处理程序中打开（浏览器打开 URL，编辑器打开文件路径）。
+
+转义序列格式：
+
+```
+\x1b]8;;URL\x07DISPLAY_TEXT\x1b]8;;\x07
+```
+
+## 配置
+
+```toml
+# 在 config.toml 中（全局设置）
+hyperlinks = "auto"    # "auto" | true | false
+```
+
+| 值 | 行为 |
+|------|------|
+| `"auto"` | 自动检测终端支持（默认） |
+| `true` | 强制启用超链接 |
+| `false` | 强制禁用超链接 |
+
+也可以通过 CLI 参数在每次会话中启用超链接：
+
+```bash
+claudex run grok --hyperlinks
+```
+
+## 终端检测
+
+当 `hyperlinks = "auto"` 时，Claudex 按以下顺序检查：
+
+| 优先级 | 检查项 | 结果 |
+|--------|--------|------|
+| 1 | `FORCE_HYPERLINKS=1` 环境变量 | 启用 |
+| 2 | 非 TTY | 禁用 |
+| 3 | `DOMTERM` 环境变量已设置 | 启用 |
+| 4 | `TERM_PROGRAM` = iTerm.app | 启用 |
+| 5 | `TERM_PROGRAM` = WezTerm | 启用 |
+| 6 | `TERM_PROGRAM` = vscode | 启用 |
+| 7 | `TERM_PROGRAM` = Tabby | 启用 |
+| 8 | `TERM_PROGRAM` = Hyper | 启用 |
+| 9 | `TERM_PROGRAM` = mintty | 启用 |
+| 10 | `TERM_PROGRAM` = WarpTerminal | 启用 |
+| 11 | `TERM` = xterm-kitty | 启用 |
+| 12 | `TERM` = xterm-ghostty | 启用 |
+| 13 | `VTE_VERSION` >= 5000 | 启用 |
+| 14 | `WT_SESSION` 环境变量已设置（Windows Terminal） | 启用 |
+| 15 | 以上均不匹配 | 禁用（安全默认值） |
+
+<Aside type="note">
+  VTE_VERSION >= 5000 覆盖 GNOME Terminal（3.68+）、xfce4-terminal 和其他基于 VTE 的终端。
+</Aside>
+
+## 支持的终端
+
+| 终端 | 平台 | 检测方式 |
+|------|------|----------|
+| iTerm2 | macOS | `TERM_PROGRAM` |
+| WezTerm | 跨平台 | `TERM_PROGRAM` |
+| Kitty | 跨平台 | `TERM` (xterm-kitty) |
+| Ghostty | 跨平台 | `TERM` (xterm-ghostty) |
+| VS Code Terminal | 跨平台 | `TERM_PROGRAM` |
+| Windows Terminal | Windows | `WT_SESSION` |
+| GNOME Terminal | Linux | `VTE_VERSION` |
+| Tabby | 跨平台 | `TERM_PROGRAM` |
+| Hyper | 跨平台 | `TERM_PROGRAM` |
+| mintty (Git Bash) | Windows | `TERM_PROGRAM` |
+| WarpTerminal | macOS | `TERM_PROGRAM` |
+| DomTerm | 跨平台 | `DOMTERM` |
+
+## PTY 代理模式
+
+在 Unix 系统上启用超链接时，Claudex 在 PTY（伪终端）代理下启动 Claude Code 进程。这允许 Claudex 拦截并增强终端输出，添加超链接的同时保留完整的终端体验（颜色、光标移动等）。
+
+PTY 代理对用户完全透明。仅在交互式会话中激活（使用 `--print` 的非交互模式跳过 PTY）。
+
+<Aside type="tip">
+  如果遇到终端渲染问题，可以在配置中设置 `hyperlinks = false` 或省略 `--hyperlinks` 参数来禁用超链接。
+</Aside>
+
+## 强制启用/禁用
+
+对于不在自动检测列表中的终端，可以强制启用超链接：
+
+```bash
+# 通过环境变量
+FORCE_HYPERLINKS=1 claudex run grok
+
+# 通过配置
+hyperlinks = true
+
+# 通过 CLI 参数
+claudex run grok --hyperlinks
+```
+
+强制禁用（例如管道输出时）：
+
+```toml
+hyperlinks = false
+```

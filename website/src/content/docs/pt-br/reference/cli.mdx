@@ -6,29 +6,36 @@ description: Referencia completa de comandos para a CLI do Claudex
 ## Uso Global
 
 ```
-claudex [COMANDO]
+claudex [OPTIONS] [COMMAND]
 ```
 
-Quando executado sem um comando, o Claudex inicia o painel TUI se perfis estiverem configurados, ou exibe uma mensagem de boas-vindas se nenhum perfil existir.
+| Opcao | Descricao |
+|-------|-----------|
+| `--config <PATH>` | Substituir caminho do arquivo de configuracao |
+| `--version` | Exibir versao |
+| `--help` | Exibir ajuda |
+
+Quando executado sem um comando, o Claudex inicia o dashboard TUI se profiles estiverem configurados, ou exibe uma mensagem de boas-vindas se nenhum profile existir.
 
 ## Comandos
 
 ### `run`
 
-Executar o Claude Code com um perfil de provedor especifico.
+Executar o Claude Code com um profile de provedor especifico.
 
 ```bash
-claudex run <PROFILE> [PROMPT] [-m MODEL] [--print] [--dangerously-skip-permissions] [ARGS...]
+claudex run <PROFILE> [PROMPT] [OPTIONS] [-- ARGS...]
 ```
 
-| Argumento | Descricao |
-|-----------|-----------|
-| `PROFILE` | Nome do perfil, ou `auto` para roteamento inteligente |
-| `PROMPT` | Prompt opcional para execucao nao interativa (unica) |
+| Argumento / Opcao | Descricao |
+|-------------------|-----------|
+| `PROFILE` | Nome do profile, ou `auto` para roteamento inteligente |
+| `PROMPT` | Prompt opcional para execucao nao-interativa (one-shot) |
 | `-m, --model MODEL` | Substituir o modelo padrao para esta sessao |
-| `--print` | Imprimir a resposta e sair (modo nao interativo) |
-| `--dangerously-skip-permissions` | Pular todos os prompts de permissao (use com `--print` para CI/CD) |
-| `ARGS...` | Argumentos adicionais passados para `claude` |
+| `--hyperlinks` | Forcar ativacao de hyperlinks OSC 8 no terminal |
+| `--print` | Imprimir a resposta e sair (modo nao-interativo) |
+| `--dangerously-skip-permissions` | Pular todas as solicitacoes de permissao (use com `--print` para CI/CD) |
+| `ARGS...` | Argumentos adicionais passados para `claude` (apos `--`) |
 
 ```bash
 # Usar Grok (interativo)
@@ -40,11 +47,14 @@ claudex run grok -m grok-3-mini-beta
 # Roteamento inteligente
 claudex run auto
 
-# Execucao unica nao interativa
-claudex run grok "Explique este codebase" --print
+# Forcar hyperlinks no terminal
+claudex run grok --hyperlinks
+
+# Execucao one-shot nao-interativa
+claudex run grok "Explain this codebase" --print
 
 # Uso em pipeline CI/CD (sem prompts, sem permissoes)
-claudex run grok "Corrigir erros de lint" --print --dangerously-skip-permissions
+claudex run grok "Fix lint errors" --print --dangerously-skip-permissions
 
 # Passar argumentos extras para claude
 claudex run grok -- --verbose
@@ -52,7 +62,7 @@ claudex run grok -- --verbose
 
 ### `profile`
 
-Gerenciar perfis de provedores.
+Gerenciar profiles de provedores.
 
 #### `profile list`
 
@@ -60,7 +70,7 @@ Gerenciar perfis de provedores.
 claudex profile list
 ```
 
-Listar todos os perfis configurados com seus status.
+Listar todos os profiles configurados com status, tipo de provedor e modelo.
 
 #### `profile add`
 
@@ -68,67 +78,77 @@ Listar todos os perfis configurados com seus status.
 claudex profile add
 ```
 
-Assistente interativo para adicionar um novo perfil. Guia pela selecao do provedor, entrada da chave de API (com armazenamento opcional no chaveiro), selecao de modelo e teste de conectividade.
+Assistente interativo para adicionar um novo profile. Guia pela selecao do provedor, entrada da chave API (com armazenamento opcional no keyring), selecao de modelo e teste de conectividade.
 
 #### `profile show`
 
 ```bash
-claudex profile show <NOME>
+claudex profile show <NAME>
 ```
 
-Exibir detalhes de um perfil especifico.
+Exibir detalhes de um profile especifico incluindo todos os campos de configuracao.
 
 #### `profile remove`
 
 ```bash
-claudex profile remove <NOME>
+claudex profile remove <NAME>
 ```
 
-Remover um perfil da configuracao.
+Remover um profile da configuracao.
 
 #### `profile test`
 
 ```bash
-claudex profile test <NOME|all>
+claudex profile test <NAME|all>
 ```
 
-Testar conectividade para um perfil especifico ou todos os perfis.
+Testar conectividade para um profile especifico ou todos os profiles. Envia uma requisicao leve ao endpoint `/models` do provedor.
 
 ### `auth`
 
-Gerenciar autenticacao OAuth por assinatura para perfis de provedores.
+Gerenciar autenticacao OAuth por assinatura para profiles de provedores.
 
 #### `auth login`
 
 ```bash
-claudex auth login <PROVEDOR>
+claudex auth login <PROVIDER> [OPTIONS]
 ```
 
-Fazer login em um provedor usando OAuth. Provedores suportados: `claude`, `openai`, `google`, `qwen`, `kimi`, `github`.
+| Opcao | Descricao |
+|-------|-----------|
+| `--profile <NAME>` | Associar a um profile especifico |
+| `--enterprise-url <URL>` | URL de servidor enterprise personalizado (para GitLab auto-hospedado, etc.) |
+| `--headless` | Usar fluxo headless (device code), pular lancamento do navegador |
 
-Para **OpenAI**, o Claudex le tokens da configuracao do Codex CLI (`~/.codex/auth.json`). Para **Claude**, le de `~/.claude`. Outros provedores usam um servidor de callback local ou fluxo de codigo de dispositivo.
+Fazer login em um provedor usando OAuth. Provedores suportados: `claude`, `openai`, `google`, `qwen`, `kimi`, `github`, `gitlab`.
 
 ```bash
-# Fazer login no OpenAI (le do Codex CLI)
-claudex auth login openai
+# Fazer login na OpenAI (le do Codex CLI)
+claudex auth login openai --profile codex-sub
 
 # Fazer login no Claude (le de ~/.claude)
 claudex auth login claude
 
 # Fazer login no Google
-claudex auth login google
+claudex auth login google --profile gemini-sub
+
+# Fazer login no GitLab com URL enterprise
+claudex auth login gitlab --enterprise-url https://gitlab.mycompany.com
+
+# Modo headless (sem navegador, apenas device code)
+claudex auth login github --headless
 ```
 
 #### `auth status`
 
 ```bash
-claudex auth status [PROVEDOR]
+claudex auth status [PROVIDER]
 ```
 
-Exibir o status de autenticacao atual. Sem argumento de provedor, exibe o status de todos os perfis OAuth configurados.
+Exibir o status de autenticacao atual. Sem argumento de provedor, exibe o status de todos os profiles OAuth configurados.
 
 ```bash
-# Verificar todos os perfis OAuth
+# Verificar todos os profiles OAuth
 claudex auth status
 
 # Verificar um provedor especifico
@@ -138,7 +158,7 @@ claudex auth status openai
 #### `auth refresh`
 
 ```bash
-claudex auth refresh <PROVEDOR>
+claudex auth refresh <PROVIDER>
 ```
 
 Atualizar manualmente o token OAuth de um provedor. Os tokens tambem sao atualizados automaticamente pelo proxy quando expiram.
@@ -146,10 +166,10 @@ Atualizar manualmente o token OAuth de um provedor. Os tokens tambem sao atualiz
 #### `auth logout`
 
 ```bash
-claudex auth logout <PROVEDOR>
+claudex auth logout <PROVIDER>
 ```
 
-Remover tokens OAuth armazenados de um provedor.
+Remover tokens OAuth armazenados de um provedor do keyring do sistema.
 
 ### `proxy`
 
@@ -158,12 +178,12 @@ Gerenciar o servidor proxy de traducao.
 #### `proxy start`
 
 ```bash
-claudex proxy start [-p PORTA] [-d]
+claudex proxy start [OPTIONS]
 ```
 
 | Flag | Descricao |
 |------|-----------|
-| `-p, --port PORTA` | Substituir a porta do proxy (padrao: da configuracao) |
+| `-p, --port PORT` | Substituir porta do proxy (padrao: da configuracao) |
 | `-d, --daemon` | Executar como daemon em segundo plano |
 
 #### `proxy stop`
@@ -172,7 +192,7 @@ claudex proxy start [-p PORTA] [-d]
 claudex proxy stop
 ```
 
-Parar o daemon do proxy (envia SIGTERM).
+Parar o daemon do proxy (envia SIGTERM via arquivo PID).
 
 #### `proxy status`
 
@@ -188,28 +208,136 @@ Exibir se o proxy esta em execucao e em qual porta.
 claudex dashboard
 ```
 
-Iniciar o painel TUI para monitoramento em tempo real e lancamento rapido.
+Iniciar o dashboard TUI para monitoramento em tempo real e lancamento rapido.
 
 ### `config`
 
+Gerenciar arquivos de configuracao.
+
+#### `config show`
+
 ```bash
-claudex config [--init]
+claudex config show
 ```
 
-| Flag | Descricao |
-|------|-----------|
-| `--init` | Criar um novo arquivo de configuracao no diretorio atual |
+Exibir o caminho do arquivo de configuracao carregado, ordem de busca e valores de configuracao atuais.
 
-Sem `--init`, exibe o caminho do arquivo de configuracao carregado e a ordem de busca.
+#### `config path`
+
+```bash
+claudex config path
+```
+
+Imprimir apenas o caminho resolvido do arquivo de configuracao.
+
+#### `config init`
+
+```bash
+claudex config init
+```
+
+Criar um novo arquivo de configuracao no diretorio atual a partir do template embutido.
+
+#### `config recreate`
+
+```bash
+claudex config recreate
+```
+
+Recriar o arquivo de configuracao a partir do `config.example.toml`, sobrescrevendo o config existente.
+
+#### `config edit`
+
+```bash
+claudex config edit
+```
+
+Abrir o arquivo de configuracao no seu `$EDITOR` (ou `$VISUAL`).
+
+#### `config validate`
+
+```bash
+claudex config validate
+```
+
+Validar sintaxe do config, referencias de profiles (backup_providers, regras do router) e configuracoes de provedores OAuth. Reporta erros e avisos.
+
+#### `config get`
+
+```bash
+claudex config get <KEY>
+```
+
+Obter um valor especifico de configuracao por caminho de chave (ex: `proxy_port`, `profiles.0.name`).
+
+#### `config set`
+
+```bash
+claudex config set <KEY> <VALUE>
+```
+
+Definir um valor especifico de configuracao por caminho de chave.
+
+#### `config export`
+
+```bash
+claudex config export
+```
+
+Exportar a configuracao mesclada atual para stdout no formato TOML.
+
+### `sets`
+
+Gerenciar conjuntos de configuracao (pacotes instalaveis de regras, skills e servidores MCP).
+
+#### `sets add`
+
+```bash
+claudex sets add <PATH>
+```
+
+Instalar um conjunto de configuracao a partir de um diretorio local contendo um `manifest.json` (ou `manifest.yaml`).
+
+#### `sets remove`
+
+```bash
+claudex sets remove <NAME>
+```
+
+Remover um conjunto de configuracao instalado por nome.
+
+#### `sets list`
+
+```bash
+claudex sets list
+```
+
+Listar todos os conjuntos de configuracao instalados com versao, descricao e resumo de componentes.
+
+#### `sets update`
+
+```bash
+claudex sets update <NAME> <PATH>
+```
+
+Atualizar um conjunto de configuracao existente a partir de um novo caminho de manifesto.
+
+#### `sets show`
+
+```bash
+claudex sets show <NAME>
+```
+
+Exibir informacoes detalhadas sobre um conjunto de configuracao instalado, incluindo todos os componentes.
 
 ### `update`
 
 ```bash
-claudex update [--check]
+claudex update [OPTIONS]
 ```
 
 | Flag | Descricao |
 |------|-----------|
 | `--check` | Apenas verificar atualizacoes, sem instalar |
 
-Sem `--check`, baixa e instala a versao mais recente.
+Sem `--check`, baixa e instala a versao mais recente do GitHub Releases.

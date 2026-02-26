@@ -1,9 +1,9 @@
 ---
 title: Tableau de bord TUI
-description: Tableau de bord terminal en temps réel pour la surveillance et la gestion des profils
+description: Tableau de bord terminal en temps reel pour la surveillance et la gestion des profils
 ---
 
-Le tableau de bord TUI fournit une interface terminal en temps réel pour surveiller l'état des profils, visualiser les métriques, et lancer rapidement des sessions Claude Code.
+Le tableau de bord TUI fournit une interface terminal en temps reel pour surveiller la sante des profils, visualiser les metriques, et lancer rapidement des sessions Claude Code.
 
 ## Lancement
 
@@ -11,7 +11,7 @@ Le tableau de bord TUI fournit une interface terminal en temps réel pour survei
 # Lancement explicite
 claudex dashboard
 
-# Lancement automatique (quand des profils existent et qu'aucune sous-commande n'est donnée)
+# Lancement automatique (quand des profils existent et qu'aucune sous-commande n'est donnee)
 claudex
 ```
 
@@ -19,34 +19,34 @@ claudex
 
 | Touche | Action |
 |--------|--------|
-| `j` / `↓` | Déplacer la sélection vers le bas |
-| `k` / `↑` | Déplacer la sélection vers le haut |
-| `Enter` | Lancer Claude Code avec le profil sélectionné |
-| `t` | Tester la connectivité du profil sélectionné |
+| `j` / `↓` | Deplacer la selection vers le bas |
+| `k` / `↑` | Deplacer la selection vers le haut |
+| `Enter` | Lancer Claude Code avec le profil selectionne |
+| `t` | Tester la connectivite du profil selectionne |
 | `a` | Ajouter un nouveau profil (affiche une indication) |
-| `d` | Supprimer le profil sélectionné (affiche une indication) |
-| `p` | Basculer démarrage/arrêt du proxy |
+| `d` | Supprimer le profil selectionne (affiche une indication) |
+| `p` | Basculer demarrage/arret du proxy |
 | `/` | Entrer en mode recherche |
 | `Esc` | Quitter le mode recherche / fermer l'aide |
-| `?` | Afficher la fenêtre d'aide |
+| `?` | Afficher la fenetre d'aide |
 | `q` / `Ctrl+C` | Quitter le tableau de bord |
 
 ## Disposition du tableau de bord
 
 Le tableau de bord affiche :
 
-- **Liste des profils** — Tous les profils configurés avec leur nom, modèle, type de fournisseur, et état de santé
-- **Indicateurs d'état** — Statut codé par couleur (vert = sain, jaune = dégradé, rouge = disjoncteur ouvert)
-- **Panneau de métriques** — Nombre de requêtes par profil, taux de succès, latence moyenne
-- **Panneau de journalisation** — Sortie de journalisation en défilement en temps réel
+- **Liste des profils** : tous les profils configures avec leur nom, modele, type de fournisseur et etat de sante
+- **Indicateurs de sante** : statut code par couleur (vert = sain, jaune = degrade, rouge = disjoncteur ouvert)
+- **Panneau de metriques** : nombre de requetes par profil, taux de succes, latence moyenne
+- **Panneau de logs** : sortie de logs en defilement en temps reel
 
-## État de santé
+## Etat de sante
 
-Le tableau de bord exécute un vérificateur de santé en arrière-plan qui interroge tous les profils activés toutes les ~30 secondes. L'état de santé est reflété en temps réel :
+Le tableau de bord execute un verificateur de sante en arriere-plan qui interroge tous les profils actives toutes les ~30 secondes. L'etat de sante est reflete en temps reel :
 
 | Couleur | Signification |
 |---------|--------------|
-| Vert | Le fournisseur répond normalement |
-| Jaune | Des échecs récents ont été détectés |
+| Vert | Le fournisseur repond normalement |
+| Jaune | Des echecs recents ont ete detectes |
 | Rouge | Le disjoncteur est ouvert |
-| Gris | Le profil est désactivé |
+| Gris | Le profil est desactive |

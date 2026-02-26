@@ -1,31 +1,31 @@
 ---
-title: Disjuntor e Failover
+title: Circuit Breaker e Failover
 description: Deteccao automatica de falhas e failover de provedores
 ---
 
-O Claudex inclui um disjuntor integrado para cada perfil de provedor, com failover automatico para provedores de backup quando falhas sao detectadas.
+O Claudex inclui um circuit breaker integrado para cada profile de provedor, com failover automatico para provedores de backup quando falhas sao detectadas.
 
-## Estados do Disjuntor
+## Estados do Circuit Breaker
 
 ```
-         sucesso
+         success
     ┌──────────────┐
     │              │
-    ▼    falha     │
- Fechado ───────► Aberto
+    ▼    failure   │
+ Closed ────────► Open
     ▲              │
     │   timeout    │
-    │   expirado   ▼
-    └─────────── Meio-Aberto
+    │   expired    ▼
+    └─────────── HalfOpen
                    │
-                falha → volta para Aberto
+                failure → back to Open
 ```
 
 | Estado | Comportamento |
 |--------|---------------|
-| **Fechado** | Operacao normal. Requisicoes passam. Falhas sao contadas. |
-| **Aberto** | Requisicoes sao bloqueadas. Aciona failover para provedores de backup. |
-| **Meio-Aberto** | Apos o timeout de recuperacao, uma requisicao de sonda e permitida. Sucesso → Fechado; Falha → volta para Aberto. |
+| **Closed** | Operacao normal. Requisicoes passam. Falhas sao contadas. |
+| **Open** | Requisicoes sao bloqueadas. Aciona failover para provedores de backup. |
+| **HalfOpen** | Apos o timeout de recuperacao, uma requisicao de sonda e permitida. Sucesso → Closed; Falha → volta para Open. |
 
 ## Parametros Padrao
 
@@ -36,7 +36,7 @@ O Claudex inclui um disjuntor integrado para cada perfil de provedor, com failov
 
 ## Configuracao de Failover
 
-Defina provedores de backup no seu perfil para habilitar failover automatico:
+Defina provedores de backup no seu profile para habilitar failover automatico:
 
 ```toml
 [[profiles]]
@@ -49,15 +49,26 @@ backup_providers = ["deepseek", "chatgpt"]   # cadeia de failover
 ```
 
 Quando `grok` falha 3 vezes consecutivas:
-1. O disjuntor abre para `grok`
+1. O circuit breaker abre para `grok`
 2. A requisicao e repetida com `deepseek`
 3. Se `deepseek` tambem falhar, tenta `chatgpt`
-4. Cada provedor de backup tem seu proprio disjuntor independente
+4. Cada provedor de backup tem seu proprio circuit breaker independente
+
+## Retry OAuth 401
+
+Para profiles OAuth, respostas HTTP 401 recebem tratamento especial:
+
+1. O proxy invalida o token OAuth atual
+2. Tenta carregar um token novo da cadeia de credenciais
+3. Reenvia a requisicao com o novo token
+4. So conta como falha do circuit breaker se o retry tambem falhar
+
+Isso evita que a expiracao temporaria de tokens acione failovers desnecessarios.
 
 ## Verificacao de Saude
 
-Um verificador de saude em segundo plano e executado a cada ~30 segundos, enviando requisicoes leves de sonda para todos os perfis habilitados. O status de saude e exibido no painel TUI com codificacao por cores:
+Um verificador de saude em segundo plano executa a cada ~30 segundos, enviando requisicoes leves de sonda para todos os profiles habilitados. O status de saude e exibido no dashboard TUI com codificacao por cores:
 
 - Verde: saudavel
 - Amarelo: degradado (falhas recentes)
-- Vermelho: disjuntor aberto
+- Vermelho: circuit breaker aberto

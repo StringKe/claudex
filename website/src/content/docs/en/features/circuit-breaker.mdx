@@ -54,6 +54,17 @@ When `grok` fails 3 times consecutively:
 3. If `deepseek` also fails, try `chatgpt`
 4. Each backup provider has its own independent circuit breaker
 
+## OAuth 401 Retry
+
+For OAuth profiles, HTTP 401 responses receive special handling:
+
+1. The proxy invalidates the current OAuth token
+2. Attempts a fresh token load from the credential chain
+3. Retries the request with the new token
+4. Only counts as a circuit breaker failure if the retry also fails
+
+This prevents temporary token expiry from triggering unnecessary failovers.
+
 ## Health Checking
 
 A background health checker runs every ~30 seconds, sending lightweight probe requests to all enabled profiles. Health status is displayed in the TUI dashboard with color coding:

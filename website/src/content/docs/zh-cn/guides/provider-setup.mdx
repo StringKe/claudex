@@ -1,11 +1,11 @@
 ---
-title: Provider 配置指南
+title: 提供商设置指南
 description: 每个 AI 提供商的详细配置步骤
 ---
 
 import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
-本指南详细介绍 Claudex 支持的每个提供商的配置方法，包括 API Key 提供商、OAuth 订阅和本地模型。
+本指南详细介绍 Claudex 支持的每个提供商的配置方法，包括 API Key 提供商、OAuth 订阅、云平台和本地模型。
 
 ## API Key 提供商
 
@@ -130,9 +130,9 @@ claudex profile test deepseek
 [[profiles]]
 name = "kimi"
 provider_type = "OpenAICompatible"
-base_url = "https://api.moonshot.cn/v1"
+base_url = "https://api.moonshot.ai/v1"
 api_key = "sk-..."
-default_model = "moonshot-v1-128k"
+default_model = "kimi-k2-0905-preview"
 ```
 
 ```bash
@@ -148,13 +148,183 @@ claudex profile test kimi
 [[profiles]]
 name = "glm"
 provider_type = "OpenAICompatible"
-base_url = "https://open.bigmodel.cn/api/paas/v4"
+base_url = "https://api.z.ai/api/paas/v4"
 api_key = "..."
-default_model = "glm-4-plus"
+default_model = "glm-4.6"
 ```
 
 ```bash
 claudex profile test glm
+```
+
+### Groq
+
+1. 在 [console.groq.com](https://console.groq.com/) 注册
+2. 在 **Settings > API Keys** 中创建 API 密钥
+
+```toml
+[[profiles]]
+name = "groq"
+provider_type = "OpenAICompatible"
+base_url = "https://api.groq.com/openai/v1"
+api_key = "gsk_..."
+default_model = "llama-3.3-70b-versatile"
+```
+
+```bash
+claudex profile test groq
+```
+
+<Aside type="tip">
+  Groq 为开源模型提供极快的推理速度。常用模型包括 `llama-3.3-70b-versatile`、`mixtral-8x7b-32768` 和 `gemma2-9b-it`。
+</Aside>
+
+### Mistral AI
+
+1. 在 [console.mistral.ai](https://console.mistral.ai/) 注册
+2. 在控制台中创建 API 密钥
+
+```toml
+[[profiles]]
+name = "mistral"
+provider_type = "OpenAICompatible"
+base_url = "https://api.mistral.ai/v1"
+api_key = "..."
+default_model = "mistral-large-latest"
+```
+
+```bash
+claudex profile test mistral
+```
+
+### Together AI
+
+1. 在 [api.together.ai](https://api.together.ai/) 注册
+2. 在仪表盘中创建 API 密钥
+
+```toml
+[[profiles]]
+name = "together"
+provider_type = "OpenAICompatible"
+base_url = "https://api.together.xyz/v1"
+api_key = "..."
+default_model = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+```
+
+```bash
+claudex profile test together
+```
+
+### Perplexity
+
+1. 在 [perplexity.ai](https://www.perplexity.ai/) 注册
+2. 在 [perplexity.ai/settings/api](https://www.perplexity.ai/settings/api) 创建 API 密钥
+
+```toml
+[[profiles]]
+name = "perplexity"
+provider_type = "OpenAICompatible"
+base_url = "https://api.perplexity.ai"
+api_key = "pplx-..."
+default_model = "sonar-pro"
+```
+
+```bash
+claudex profile test perplexity
+```
+
+<Aside type="note">
+  Perplexity 模型内置网页搜索功能，适合研究导向的任务。
+</Aside>
+
+### Cerebras
+
+1. 在 [cloud.cerebras.ai](https://cloud.cerebras.ai/) 注册
+2. 在仪表盘中创建 API 密钥
+
+```toml
+[[profiles]]
+name = "cerebras"
+provider_type = "OpenAICompatible"
+base_url = "https://api.cerebras.ai/v1"
+api_key = "..."
+default_model = "llama-3.3-70b"
+```
+
+```bash
+claudex profile test cerebras
+```
+
+## 云平台
+
+### Azure OpenAI
+
+1. 在 [Azure Portal](https://portal.azure.com/) 创建 Azure OpenAI 资源
+2. 部署模型并记录资源名称和部署名称
+3. 从 **Keys and Endpoint** 获取 API 密钥
+
+```toml
+[[profiles]]
+name = "azure-openai"
+provider_type = "OpenAICompatible"
+base_url = "https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT"
+api_key = "YOUR_AZURE_KEY"
+default_model = "gpt-4o"
+
+[profiles.query_params]
+api-version = "2024-12-01-preview"
+```
+
+```bash
+claudex profile test azure-openai
+```
+
+<Aside type="note">
+  Azure OpenAI 通过 `base_url` 包含 `openai.azure.com` 自动检测。认证使用 `api-key` 请求头（取代 `Authorization: Bearer`）。`api-version` 查询参数为必填。
+</Aside>
+
+### Google Vertex AI
+
+1. 在 GCP 项目中启用 Vertex AI API
+2. 使用 `gcloud auth print-access-token` 生成访问令牌
+
+```toml
+[[profiles]]
+name = "vertex-ai"
+provider_type = "DirectAnthropic"
+base_url = "https://us-east5-aiplatform.googleapis.com/v1/projects/YOUR_PROJECT/locations/us-east5/publishers/anthropic/models"
+api_key = "YOUR_GCLOUD_TOKEN"
+default_model = "claude-sonnet-4@20250514"
+```
+
+```bash
+claudex profile test vertex-ai
+```
+
+<Aside type="caution">
+  `gcloud auth print-access-token` 输出的令牌约 1 小时后过期。生产环境建议使用带有自动令牌刷新的服务账号。
+</Aside>
+
+### AWS Bedrock（通过 LiteLLM）
+
+AWS Bedrock 通过 LiteLLM 代理支持：
+
+1. 安装 LiteLLM：`pip install litellm`
+2. 启动代理：
+
+```bash
+litellm --model bedrock/anthropic.claude-sonnet-4-20250514-v2:0
+```
+
+3. 配置 Claudex：
+
+```toml
+[[profiles]]
+name = "bedrock"
+provider_type = "OpenAICompatible"
+base_url = "http://localhost:4000/v1"
+api_key = "sk-litellm"
+default_model = "bedrock/anthropic.claude-sonnet-4-20250514-v2:0"
 ```
 
 ## OAuth 订阅认证
@@ -169,9 +339,9 @@ OAuth 认证允许你使用现有的提供商订阅（ChatGPT Plus、Claude Max 
 
 ```toml
 [[profiles]]
-name = "claude-sub"
+name = "claude-max"
 provider_type = "DirectAnthropic"
-base_url = "https://api.anthropic.com"
+base_url = "https://api.claude.ai"
 default_model = "claude-sonnet-4-20250514"
 auth_type = "oauth"
 oauth_provider = "claude"
@@ -183,10 +353,8 @@ opus = "claude-opus-4-20250514"
 ```
 
 <Aside type="note">
-  Claude OAuth profile 使用 Gateway 认证模式。Claudex 设置 `ANTHROPIC_AUTH_TOKEN` 而非 `ANTHROPIC_API_KEY`，以避免与 Claude Code 自身的订阅登录冲突。Claude 订阅 profile 会跳过代理。
+  Claude OAuth profile 使用特殊的网关认证模式。Claudex 跳过代理，让 Claude Code 直接使用自身的 OAuth。无需额外的 `claudex auth login` 步骤。
 </Aside>
-
-无需额外的 `claudex auth login` 步骤。Claudex 直接读取 `~/.claude` 中的现有会话。
 
 ### ChatGPT Plus / Codex CLI
 
@@ -209,14 +377,14 @@ codex auth
 name = "codex-sub"
 provider_type = "OpenAIResponses"
 base_url = "https://chatgpt.com/backend-api/codex"
-default_model = "gpt-4o"
+default_model = "gpt-5.3-codex"
 auth_type = "oauth"
 oauth_provider = "openai"
 
 [profiles.models]
-haiku = "gpt-4o-mini"
-sonnet = "gpt-4o"
-opus = "o1-pro"
+haiku = "codex-mini-latest"
+sonnet = "gpt-5.3-codex"
+opus = "gpt-5.3-codex"
 ```
 
 ```bash
@@ -231,16 +399,16 @@ claudex run codex-sub
 ```
 
 <Aside type="tip">
-  `openai` OAuth 提供商使用 `OpenAIResponses` 作为 provider type。这通过 OpenAI Responses API（`/responses` 端点）通信，区别于 Chat Completions API（`/chat/completions`）。
+  Codex 端点支持的模型：`gpt-5.3-codex`、`gpt-5.1-codex`、`codex-mini-latest`。注意 `gpt-4o` 在 `chatgpt.com` Codex 端点上不受支持。`strip_params = "auto"` 会自动检测此端点并剥离 `temperature`/`top_p`/`top_k`。
 </Aside>
 
 ### Google Gemini
 
-通过 OAuth 设备码流程使用你的 Google 账户。
+通过 Gemini CLI 凭证使用你的 Google 账户。
 
 ```toml
 [[profiles]]
-name = "gemini"
+name = "gemini-sub"
 provider_type = "OpenAICompatible"
 base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
 default_model = "gemini-2.5-pro"
@@ -254,8 +422,8 @@ opus = "gemini-2.5-pro"
 ```
 
 ```bash
-# 启动设备码流程（打开浏览器进行 Google 登录）
-claudex auth login google --profile gemini
+# 从 Gemini CLI 凭证读取登录信息
+claudex auth login google --profile gemini-sub
 
 # 验证
 claudex auth status
@@ -263,20 +431,20 @@ claudex auth status
 
 ### Qwen / 通义千问
 
-通过 OAuth 设备码流程使用你的 Qwen 账户。
+通过 OAuth Device Code 流程使用你的 Qwen 账户。
 
 ```toml
 [[profiles]]
 name = "qwen-oauth"
 provider_type = "OpenAICompatible"
-base_url = "https://chat.qwenlm.ai/api/chat/v1"
-default_model = "qwen-max"
+base_url = "https://chat.qwen.ai/api"
+default_model = "qwen3-235b-a22b"
 auth_type = "oauth"
 oauth_provider = "qwen"
 ```
 
 ```bash
-# 启动设备码流程
+# 启动 Device Code 流程
 claudex auth login qwen --profile qwen-oauth
 
 # 验证
@@ -285,7 +453,7 @@ claudex auth status
 
 ### Kimi / Moonshot (OAuth)
 
-通过 OAuth 设备码流程使用你的 Kimi 账户。
+通过 Kimi CLI 凭证使用你的 Kimi 账户。
 
 ```toml
 [[profiles]]
@@ -298,7 +466,7 @@ oauth_provider = "kimi"
 ```
 
 ```bash
-# 启动设备码流程
+# 从 Kimi CLI 凭证读取登录信息
 claudex auth login kimi --profile kimi-oauth
 
 # 验证
@@ -307,11 +475,11 @@ claudex auth status
 
 ### GitHub Copilot
 
-通过 OAuth 设备码流程使用你的 GitHub Copilot 订阅。
+通过 OAuth Device Code 流程使用你的 GitHub Copilot 订阅。
 
 ```toml
 [[profiles]]
-name = "github-copilot"
+name = "copilot"
 provider_type = "OpenAICompatible"
 base_url = "https://api.githubcopilot.com"
 default_model = "gpt-4o"
@@ -320,12 +488,41 @@ oauth_provider = "github"
 ```
 
 ```bash
-# 启动设备码流程（打开浏览器进行 GitHub 登录）
-claudex auth login github --profile github-copilot
+# 启动 Device Code 流程（打开浏览器进行 GitHub 登录）
+claudex auth login github --profile copilot
 
 # 验证
 claudex auth status
 ```
+
+### GitLab Duo
+
+通过个人访问令牌使用你的 GitLab Duo 订阅。
+
+```toml
+[[profiles]]
+name = "gitlab-duo"
+provider_type = "OpenAICompatible"
+base_url = "https://gitlab.com/api/v4/ai/llm/proxy"
+default_model = "claude-sonnet-4-20250514"
+auth_type = "oauth"
+oauth_provider = "gitlab"
+```
+
+```bash
+# 将 GitLab token 设为环境变量
+export GITLAB_TOKEN=glpat-...
+
+# 登录
+claudex auth login gitlab --profile gitlab-duo
+
+# 验证
+claudex auth status
+```
+
+<Aside type="note">
+  GitLab Duo 需要带有 `ai_features` 权限范围的个人访问令牌，通过 `GITLAB_TOKEN` 环境变量提供。自托管 GitLab 实例请相应修改 `base_url`。
+</Aside>
 
 ## 本地模型
 
@@ -387,8 +584,8 @@ default_model = "meta-llama/Llama-3.3-70B-Instruct"
 name = "lm-studio"
 provider_type = "OpenAICompatible"
 base_url = "http://localhost:1234/v1"
-api_key = ""
-default_model = "loaded-model-name"
+api_key = "lm-studio"
+default_model = "local-model"
 ```
 
 ## 验证配置

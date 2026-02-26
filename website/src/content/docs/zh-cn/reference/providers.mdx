@@ -1,0 +1,239 @@
+---
+title: 提供商兼容性
+description: 所有支持的 AI 提供商完整兼容性表
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## 提供商兼容性表
+
+| 提供商 | 类型 | 认证 | 流式 | 工具调用 | 模型槽位 | 备注 |
+|--------|------|------|------|----------|----------|------|
+| Anthropic | DirectAnthropic | API Key | 支持 | 支持 | 支持 | 原生，无需翻译 |
+| MiniMax | DirectAnthropic | API Key | 支持 | 支持 | 支持 | Anthropic 兼容代理 |
+| Google Vertex AI | DirectAnthropic | Access Token | 支持 | 支持 | 支持 | `gcloud auth print-access-token` |
+| OpenRouter | OpenAICompatible | API Key | 支持 | 支持 | 支持 | 200+ 模型，单一 API |
+| Grok (xAI) | OpenAICompatible | API Key | 支持 | 支持 | 支持 | |
+| OpenAI | OpenAICompatible | API Key | 支持 | 支持 | 支持 | |
+| DeepSeek | OpenAICompatible | API Key | 支持 | 支持 | 支持 | |
+| Kimi / Moonshot | OpenAICompatible | API Key / OAuth | 支持 | 支持 | 支持 | |
+| GLM (智谱) | OpenAICompatible | API Key | 支持 | 支持 | 支持 | |
+| Groq | OpenAICompatible | API Key | 支持 | 支持 | 支持 | 超快推理 |
+| Mistral AI | OpenAICompatible | API Key | 支持 | 支持 | 支持 | |
+| Together AI | OpenAICompatible | API Key | 支持 | 支持 | 支持 | |
+| Perplexity | OpenAICompatible | API Key | 支持 | 有限 | 支持 | 内置网页搜索 |
+| Cerebras | OpenAICompatible | API Key | 支持 | 支持 | 支持 | 快速推理 |
+| Azure OpenAI | OpenAICompatible | API Key | 支持 | 支持 | 支持 | `api-key` 头 + `query_params` |
+| GitHub Copilot | OpenAICompatible | OAuth | 支持 | 支持 | 支持 | Device Code 流程 |
+| GitLab Duo | OpenAICompatible | OAuth (PAT) | 支持 | 支持 | 支持 | `GITLAB_TOKEN` 环境变量 |
+| ChatGPT/Codex | OpenAIResponses | OAuth | 支持 | 支持 | 支持 | Responses API |
+| Claude（订阅） | DirectAnthropic | OAuth | 支持 | 支持 | 支持 | 跳过代理 |
+| Google Gemini（订阅） | OpenAICompatible | OAuth | 支持 | 支持 | 支持 | Gemini CLI 凭证 |
+| Qwen（订阅） | OpenAICompatible | OAuth | 支持 | 支持 | 支持 | Device Code 流程 |
+| Ollama | OpenAICompatible | 无 | 支持 | 取决于模型 | 支持 | 本地，无需 API 密钥 |
+| vLLM | OpenAICompatible | 无 | 支持 | 取决于模型 | 支持 | 本地 |
+| LM Studio | OpenAICompatible | 无 | 支持 | 取决于模型 | 支持 | 本地 |
+| Bedrock (LiteLLM) | OpenAICompatible | API Key | 支持 | 支持 | 支持 | 通过 LiteLLM 代理 |
+
+## 各提供商详情
+
+### Anthropic
+
+- **Base URL**: `https://api.anthropic.com`
+- **类型**: DirectAnthropic（无需翻译）
+- **认证**: API Key（`sk-ant-*`）
+- **模型**: claude-opus-4, claude-sonnet-4, claude-haiku-4
+- **获取 API Key**: [console.anthropic.com](https://console.anthropic.com/)
+
+### MiniMax
+
+- **Base URL**: `https://api.minimax.io/anthropic`
+- **类型**: DirectAnthropic（无需翻译）
+- **认证**: API Key
+- **模型**: 使用 Anthropic 模型名（代理转发）
+- **获取 API Key**: [platform.minimaxi.com](https://platform.minimaxi.com/)
+
+### Google Vertex AI
+
+- **Base URL**: `https://REGION-aiplatform.googleapis.com/v1/projects/PROJECT/locations/REGION/publishers/anthropic/models`
+- **类型**: DirectAnthropic
+- **认证**: GCP Access Token（`gcloud auth print-access-token`）
+- **模型**: claude-sonnet-4@20250514, claude-opus-4@20250514
+- **设置**: [Vertex AI Console](https://console.cloud.google.com/vertex-ai)
+
+### OpenRouter
+
+- **Base URL**: `https://openrouter.ai/api/v1`
+- **类型**: OpenAICompatible
+- **认证**: API Key（`sk-or-*`）
+- **模型**: 来自多个提供商的 200+ 模型
+- **获取 API Key**: [openrouter.ai/keys](https://openrouter.ai/keys)
+
+### Grok (xAI)
+
+- **Base URL**: `https://api.x.ai/v1`
+- **类型**: OpenAICompatible
+- **认证**: API Key（`xai-*`）
+- **模型**: grok-3-beta, grok-3-mini-beta
+- **获取 API Key**: [console.x.ai](https://console.x.ai/)
+
+### OpenAI
+
+- **Base URL**: `https://api.openai.com/v1`
+- **类型**: OpenAICompatible
+- **认证**: API Key（`sk-*`）
+- **模型**: gpt-4o, gpt-4o-mini, o1, o1-mini
+- **获取 API Key**: [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+
+### DeepSeek
+
+- **Base URL**: `https://api.deepseek.com`
+- **类型**: OpenAICompatible
+- **认证**: API Key
+- **模型**: deepseek-chat, deepseek-reasoner
+- **获取 API Key**: [platform.deepseek.com](https://platform.deepseek.com/)
+
+### Kimi / Moonshot
+
+- **Base URL**: `https://api.moonshot.ai/v1`
+- **类型**: OpenAICompatible
+- **认证**: API Key / OAuth
+- **模型**: kimi-k2-0905-preview, moonshot-v1-128k
+- **获取 API Key**: [platform.moonshot.cn](https://platform.moonshot.cn/)
+
+### GLM (智谱)
+
+- **Base URL**: `https://api.z.ai/api/paas/v4`
+- **类型**: OpenAICompatible
+- **认证**: API Key
+- **模型**: glm-4.6, glm-4-plus
+- **获取 API Key**: [open.bigmodel.cn](https://open.bigmodel.cn/)
+
+### Groq
+
+- **Base URL**: `https://api.groq.com/openai/v1`
+- **类型**: OpenAICompatible
+- **认证**: API Key（`gsk_*`）
+- **模型**: llama-3.3-70b-versatile, mixtral-8x7b-32768, gemma2-9b-it
+- **获取 API Key**: [console.groq.com](https://console.groq.com/)
+- **备注**: 为开源模型提供极快推理
+
+### Mistral AI
+
+- **Base URL**: `https://api.mistral.ai/v1`
+- **类型**: OpenAICompatible
+- **认证**: API Key
+- **模型**: mistral-large-latest, mistral-small-latest
+- **获取 API Key**: [console.mistral.ai](https://console.mistral.ai/)
+
+### Together AI
+
+- **Base URL**: `https://api.together.xyz/v1`
+- **类型**: OpenAICompatible
+- **认证**: API Key
+- **模型**: meta-llama/Llama-3.3-70B-Instruct-Turbo，以及众多开源模型
+- **获取 API Key**: [api.together.ai](https://api.together.ai/)
+
+### Perplexity
+
+- **Base URL**: `https://api.perplexity.ai`
+- **类型**: OpenAICompatible
+- **认证**: API Key（`pplx-*`）
+- **模型**: sonar-pro, sonar
+- **获取 API Key**: [perplexity.ai/settings/api](https://www.perplexity.ai/settings/api)
+- **备注**: 模型内置网页搜索功能
+
+### Cerebras
+
+- **Base URL**: `https://api.cerebras.ai/v1`
+- **类型**: OpenAICompatible
+- **认证**: API Key
+- **模型**: llama-3.3-70b
+- **获取 API Key**: [cloud.cerebras.ai](https://cloud.cerebras.ai/)
+- **备注**: 快速推理平台
+
+### Azure OpenAI
+
+- **Base URL**: `https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT`
+- **类型**: OpenAICompatible
+- **认证**: API Key（通过 `api-key` 头，自动检测）
+- **模型**: 取决于部署（gpt-4o、gpt-4 等）
+- **设置**: [Azure Portal](https://portal.azure.com/)
+- **备注**: 需要在 `query_params` 中配置 `api-version`
+
+### GitHub Copilot
+
+- **Base URL**: `https://api.githubcopilot.com`
+- **类型**: OpenAICompatible
+- **认证**: OAuth（Device Code 流程）
+- **模型**: gpt-4o（默认）
+- **备注**: 需要有效的 GitHub Copilot 订阅
+
+### GitLab Duo
+
+- **Base URL**: `https://gitlab.com/api/v4/ai/llm/proxy`（或自托管）
+- **类型**: OpenAICompatible
+- **认证**: OAuth（个人访问令牌，通过 `GITLAB_TOKEN`）
+- **模型**: claude-sonnet-4-20250514
+- **备注**: 支持 `--enterprise-url` 用于自托管实例
+
+### ChatGPT / Codex（订阅）
+
+- **Base URL**: `https://chatgpt.com/backend-api/codex`
+- **类型**: OpenAIResponses
+- **认证**: OAuth（浏览器 PKCE / Device Code）
+- **模型**: gpt-5.3-codex, gpt-5.1-codex, codex-mini-latest
+- **备注**: 使用 Responses API，非 Chat Completions。`strip_params = "auto"` 自动剥离不支持的参数。
+
+### Claude（订阅）
+
+- **Base URL**: `https://api.claude.ai`
+- **类型**: DirectAnthropic
+- **认证**: OAuth（读取 `~/.claude/.credentials.json`）
+- **模型**: claude-sonnet-4, claude-opus-4, claude-haiku-4
+- **备注**: 跳过代理。Claude Code 直接使用自身的 OAuth。
+
+### Google Gemini（订阅）
+
+- **Base URL**: `https://generativelanguage.googleapis.com/v1beta/openai`
+- **类型**: OpenAICompatible
+- **认证**: OAuth（Gemini CLI 凭证）
+- **模型**: gemini-2.5-pro, gemini-2.0-flash
+
+### Qwen（订阅）
+
+- **Base URL**: `https://chat.qwen.ai/api`
+- **类型**: OpenAICompatible
+- **认证**: OAuth（Device Code 流程）
+- **模型**: qwen3-235b-a22b, qwen-max
+
+### Ollama
+
+- **Base URL**: `http://localhost:11434/v1`
+- **类型**: OpenAICompatible
+- **认证**: 无需
+- **模型**: 任意已拉取的模型（qwen2.5、llama3.3 等）
+- **设置**: [ollama.com](https://ollama.com/)
+
+### vLLM
+
+- **Base URL**: `http://localhost:8000/v1`
+- **类型**: OpenAICompatible
+- **认证**: 无需
+- **模型**: 取决于服务的模型
+
+### LM Studio
+
+- **Base URL**: `http://localhost:1234/v1`
+- **类型**: OpenAICompatible
+- **认证**: 无 / `"lm-studio"`
+- **模型**: 取决于加载的模型
+- **设置**: [lmstudio.ai](https://lmstudio.ai/)
+
+### AWS Bedrock（通过 LiteLLM）
+
+- **Base URL**: `http://localhost:4000/v1`（LiteLLM 代理）
+- **类型**: OpenAICompatible
+- **认证**: API Key（LiteLLM key）
+- **模型**: bedrock/anthropic.claude-sonnet-4-20250514-v2:0
+- **设置**: [docs.litellm.ai/docs/providers/bedrock](https://docs.litellm.ai/docs/providers/bedrock)

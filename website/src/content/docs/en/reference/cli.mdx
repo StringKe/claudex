@@ -6,8 +6,14 @@ description: Complete command reference for the Claudex CLI
 ## Global Usage
 
 ```
-claudex [COMMAND]
+claudex [OPTIONS] [COMMAND]
 ```
+
+| Option | Description |
+|--------|-------------|
+| `--config <PATH>` | Override config file path |
+| `--version` | Print version |
+| `--help` | Print help |
 
 When run without a command, Claudex launches the TUI dashboard if profiles are configured, or shows a welcome message if no profiles exist.
 
@@ -18,17 +24,18 @@ When run without a command, Claudex launches the TUI dashboard if profiles are c
 Run Claude Code with a specific provider profile.
 
 ```bash
-claudex run <PROFILE> [PROMPT] [-m MODEL] [--print] [--dangerously-skip-permissions] [ARGS...]
+claudex run <PROFILE> [PROMPT] [OPTIONS] [-- ARGS...]
 ```
 
-| Argument | Description |
+| Argument / Option | Description |
 |----------|-------------|
 | `PROFILE` | Profile name, or `auto` for smart routing |
 | `PROMPT` | Optional prompt for non-interactive (one-shot) execution |
 | `-m, --model MODEL` | Override the default model for this session |
+| `--hyperlinks` | Force enable OSC 8 terminal hyperlinks |
 | `--print` | Print the response and exit (non-interactive mode) |
 | `--dangerously-skip-permissions` | Skip all permission prompts (use with `--print` for CI/CD) |
-| `ARGS...` | Additional arguments passed to `claude` |
+| `ARGS...` | Additional arguments passed to `claude` (after `--`) |
 
 ```bash
 # Use Grok (interactive)
@@ -39,6 +46,9 @@ claudex run grok -m grok-3-mini-beta
 
 # Smart routing
 claudex run auto
+
+# Force terminal hyperlinks
+claudex run grok --hyperlinks
 
 # Non-interactive one-shot execution
 claudex run grok "Explain this codebase" --print
@@ -60,7 +70,7 @@ Manage provider profiles.
 claudex profile list
 ```
 
-List all configured profiles with their status.
+List all configured profiles with their status, provider type, and model.
 
 #### `profile add`
 
@@ -76,7 +86,7 @@ Interactive wizard to add a new profile. Guides through provider selection, API 
 claudex profile show <NAME>
 ```
 
-Show details for a specific profile.
+Show details for a specific profile including all configuration fields.
 
 #### `profile remove`
 
@@ -92,7 +102,7 @@ Remove a profile from the configuration.
 claudex profile test <NAME|all>
 ```
 
-Test connectivity for a specific profile or all profiles.
+Test connectivity for a specific profile or all profiles. Sends a lightweight request to the provider's `/models` endpoint.
 
 ### `auth`
 
@@ -101,22 +111,32 @@ Manage OAuth subscription authentication for provider profiles.
 #### `auth login`
 
 ```bash
-claudex auth login <PROVIDER>
+claudex auth login <PROVIDER> [OPTIONS]
 ```
 
-Log in to a provider using OAuth. Supported providers: `claude`, `openai`, `google`, `qwen`, `kimi`, `github`.
+| Option | Description |
+|--------|-------------|
+| `--profile <NAME>` | Associate with a specific profile |
+| `--enterprise-url <URL>` | Custom enterprise server URL (for self-hosted GitLab, etc.) |
+| `--headless` | Use headless (device code) flow, skip browser launch |
 
-For **OpenAI**, Claudex reads tokens from the Codex CLI config (`~/.codex/auth.json`). For **Claude**, it reads from `~/.claude`. Other providers use a local callback server or device code flow.
+Log in to a provider using OAuth. Supported providers: `claude`, `openai`, `google`, `qwen`, `kimi`, `github`, `gitlab`.
 
 ```bash
 # Log in to OpenAI (reads from Codex CLI)
-claudex auth login openai
+claudex auth login openai --profile codex-sub
 
 # Log in to Claude (reads from ~/.claude)
 claudex auth login claude
 
 # Log in to Google
-claudex auth login google
+claudex auth login google --profile gemini-sub
+
+# Log in to GitLab with enterprise URL
+claudex auth login gitlab --enterprise-url https://gitlab.mycompany.com
+
+# Headless mode (no browser, device code only)
+claudex auth login github --headless
 ```
 
 #### `auth status`
@@ -149,7 +169,7 @@ Manually refresh the OAuth token for a provider. Tokens are also refreshed autom
 claudex auth logout <PROVIDER>
 ```
 
-Remove stored OAuth tokens for a provider.
+Remove stored OAuth tokens for a provider from the system keyring.
 
 ### `proxy`
 
@@ -158,7 +178,7 @@ Manage the translation proxy server.
 #### `proxy start`
 
 ```bash
-claudex proxy start [-p PORT] [-d]
+claudex proxy start [OPTIONS]
 ```
 
 | Flag | Description |
@@ -172,7 +192,7 @@ claudex proxy start [-p PORT] [-d]
 claudex proxy stop
 ```
 
-Stop the proxy daemon (sends SIGTERM).
+Stop the proxy daemon (sends SIGTERM via PID file).
 
 #### `proxy status`
 
@@ -192,24 +212,132 @@ Launch the TUI dashboard for real-time monitoring and quick-launch.
 
 ### `config`
 
+Manage configuration files.
+
+#### `config show`
+
 ```bash
-claudex config [--init]
+claudex config show
 ```
 
-| Flag | Description |
-|------|-------------|
-| `--init` | Create a new config file in the current directory |
+Display the loaded config file path, search order, and current configuration values.
 
-Without `--init`, shows the loaded config file path and search order.
+#### `config path`
+
+```bash
+claudex config path
+```
+
+Print only the resolved config file path.
+
+#### `config init`
+
+```bash
+claudex config init
+```
+
+Create a new config file in the current directory from the built-in template.
+
+#### `config recreate`
+
+```bash
+claudex config recreate
+```
+
+Recreate the config file from `config.example.toml`, overwriting the existing config.
+
+#### `config edit`
+
+```bash
+claudex config edit
+```
+
+Open the config file in your `$EDITOR` (or `$VISUAL`).
+
+#### `config validate`
+
+```bash
+claudex config validate
+```
+
+Validate config syntax, profile references (backup_providers, router rules), and OAuth provider settings. Reports errors and warnings.
+
+#### `config get`
+
+```bash
+claudex config get <KEY>
+```
+
+Get a specific configuration value by key path (e.g., `proxy_port`, `profiles.0.name`).
+
+#### `config set`
+
+```bash
+claudex config set <KEY> <VALUE>
+```
+
+Set a specific configuration value by key path.
+
+#### `config export`
+
+```bash
+claudex config export
+```
+
+Export the current merged configuration to stdout in TOML format.
+
+### `sets`
+
+Manage configuration sets (installable bundles of rules, skills, and MCP servers).
+
+#### `sets add`
+
+```bash
+claudex sets add <PATH>
+```
+
+Install a configuration set from a local directory containing a `manifest.json` (or `manifest.yaml`).
+
+#### `sets remove`
+
+```bash
+claudex sets remove <NAME>
+```
+
+Remove an installed configuration set by name.
+
+#### `sets list`
+
+```bash
+claudex sets list
+```
+
+List all installed configuration sets with their version, description, and component summary.
+
+#### `sets update`
+
+```bash
+claudex sets update <NAME> <PATH>
+```
+
+Update an existing configuration set from a new manifest path.
+
+#### `sets show`
+
+```bash
+claudex sets show <NAME>
+```
+
+Show detailed information about an installed configuration set, including all components.
 
 ### `update`
 
 ```bash
-claudex update [--check]
+claudex update [OPTIONS]
 ```
 
 | Flag | Description |
 |------|-------------|
 | `--check` | Only check for updates, don't install |
 
-Without `--check`, downloads and installs the latest version.
+Without `--check`, downloads and installs the latest version from GitHub Releases.

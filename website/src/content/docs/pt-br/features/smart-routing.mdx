@@ -11,9 +11,9 @@ O roteamento inteligente seleciona automaticamente o melhor provedor para cada r
 
 1. O usuario executa `claudex run auto`
 2. O Claude Code envia uma requisicao ao proxy
-3. O proxy extrai a mensagem do usuario e a envia a um classificador local (ex.: Ollama)
+3. O proxy extrai a mensagem do usuario e a envia a um classificador local (ex: Ollama)
 4. O classificador retorna uma categoria de intencao (code, analysis, creative, search, math)
-5. As regras de roteamento mapeiam a intencao para o perfil de provedor ideal
+5. As regras de roteamento mapeiam a intencao para o profile de provedor ideal
 6. A requisicao e encaminhada para o provedor selecionado
 
 ## Configuracao
@@ -21,8 +21,8 @@ O roteamento inteligente seleciona automaticamente o melhor provedor para cada r
 ```toml
 [router]
 enabled = true
-profile = "local-qwen"      # reutilizar base_url + api_key de um perfil para classificacao
-model = "qwen2.5:3b"        # substituir modelo (opcional, padrao: default_model do perfil)
+profile = "local-qwen"      # reutilizar base_url + api_key de um profile para classificacao
+model = "qwen2.5:3b"        # substituir modelo (opcional, padrao: default_model do profile)
 
 [router.rules]
 code = "deepseek"       # tarefas de codigo → DeepSeek
@@ -44,7 +44,7 @@ default = "grok"        # fallback para intencoes nao classificadas
 | `math` | Tarefas matematicas e logicas | Calcular complexidade, provar corretude |
 
 <Aside type="note">
-  O roteamento inteligente requer um servico LLM para classificacao de intencao. Ele reutiliza a `base_url` e a `api_key` de um perfil existente. O modelo classificador deve ser pequeno e rapido — `qwen2.5:3b` funciona bem.
+  O roteamento inteligente requer um servico LLM para classificacao de intencao. Ele reutiliza a `base_url` e a `api_key` de um profile existente. O modelo classificador deve ser pequeno e rapido — `qwen2.5:3b` funciona bem.
 </Aside>
 
 ## Uso

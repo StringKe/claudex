@@ -15,7 +15,7 @@ claudex dashboard
 claudex
 ```
 
-## Atajos de Teclado
+## Atajos de teclado
 
 | Tecla | Accion |
 |-------|--------|
@@ -31,16 +31,16 @@ claudex
 | `?` | Mostrar ventana emergente de ayuda |
 | `q` / `Ctrl+C` | Salir del panel |
 
-## Diseno del Panel
+## Diseno del panel
 
 El panel muestra:
 
 - **Lista de perfiles** — Todos los perfiles configurados con nombre, modelo, tipo de proveedor y estado de salud
-- **Indicadores de estado** — Estado codificado por colores (verde = saludable, amarillo = degradado, rojo = interruptor de circuito abierto)
+- **Indicadores de estado** — Estado codificado por colores (verde = saludable, amarillo = degradado, rojo = circuit breaker abierto)
 - **Panel de metricas** — Recuento de solicitudes por perfil, tasa de exito, latencia media
-- **Panel de registros** — Salida de registros en tiempo real con desplazamiento
+- **Panel de logs** — Salida de logs en tiempo real con desplazamiento
 
-## Estado de Salud
+## Estado de salud
 
 El panel ejecuta un verificador de estado en segundo plano que hace ping a todos los perfiles habilitados cada ~30 segundos. El estado de salud se refleja en tiempo real:
 
@@ -48,5 +48,5 @@ El panel ejecuta un verificador de estado en segundo plano que hace ping a todos
 |-------|-------------|
 | Verde | El proveedor responde normalmente |
 | Amarillo | Se han detectado fallos recientes |
-| Rojo | El interruptor de circuito esta abierto |
+| Rojo | El circuit breaker esta abierto |
 | Gris | El perfil esta deshabilitado |

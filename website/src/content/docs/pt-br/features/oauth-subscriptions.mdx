@@ -1,0 +1,198 @@
+---
+title: Assinaturas OAuth
+description: Use assinaturas existentes de provedores com o Claude Code atraves de autenticacao OAuth
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+O Claudex suporta autenticacao baseada em OAuth para 7 provedores, permitindo usar assinaturas existentes (Claude Max, ChatGPT Plus, GitHub Copilot, etc.) sem chaves API separadas.
+
+## Visao Geral
+
+Em vez de fornecer uma `api_key`, voce configura `auth_type = "oauth"` e especifica um `oauth_provider`. O Claudex gerencia toda a cadeia de credenciais: leitura de tokens de configuracoes nativas de CLI, execucao de fluxos device code, armazenamento de tokens no keyring do sistema e refresh automatico antes da expiracao.
+
+```toml
+[[profiles]]
+name = "codex-sub"
+provider_type = "OpenAIResponses"
+base_url = "https://chatgpt.com/backend-api/codex"
+default_model = "gpt-5.3-codex"
+auth_type = "oauth"
+oauth_provider = "openai"
+```
+
+## Provedores Suportados
+
+| Provedor | `oauth_provider` | Metodo de Login | Fallback |
+|----------|-----------------|-----------------|----------|
+| Claude | `claude` | Le `~/.claude/.credentials.json` | — |
+| ChatGPT/Codex | `openai` | PKCE via navegador ou Device Code | `~/.codex/auth.json` (Codex CLI) |
+| Google Gemini | `google` | Le credenciais do Gemini CLI | — |
+| Kimi | `kimi` | Le credenciais do Kimi CLI | — |
+| Qwen | `qwen` | Device Code flow | — |
+| GitHub Copilot | `github` | Device Code flow | `~/.config/github-copilot/` |
+| GitLab Duo | `gitlab` | Variavel de ambiente `GITLAB_TOKEN` | — |
+
+## Cadeia de Credenciais
+
+Cada provedor segue um padrao de cadeia de credenciais:
+
+1. **Verificar keyring do sistema** em busca de um token previamente armazenado
+2. **Ler da configuracao nativa da CLI** (caminhos especificos do provedor)
+3. **Iniciar fluxo OAuth** (PKCE via navegador ou device code) se nenhum token for encontrado
+
+Uma vez obtidos, os tokens sao armazenados no keyring do sistema para uso subsequente.
+
+## Gerenciamento de Tokens
+
+### Estrutura do Token
+
+```
+OAuthToken {
+    access_token: String,
+    refresh_token: Option<String>,
+    expires_at: Option<i64>,       // Unix milliseconds
+    token_type: Option<String>,
+    scopes: Option<Vec<String>>,
+    extra: Option<Value>,          // dados especificos do provedor
+}
+```
+
+### Refresh Automatico
+
+O proxy verifica a expiracao do token antes de cada requisicao. Se um token estiver a 60 segundos de expirar:
+
+1. Tenta fazer refresh usando `refresh_token` (se disponivel)
+2. Em caso de sucesso no refresh, atualiza o keyring
+3. Se o refresh falhar, invalida o token e solicita novo login no proximo uso
+
+### Retry 401
+
+Quando um provedor retorna HTTP 401, o proxy:
+
+1. Invalida o token atual
+2. Tenta carregar um token novo da cadeia de credenciais
+3. Reenvia a requisicao uma vez com o novo token
+4. Se o retry falhar, retorna o erro ao Claude Code
+
+## Detalhes por Provedor
+
+### Claude
+
+Profiles OAuth Claude sao especiais: **o proxy e completamente ignorado**. Quando voce executa um profile OAuth Claude, o Claudex inicia o Claude Code diretamente sem definir `ANTHROPIC_BASE_URL`. O Claude Code usa sua propria sessao OAuth embutida de `~/.claude/.credentials.json`.
+
+```toml
+[[profiles]]
+name = "claude-max"
+provider_type = "DirectAnthropic"
+base_url = "https://api.claude.ai"
+default_model = "claude-sonnet-4-20250514"
+auth_type = "oauth"
+oauth_provider = "claude"
+```
+
+Nenhum passo de `claudex auth login` e necessario. Se voce ja estiver logado no Claude Code, funciona imediatamente.
+
+### ChatGPT / Codex
+
+Suporta dois fluxos OAuth:
+
+1. **PKCE via Navegador**: Abre uma janela do navegador para login na OpenAI, recebe o token via servidor de callback local
+2. **Device Code**: Para ambientes headless, exibe um codigo para inserir em uma URL
+
+O Claudex tambem le tokens da configuracao do Codex CLI em `~/.codex/auth.json` como fallback. O header `ChatGPT-Account-ID` e extraido automaticamente do arquivo de autenticacao do Codex CLI.
+
+```bash
+# Fluxo via navegador (padrao)
+claudex auth login openai --profile codex-sub
+
+# Fluxo device code (headless)
+claudex auth login openai --profile codex-sub --headless
+```
+
+### GitHub Copilot
+
+Usa o fluxo Device Code do GitHub:
+
+1. `claudex auth login github` exibe um device code
+2. Abra `https://github.com/login/device` e insira o codigo
+3. O token e armazenado no keyring do sistema
+
+Faz fallback para tokens existentes em `~/.config/github-copilot/` se disponiveis.
+
+### GitLab Duo
+
+Usa um Personal Access Token via variavel de ambiente `GITLAB_TOKEN`:
+
+```bash
+export GITLAB_TOKEN=glpat-...
+claudex auth login gitlab --profile gitlab-duo
+```
+
+Para instancias GitLab auto-hospedadas:
+
+```bash
+claudex auth login gitlab --enterprise-url https://gitlab.mycompany.com --profile gitlab-duo
+```
+
+### Google Gemini
+
+Le credenciais da configuracao do Gemini CLI. Instale e autentique com o Gemini CLI primeiro, e entao `claudex auth login google` le o token armazenado.
+
+### Qwen
+
+Usa o fluxo OAuth Device Code. O Claudex exibe um codigo e URL para autenticacao:
+
+```bash
+claudex auth login qwen --profile qwen-oauth
+# Exibe: Go to https://... and enter code: XXXX-XXXX
+```
+
+### Kimi
+
+Le credenciais da configuracao do Kimi CLI, similar ao fluxo do Google Gemini.
+
+## Modo Gateway Auth
+
+Ao lancar o Claude Code com um profile OAuth (exceto Claude), o Claudex define:
+
+```
+ANTHROPIC_AUTH_TOKEN=claudex-passthrough
+```
+
+Isso usa o header `Authorization: Bearer` em vez de `X-Api-Key`, evitando conflitos com o mecanismo `ANTHROPIC_API_KEY` do proprio Claude Code. O proxy entao substitui o token passthrough pelo token OAuth real.
+
+## Comandos CLI
+
+```bash
+# Fazer login em um provedor
+claudex auth login <PROVIDER> [--profile <NAME>] [--enterprise-url <URL>] [--headless]
+
+# Verificar status de autenticacao de todos os profiles OAuth
+claudex auth status
+
+# Verificar um provedor especifico
+claudex auth status openai
+
+# Atualizar manualmente um token
+claudex auth refresh <PROVIDER>
+
+# Remover tokens armazenados
+claudex auth logout <PROVIDER>
+```
+
+## Valores Padrao dos Provedores
+
+Quando voce cria um profile com `auth_type = "oauth"`, cada provedor tem valores padrao embutidos para `base_url`, `provider_type` e `default_model`:
+
+| Provedor | base_url padrao | provider_type padrao | Modelo padrao |
+|----------|-----------------|----------------------|---------------|
+| Claude | `https://api.claude.ai` | DirectAnthropic | `claude-sonnet-4-20250514` |
+| ChatGPT | `https://chatgpt.com/backend-api/codex` | OpenAIResponses | `gpt-5.3-codex` |
+| GitHub | `https://api.githubcopilot.com` | OpenAICompatible | `gpt-4o` |
+| GitLab | `https://gitlab.com/api/v4/ai/llm/proxy` | OpenAICompatible | `claude-sonnet-4-20250514` |
+| Google | `https://generativelanguage.googleapis.com/v1beta/openai` | OpenAICompatible | `gemini-2.5-pro` |
+| Qwen | `https://chat.qwen.ai/api` | OpenAICompatible | `qwen3-235b-a22b` |
+| Kimi | `https://api.moonshot.cn/v1` | OpenAICompatible | `kimi-k2-0905-preview` |
+
+Estes valores padrao sao usados se voce omitir `base_url` ou `default_model` da configuracao do profile.

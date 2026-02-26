@@ -1,0 +1,196 @@
+---
+title: コンフィギュレーションセット
+description: ルール、スキル、MCP サーバーの再利用可能なバンドルのインストールと管理
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+コンフィギュレーションセットは、CLAUDE.md のルール、スキル、MCP サーバー設定をバンドルしたインストール可能なバージョン管理パッケージです。プロジェクトやチーム間で Claude Code の設定を共有・再利用するためのポータブルな手段を提供します。
+
+## 概要
+
+コンフィギュレーションセットは、コンポーネントを宣言する `manifest.json`（または `manifest.yaml`）を含むディレクトリです:
+
+```
+my-set/
+├── manifest.json
+├── rules/
+│   └── coding-standards.md
+├── skills/
+│   └── deploy.md
+└── claude.md
+```
+
+## マニフェストスキーマ
+
+```json
+{
+  "name": "my-config-set",
+  "version": "1.0.0",
+  "description": "My team's coding standards and tools",
+  "author": "team-name",
+  "components": {
+    "claude_md": {
+      "path": "claude.md",
+      "strategy": "append"
+    },
+    "rules": [
+      {
+        "name": "coding-standards",
+        "path": "rules/coding-standards.md"
+      }
+    ],
+    "skills": [
+      {
+        "name": "deploy",
+        "path": "skills/deploy.md"
+      }
+    ],
+    "mcp_servers": [
+      {
+        "name": "my-server",
+        "server_type": "stdio",
+        "command": "npx",
+        "args": ["-y", "@myorg/mcp-server"],
+        "env": {
+          "API_KEY": "${MY_API_KEY}"
+        }
+      }
+    ]
+  },
+  "env": [
+    {
+      "name": "MY_API_KEY",
+      "description": "API key for the MCP server",
+      "required": true
+    }
+  ]
+}
+```
+
+### 名前の検証
+
+セット名はパターン `^[a-z0-9][a-z0-9._-]*$` に一致する必要があります:
+- 小文字英字または数字で開始
+- 小文字英字、数字、ドット、アンダースコア、ハイフンのみを含む
+
+### コンポーネント
+
+| コンポーネント | 説明 |
+|-------------|------|
+| `claude_md` | プロジェクトの CLAUDE.md にマージされるコンテンツ |
+| `rules` | `.claude/rules/` にインストールされるルールファイル |
+| `skills` | `.claude/skills/` にインストールされるスキル定義 |
+| `mcp_servers` | `.claude/settings.json` に追加される MCP サーバー設定 |
+
+### MCP サーバータイプ
+
+| タイプ | 必須フィールド | 説明 |
+|-------|-------------|------|
+| `stdio` | `command` | stdin/stdout 経由のローカルプロセス |
+| `http` | `url` | リモート HTTP ベースの MCP サーバー |
+
+```json
+// stdio サーバー
+{
+  "name": "local-tools",
+  "server_type": "stdio",
+  "command": "node",
+  "args": ["./server.js"],
+  "env": {"DEBUG": "true"}
+}
+
+// http サーバー
+{
+  "name": "remote-api",
+  "server_type": "http",
+  "url": "https://mcp.example.com/api",
+  "headers": {"Authorization": "Bearer ${TOKEN}"}
+}
+```
+
+### 環境変数
+
+`env` 配列は必須またはオプションの環境変数を宣言します:
+
+```json
+{
+  "env": [
+    {
+      "name": "API_KEY",
+      "description": "API key for the service",
+      "required": true
+    },
+    {
+      "name": "DEBUG",
+      "description": "Enable debug mode",
+      "required": false,
+      "default": "false"
+    }
+  ]
+}
+```
+
+MCP サーバー設定で `${VAR_NAME}` として参照される変数は、インストール時に環境から解決されます。
+
+## CLI コマンド
+
+### セットのインストール
+
+```bash
+claudex sets add ./path/to/set
+```
+
+マニフェストを検証し、既存セットとの競合を確認し、すべてのコンポーネントをインストールします。
+
+### インストール済みセットの一覧
+
+```bash
+claudex sets list
+```
+
+インストール済みのすべてのセットをバージョン、説明、コンポーネント数とともに表示します。
+
+### セットの詳細表示
+
+```bash
+claudex sets show <NAME>
+```
+
+ルール、スキル、MCP サーバーを含む、インストール済みセットの詳細情報を表示します。
+
+### セットの更新
+
+```bash
+claudex sets update <NAME> ./path/to/new-version
+```
+
+既存のセットを新しいバージョンに更新します。古いコンポーネントを削除し、新しいものをインストールします。
+
+### セットの削除
+
+```bash
+claudex sets remove <NAME>
+```
+
+インストール済みのセットとそのすべてのコンポーネントを削除します。
+
+## 競合検出
+
+セットのインストール時に、Claudex は以下の競合を確認します:
+
+- **ルール名の競合**: 同じファイル名のルールを 2 つのセットがインストールすることはできない
+- **スキル名の競合**: 同じ名前のスキルを 2 つのセットがインストールすることはできない
+- **MCP サーバーの競合**: 同じ名前の MCP サーバーを 2 つのセットが定義することはできない
+
+競合が検出された場合、競合するコンポーネントを所有する既存セットを示す詳細なエラーメッセージとともにインストールが中止されます。
+
+## ロックファイル
+
+インストール済みセットはロックファイルで追跡されます。記録内容:
+
+- セット名とバージョン
+- インストールされたコンポーネントのパス
+- インストールのタイムスタンプ
+
+これにより、クリーンな削除と更新操作が可能になります。

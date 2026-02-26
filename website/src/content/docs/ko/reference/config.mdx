@@ -1,19 +1,20 @@
 ---
 title: 설정 레퍼런스
-description: 모든 Claudex 설정 옵션의 완전한 레퍼런스
+description: 모든 Claudex 설정 옵션의 전체 레퍼런스
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
 ## 설정 파일 위치
 
-Claudex는 다음 순서로 설정 파일을 탐색합니다:
+Claudex는 figment를 사용한 계층형 설정을 제공합니다. 소스는 다음 순서로 병합됩니다(나중이 이전을 덮어씁니다):
 
-1. `$CLAUDEX_CONFIG` 환경 변수
-2. `./claudex.toml` (현재 디렉토리)
-3. `./.claudex/config.toml` (현재 디렉토리)
-4. 상위 디렉토리 (최대 10단계), 두 패턴 모두 확인
-5. `~/.config/claudex/config.toml` (XDG — 플랫폼별 경로보다 **먼저** 확인)
+1. **프로그래밍 기본값**
+2. **전역 설정** (`~/.config/claudex/config.toml` 또는 `.yaml`)
+3. **프로젝트 설정** (`claudex.toml`/`.claudex/config.toml`(현재 디렉토리 또는 상위), 또는 `$CLAUDEX_CONFIG`)
+4. **환경 변수** (`CLAUDEX_` 접두사, `__` 구분자)
+
+TOML과 YAML 형식 모두 지원됩니다.
 
 자세한 내용은 [설정](/ko/configuration/)을 참조하세요.
 
@@ -31,6 +32,9 @@ proxy_host = "127.0.0.1"
 
 # 로그 레벨: trace, debug, info, warn, error
 log_level = "info"
+
+# 터미널 하이퍼링크 (OSC 8): "auto" | true | false
+hyperlinks = "auto"
 ```
 
 | 필드 | 타입 | 기본값 | 설명 |
@@ -39,6 +43,7 @@ log_level = "info"
 | `proxy_port` | integer | `13456` | 번역 프록시가 수신하는 포트 |
 | `proxy_host` | string | `"127.0.0.1"` | 프록시가 바인딩되는 주소 |
 | `log_level` | string | `"info"` | 최소 로그 레벨 |
+| `hyperlinks` | string/bool | `"auto"` | 터미널 하이퍼링크: `"auto"` (감지), `true` (강제 활성화), `false` (강제 비활성화) |
 
 ## 모델 별칭
 
@@ -69,12 +74,18 @@ api_key = "xai-..."
 # api_key_keyring = "grok-api-key"
 default_model = "grok-3-beta"
 auth_type = "api-key"              # "api-key" (기본값) 또는 "oauth"
-# oauth_provider = "openai"        # auth_type = "oauth"일 때 필수
+# oauth_provider = "openai"        # auth_type = "oauth" 시 필수
 backup_providers = ["deepseek"]
 custom_headers = {}
 extra_env = {}
 priority = 100
 enabled = true
+max_tokens = 16384                  # 선택 사항: 출력 토큰 상한
+strip_params = "auto"               # "auto" | "none" | ["temperature", "top_p"]
+
+# URL 쿼리 파라미터 (예: Azure api-version)
+[profiles.query_params]
+# api-version = "2024-12-01-preview"
 
 # 모델 슬롯 매핑 (선택 사항)
 [profiles.models]
@@ -87,21 +98,36 @@ opus = "grok-3-beta"
 |-------|------|---------|-------------|
 | `name` | string | *필수* | 고유한 프로파일 식별자 |
 | `provider_type` | string | `"DirectAnthropic"` | `"DirectAnthropic"`, `"OpenAICompatible"`, 또는 `"OpenAIResponses"` |
-| `base_url` | string | *필수* | 제공자 API 엔드포인트 URL |
+| `base_url` | string | *필수* | 프로바이더 API 엔드포인트 URL |
 | `api_key` | string | `""` | 평문 API 키 |
-| `api_key_keyring` | string | — | OS 키체인 항목 이름 (`api_key` 오버라이드) |
+| `api_key_keyring` | string | -- | OS 키체인 항목 이름 (`api_key` 오버라이드) |
 | `default_model` | string | *필수* | 기본으로 사용할 모델 식별자 |
 | `auth_type` | string | `"api-key"` | 인증 방식: `"api-key"` 또는 `"oauth"` |
-| `oauth_provider` | string | — | OAuth 제공자 이름 (`auth_type = "oauth"`일 때 필수). `claude`, `openai`, `google`, `qwen`, `kimi`, `github` 중 하나 |
+| `oauth_provider` | string | -- | OAuth 프로바이더 이름. `claude`, `openai`, `google`, `qwen`, `kimi`, `github`, `gitlab` 중 하나 |
 | `backup_providers` | string[] | `[]` | 장애 조치용 프로파일 이름 목록, 순서대로 시도 |
 | `custom_headers` | map | `{}` | 모든 요청에 전송할 추가 HTTP 헤더 |
 | `extra_env` | map | `{}` | Claude 실행 시 설정할 환경 변수 |
 | `priority` | integer | `100` | 스마트 라우팅 우선순위 가중치 (높을수록 우선) |
 | `enabled` | boolean | `true` | 이 프로파일의 활성화 여부 |
+| `max_tokens` | integer | -- | 프로바이더에 전송하는 최대 출력 토큰 상한. 설정 시 요청의 `max_tokens`를 오버라이드 |
+| `strip_params` | string/array | `"auto"` | 요청에서 제거할 파라미터. `"auto"`는 알려진 엔드포인트 감지; `"none"`은 모두 전송; 배열은 특정 파라미터 제거 |
+
+### 쿼리 파라미터
+
+```toml
+[profiles.query_params]
+api-version = "2024-12-01-preview"
+```
+
+| 필드 | 타입 | 설명 |
+|-------|------|-------------|
+| `query_params` | map | 모든 요청에 URL 쿼리 파라미터로 추가되는 키-값 쌍 |
+
+주로 Azure OpenAI(`api-version`)에 사용되지만, 모든 프로바이더에 적용 가능합니다.
 
 ### 모델 슬롯 매핑
 
-선택적 `[profiles.models]` 테이블은 Claude Code의 `/model` 전환기 슬롯을 제공자별 모델 이름에 매핑합니다. Claude Code 내에서 모델을 전환하면(예: `/model opus`), Claudex가 매핑된 모델을 사용하도록 요청을 변환합니다.
+선택적 `[profiles.models]` 테이블은 Claude Code의 `/model` 전환기 슬롯을 프로바이더별 모델 이름에 매핑합니다. Claude Code 내에서 모델을 전환하면(예: `/model opus`), Claudex가 매핑된 모델로 요청을 변환합니다.
 
 ```toml
 [profiles.models]
@@ -117,13 +143,13 @@ opus = "grok-3-beta"          # /model opus 매핑
 | `opus` | string | Claude Code에서 `opus` 선택 시 사용할 모델 |
 
 <Aside type="tip">
-  슬롯이 정의되지 않은 경우, 프로파일의 `default_model`이 폴백으로 사용됩니다.
+  슬롯이 정의되지 않으면 프로파일의 `default_model`이 폴백으로 사용됩니다. 슬롯은 환경 변수로도 노출됩니다: `ANTHROPIC_DEFAULT_HAIKU_MODEL`, `ANTHROPIC_DEFAULT_SONNET_MODEL`, `ANTHROPIC_DEFAULT_OPUS_MODEL`.
 </Aside>
 
-### 제공자 예시
+### 프로바이더 예시
 
 ```toml
-# Anthropic (DirectAnthropic — 변환 없음)
+# Anthropic (DirectAnthropic -- 변환 없음)
 [[profiles]]
 name = "anthropic"
 provider_type = "DirectAnthropic"
@@ -131,7 +157,7 @@ base_url = "https://api.anthropic.com"
 api_key = "sk-ant-..."
 default_model = "claude-sonnet-4-20250514"
 
-# MiniMax (DirectAnthropic — 변환 없음)
+# MiniMax (DirectAnthropic -- 변환 없음)
 [[profiles]]
 name = "minimax"
 provider_type = "DirectAnthropic"
@@ -140,7 +166,7 @@ api_key = "..."
 default_model = "claude-sonnet-4-20250514"
 backup_providers = ["anthropic"]
 
-# OpenRouter (OpenAICompatible — 변환 필요)
+# OpenRouter (OpenAICompatible -- 변환 필요)
 [[profiles]]
 name = "openrouter"
 provider_type = "OpenAICompatible"
@@ -148,7 +174,7 @@ base_url = "https://openrouter.ai/api/v1"
 api_key = "..."
 default_model = "anthropic/claude-sonnet-4"
 
-# Grok (OpenAICompatible — 변환 필요)
+# Grok (OpenAICompatible -- 변환 필요)
 [[profiles]]
 name = "grok"
 provider_type = "OpenAICompatible"
@@ -157,7 +183,7 @@ api_key = "xai-..."
 default_model = "grok-3-beta"
 backup_providers = ["deepseek"]
 
-# OpenAI (OpenAICompatible — 변환 필요)
+# OpenAI (OpenAICompatible -- 변환 필요)
 [[profiles]]
 name = "chatgpt"
 provider_type = "OpenAICompatible"
@@ -165,7 +191,7 @@ base_url = "https://api.openai.com/v1"
 api_key = "sk-..."
 default_model = "gpt-4o"
 
-# DeepSeek (OpenAICompatible — 변환 필요)
+# DeepSeek (OpenAICompatible -- 변환 필요)
 [[profiles]]
 name = "deepseek"
 provider_type = "OpenAICompatible"
@@ -174,21 +200,79 @@ api_key = "..."
 default_model = "deepseek-chat"
 backup_providers = ["grok"]
 
-# Kimi / Moonshot (OpenAICompatible — 변환 필요)
+# Kimi / Moonshot (OpenAICompatible -- 변환 필요)
 [[profiles]]
 name = "kimi"
 provider_type = "OpenAICompatible"
-base_url = "https://api.moonshot.cn/v1"
+base_url = "https://api.moonshot.ai/v1"
 api_key = "..."
-default_model = "moonshot-v1-128k"
+default_model = "kimi-k2-0905-preview"
 
-# GLM / 智谱 (OpenAICompatible — 변환 필요)
+# GLM / 智谱 (OpenAICompatible -- 변환 필요)
 [[profiles]]
 name = "glm"
 provider_type = "OpenAICompatible"
-base_url = "https://open.bigmodel.cn/api/paas/v4"
+base_url = "https://api.z.ai/api/paas/v4"
 api_key = "..."
-default_model = "glm-4-plus"
+default_model = "glm-4.6"
+
+# Groq (OpenAICompatible -- 빠른 추론)
+[[profiles]]
+name = "groq"
+provider_type = "OpenAICompatible"
+base_url = "https://api.groq.com/openai/v1"
+api_key = "gsk_..."
+default_model = "llama-3.3-70b-versatile"
+
+# Mistral AI (OpenAICompatible -- 변환 필요)
+[[profiles]]
+name = "mistral"
+provider_type = "OpenAICompatible"
+base_url = "https://api.mistral.ai/v1"
+api_key = "..."
+default_model = "mistral-large-latest"
+
+# Together AI (OpenAICompatible -- 변환 필요)
+[[profiles]]
+name = "together"
+provider_type = "OpenAICompatible"
+base_url = "https://api.together.xyz/v1"
+api_key = "..."
+default_model = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+
+# Perplexity (OpenAICompatible -- 온라인 검색 + LLM)
+[[profiles]]
+name = "perplexity"
+provider_type = "OpenAICompatible"
+base_url = "https://api.perplexity.ai"
+api_key = "pplx-..."
+default_model = "sonar-pro"
+
+# Cerebras (OpenAICompatible -- 빠른 추론)
+[[profiles]]
+name = "cerebras"
+provider_type = "OpenAICompatible"
+base_url = "https://api.cerebras.ai/v1"
+api_key = "..."
+default_model = "llama-3.3-70b"
+
+# Azure OpenAI (OpenAICompatible -- api-key 헤더 + query_params)
+[[profiles]]
+name = "azure-openai"
+provider_type = "OpenAICompatible"
+base_url = "https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT"
+api_key = "YOUR_AZURE_KEY"
+default_model = "gpt-4o"
+[profiles.query_params]
+api-version = "2024-12-01-preview"
+
+# Google Vertex AI (DirectAnthropic)
+[[profiles]]
+name = "vertex-ai"
+provider_type = "DirectAnthropic"
+base_url = "https://us-east5-aiplatform.googleapis.com/v1/projects/YOUR_PROJECT/locations/us-east5/publishers/anthropic/models"
+api_key = "YOUR_GCLOUD_TOKEN"
+default_model = "claude-sonnet-4@20250514"
 
 # Ollama (로컬, API 키 불필요)
 [[profiles]]
@@ -207,39 +291,16 @@ base_url = "http://localhost:8000/v1"
 api_key = ""
 default_model = "llama-3.3-70b"
 enabled = false
-
-# ChatGPT/Codex 구독 (OpenAIResponses — Responses API 변환)
-[[profiles]]
-name = "codex-sub"
-provider_type = "OpenAIResponses"
-base_url = "https://chatgpt.com/backend-api/codex"
-default_model = "gpt-4o"
-auth_type = "oauth"
-oauth_provider = "openai"
 ```
 
 ### OAuth 프로파일 예시
 
 ```toml
-# OAuth를 통한 OpenAI (Codex CLI ~/.codex/auth.json에서 토큰 읽기)
+# Claude Max (프록시 건너뜀, ~/.claude의 Claude 네이티브 OAuth 사용)
 [[profiles]]
-name = "chatgpt-oauth"
-provider_type = "OpenAICompatible"
-base_url = "https://api.openai.com/v1"
-default_model = "gpt-4o"
-auth_type = "oauth"
-oauth_provider = "openai"
-
-[profiles.models]
-haiku = "gpt-4o-mini"
-sonnet = "gpt-4o"
-opus = "o1"
-
-# Claude 구독 (프록시 건너뜀, ~/.claude의 Claude 네이티브 OAuth 사용)
-[[profiles]]
-name = "claude-sub"
+name = "claude-max"
 provider_type = "DirectAnthropic"
-base_url = "https://api.anthropic.com"
+base_url = "https://api.claude.ai"
 default_model = "claude-sonnet-4-20250514"
 auth_type = "oauth"
 oauth_provider = "claude"
@@ -249,9 +310,23 @@ haiku = "claude-haiku-4-20250514"
 sonnet = "claude-sonnet-4-20250514"
 opus = "claude-opus-4-20250514"
 
+# ChatGPT/Codex 구독 (OpenAIResponses)
+[[profiles]]
+name = "codex-sub"
+provider_type = "OpenAIResponses"
+base_url = "https://chatgpt.com/backend-api/codex"
+default_model = "gpt-5.3-codex"
+auth_type = "oauth"
+oauth_provider = "openai"
+
+[profiles.models]
+haiku = "codex-mini-latest"
+sonnet = "gpt-5.3-codex"
+opus = "gpt-5.3-codex"
+
 # OAuth를 통한 Google Gemini
 [[profiles]]
-name = "gemini"
+name = "gemini-sub"
 provider_type = "OpenAICompatible"
 base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
 default_model = "gemini-2.5-pro"
@@ -271,37 +346,32 @@ oauth_provider = "kimi"
 [[profiles]]
 name = "qwen-oauth"
 provider_type = "OpenAICompatible"
-base_url = "https://chat.qwenlm.ai/api/chat/v1"
-default_model = "qwen-max"
+base_url = "https://chat.qwen.ai/api"
+default_model = "qwen3-235b-a22b"
 auth_type = "oauth"
 oauth_provider = "qwen"
 
 # OAuth를 통한 GitHub Copilot
 [[profiles]]
-name = "github-copilot"
+name = "copilot"
 provider_type = "OpenAICompatible"
 base_url = "https://api.githubcopilot.com"
 default_model = "gpt-4o"
 auth_type = "oauth"
 oauth_provider = "github"
 
-# OAuth를 통한 ChatGPT/Codex 구독 (OpenAIResponses)
+# GITLAB_TOKEN을 통한 GitLab Duo
 [[profiles]]
-name = "codex-sub"
-provider_type = "OpenAIResponses"
-base_url = "https://chatgpt.com/backend-api/codex"
-default_model = "gpt-4o"
+name = "gitlab-duo"
+provider_type = "OpenAICompatible"
+base_url = "https://gitlab.com/api/v4/ai/llm/proxy"
+default_model = "claude-sonnet-4-20250514"
 auth_type = "oauth"
-oauth_provider = "openai"
-
-[profiles.models]
-haiku = "gpt-4o-mini"
-sonnet = "gpt-4o"
-opus = "o1-pro"
+oauth_provider = "gitlab"
 ```
 
 <Aside type="caution">
-  `claude` OAuth 제공자의 경우, Claudex는 특수 게이트웨이 인증 모드를 사용합니다: Claude Code 자체 구독 로그인 플로우와의 충돌을 피하기 위해 `ANTHROPIC_API_KEY` 대신 `ANTHROPIC_AUTH_TOKEN`을 설정합니다.
+  `claude` OAuth 프로바이더의 경우, Claudex가 프록시를 건너뛰고 Claude Code가 자체 OAuth를 직접 사용하도록 합니다. 다른 모든 OAuth 프로바이더는 프록시가 토큰 관리와 갱신을 처리합니다.
 </Aside>
 
 ## 스마트 라우터
@@ -336,7 +406,7 @@ default = "grok"
 | `code` | 코딩 작업용 프로파일 |
 | `analysis` | 분석 및 추론용 프로파일 |
 | `creative` | 창작 작업용 프로파일 |
-| `search` | 검색 및 조사용 프로파일 |
+| `search` | 검색 및 리서치용 프로파일 |
 | `math` | 수학 및 논리용 프로파일 |
 | `default` | 의도 미분류 시 폴백 |
 
@@ -358,8 +428,8 @@ model = "qwen2.5:3b"      # 모델 오버라이드 (선택 사항)
 | `enabled` | boolean | `false` | 대화 압축 활성화 |
 | `threshold_tokens` | integer | `50000` | 토큰 수가 이를 초과하면 압축 |
 | `keep_recent` | integer | `10` | 항상 마지막 N개의 메시지를 압축하지 않고 유지 |
-| `profile` | string | `""` | 요약에 재사용할 프로파일 이름 (해당 `base_url` + `api_key` 사용) |
-| `model` | string | `""` | 요약을 위한 모델 오버라이드 (기본값은 프로파일의 `default_model`) |
+| `profile` | string | `""` | 요약에 재사용할 프로파일 이름 |
+| `model` | string | `""` | 요약을 위한 모델 오버라이드 |
 
 ### 프로파일 간 공유
 
@@ -389,8 +459,8 @@ top_k = 5
 | 필드 | 타입 | 기본값 | 설명 |
 |-------|------|---------|-------------|
 | `enabled` | boolean | `false` | 로컬 RAG 활성화 |
-| `index_paths` | string[] | `[]` | 인덱싱할 디렉토리 목록 |
-| `profile` | string | `""` | 임베딩에 재사용할 프로파일 이름 (해당 `base_url` + `api_key` 사용) |
-| `model` | string | `""` | 임베딩 모델 이름 (기본값은 프로파일의 `default_model`) |
+| `index_paths` | string[] | `[]` | 인덱싱할 디렉토리 |
+| `profile` | string | `""` | 임베딩에 재사용할 프로파일 이름 |
+| `model` | string | `""` | 임베딩 모델 이름 |
 | `chunk_size` | integer | `512` | 토큰 단위 텍스트 청크 크기 |
 | `top_k` | integer | `5` | 주입할 결과 수 |

@@ -1,0 +1,111 @@
+---
+title: 終端超連結
+description: 終端輸出中的 OSC 8 可點擊超連結，支援自動偵測
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Claudex 支援 OSC 8 終端超連結，讓 Claude Code 輸出中的檔案路徑、URL 和參照在支援的終端中可以點擊。
+
+## 概述
+
+OSC 8 是一種終端跳脫序列標準，直接在終端輸出中嵌入超連結。受支援時，點擊連結會以預設處理程式開啟（瀏覽器開啟 URL、編輯器開啟檔案路徑）。
+
+跳脫序列格式：
+
+```
+\x1b]8;;URL\x07DISPLAY_TEXT\x1b]8;;\x07
+```
+
+## 設定
+
+```toml
+# 在 config.toml 中（全域設定）
+hyperlinks = "auto"    # "auto" | true | false
+```
+
+| 值 | 行為 |
+|----|------|
+| `"auto"` | 自動偵測終端支援（預設） |
+| `true` | 強制啟用超連結 |
+| `false` | 強制停用超連結 |
+
+你也可以透過 CLI 旗標在每次工作階段中啟用超連結：
+
+```bash
+claudex run grok --hyperlinks
+```
+
+## 終端偵測
+
+當 `hyperlinks = "auto"` 時，Claudex 按以下順序檢查：
+
+| 優先順序 | 檢查項目 | 結果 |
+|---------|---------|------|
+| 1 | `FORCE_HYPERLINKS=1` 環境變數 | 啟用 |
+| 2 | 非 TTY | 停用 |
+| 3 | `DOMTERM` 環境變數已設定 | 啟用 |
+| 4 | `TERM_PROGRAM` = iTerm.app | 啟用 |
+| 5 | `TERM_PROGRAM` = WezTerm | 啟用 |
+| 6 | `TERM_PROGRAM` = vscode | 啟用 |
+| 7 | `TERM_PROGRAM` = Tabby | 啟用 |
+| 8 | `TERM_PROGRAM` = Hyper | 啟用 |
+| 9 | `TERM_PROGRAM` = mintty | 啟用 |
+| 10 | `TERM_PROGRAM` = WarpTerminal | 啟用 |
+| 11 | `TERM` = xterm-kitty | 啟用 |
+| 12 | `TERM` = xterm-ghostty | 啟用 |
+| 13 | `VTE_VERSION` >= 5000 | 啟用 |
+| 14 | `WT_SESSION` 環境變數已設定（Windows Terminal） | 啟用 |
+| 15 | 以上皆非 | 停用（安全預設值） |
+
+<Aside type="note">
+  VTE_VERSION >= 5000 涵蓋 GNOME Terminal（3.68+）、xfce4-terminal 和其他基於 VTE 的終端。
+</Aside>
+
+## 支援的終端
+
+| 終端 | 平台 | 偵測方式 |
+|------|------|---------|
+| iTerm2 | macOS | `TERM_PROGRAM` |
+| WezTerm | 跨平台 | `TERM_PROGRAM` |
+| Kitty | 跨平台 | `TERM`（xterm-kitty） |
+| Ghostty | 跨平台 | `TERM`（xterm-ghostty） |
+| VS Code Terminal | 跨平台 | `TERM_PROGRAM` |
+| Windows Terminal | Windows | `WT_SESSION` |
+| GNOME Terminal | Linux | `VTE_VERSION` |
+| Tabby | 跨平台 | `TERM_PROGRAM` |
+| Hyper | 跨平台 | `TERM_PROGRAM` |
+| mintty (Git Bash) | Windows | `TERM_PROGRAM` |
+| WarpTerminal | macOS | `TERM_PROGRAM` |
+| DomTerm | 跨平台 | `DOMTERM` |
+
+## PTY 代理模式
+
+在 Unix 系統上啟用超連結時，Claudex 會在 PTY（偽終端）代理下啟動 Claude Code 程序。這讓 Claudex 可以攔截並增強終端輸出中的超連結，同時保留完整的終端體驗（色彩、游標移動等）。
+
+PTY 代理對使用者透明。它只在互動式工作階段中啟用（使用 `--print` 的非互動模式會跳過 PTY）。
+
+<Aside type="tip">
+  若你遇到終端渲染問題，可以在設定中設定 `hyperlinks = false` 或省略 `--hyperlinks` 旗標來停用超連結。
+</Aside>
+
+## 強制啟用/停用
+
+對於不在自動偵測清單中的終端，你可以強制啟用超連結：
+
+```bash
+# 透過環境變數
+FORCE_HYPERLINKS=1 claudex run grok
+
+# 透過設定
+hyperlinks = true
+
+# 透過 CLI 旗標
+claudex run grok --hyperlinks
+```
+
+強制停用（例如管道輸出時）：
+
+```toml
+hyperlinks = false
+```

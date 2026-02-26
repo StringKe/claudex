@@ -5,7 +5,7 @@ description: Пошаговые инструкции по настройке к�
 
 import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
-Это руководство содержит подробные инструкции по настройке всех провайдеров, поддерживаемых Claudex, включая провайдеров с API-ключами, OAuth-подписки и локальные модели.
+Это руководство содержит подробные инструкции по настройке всех провайдеров, поддерживаемых Claudex, включая провайдеров с API-ключами, OAuth-подписки, облачные платформы и локальные модели.
 
 ## Провайдеры с API-ключами
 
@@ -130,9 +130,9 @@ claudex profile test deepseek
 [[profiles]]
 name = "kimi"
 provider_type = "OpenAICompatible"
-base_url = "https://api.moonshot.cn/v1"
+base_url = "https://api.moonshot.ai/v1"
 api_key = "sk-..."
-default_model = "moonshot-v1-128k"
+default_model = "kimi-k2-0905-preview"
 ```
 
 ```bash
@@ -148,13 +148,183 @@ claudex profile test kimi
 [[profiles]]
 name = "glm"
 provider_type = "OpenAICompatible"
-base_url = "https://open.bigmodel.cn/api/paas/v4"
+base_url = "https://api.z.ai/api/paas/v4"
 api_key = "..."
-default_model = "glm-4-plus"
+default_model = "glm-4.6"
 ```
 
 ```bash
 claudex profile test glm
+```
+
+### Groq
+
+1. Зарегистрируйтесь на [console.groq.com](https://console.groq.com/)
+2. Создайте API-ключ в **Settings > API Keys**
+
+```toml
+[[profiles]]
+name = "groq"
+provider_type = "OpenAICompatible"
+base_url = "https://api.groq.com/openai/v1"
+api_key = "gsk_..."
+default_model = "llama-3.3-70b-versatile"
+```
+
+```bash
+claudex profile test groq
+```
+
+<Aside type="tip">
+  Groq обеспечивает крайне быстрый инференс для моделей с открытым кодом. Популярные модели: `llama-3.3-70b-versatile`, `mixtral-8x7b-32768` и `gemma2-9b-it`.
+</Aside>
+
+### Mistral AI
+
+1. Зарегистрируйтесь на [console.mistral.ai](https://console.mistral.ai/)
+2. Создайте API-ключ в консоли
+
+```toml
+[[profiles]]
+name = "mistral"
+provider_type = "OpenAICompatible"
+base_url = "https://api.mistral.ai/v1"
+api_key = "..."
+default_model = "mistral-large-latest"
+```
+
+```bash
+claudex profile test mistral
+```
+
+### Together AI
+
+1. Зарегистрируйтесь на [api.together.ai](https://api.together.ai/)
+2. Создайте API-ключ в панели управления
+
+```toml
+[[profiles]]
+name = "together"
+provider_type = "OpenAICompatible"
+base_url = "https://api.together.xyz/v1"
+api_key = "..."
+default_model = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+```
+
+```bash
+claudex profile test together
+```
+
+### Perplexity
+
+1. Зарегистрируйтесь на [perplexity.ai](https://www.perplexity.ai/)
+2. Создайте API-ключ на [perplexity.ai/settings/api](https://www.perplexity.ai/settings/api)
+
+```toml
+[[profiles]]
+name = "perplexity"
+provider_type = "OpenAICompatible"
+base_url = "https://api.perplexity.ai"
+api_key = "pplx-..."
+default_model = "sonar-pro"
+```
+
+```bash
+claudex profile test perplexity
+```
+
+<Aside type="note">
+  Модели Perplexity имеют встроенные возможности веб-поиска. Полезно для исследовательских задач.
+</Aside>
+
+### Cerebras
+
+1. Зарегистрируйтесь на [cloud.cerebras.ai](https://cloud.cerebras.ai/)
+2. Создайте API-ключ в панели управления
+
+```toml
+[[profiles]]
+name = "cerebras"
+provider_type = "OpenAICompatible"
+base_url = "https://api.cerebras.ai/v1"
+api_key = "..."
+default_model = "llama-3.3-70b"
+```
+
+```bash
+claudex profile test cerebras
+```
+
+## Облачные платформы
+
+### Azure OpenAI
+
+1. Создайте ресурс Azure OpenAI в [Azure Portal](https://portal.azure.com/)
+2. Разверните модель и запишите имя ресурса и имя развёртывания
+3. Получите API-ключ в разделе **Keys and Endpoint**
+
+```toml
+[[profiles]]
+name = "azure-openai"
+provider_type = "OpenAICompatible"
+base_url = "https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT"
+api_key = "YOUR_AZURE_KEY"
+default_model = "gpt-4o"
+
+[profiles.query_params]
+api-version = "2024-12-01-preview"
+```
+
+```bash
+claudex profile test azure-openai
+```
+
+<Aside type="note">
+  Azure OpenAI автоматически определяется по `base_url`, содержащему `openai.azure.com`. Аутентификация использует заголовок `api-key` вместо `Authorization: Bearer`. Query-параметр `api-version` обязателен.
+</Aside>
+
+### Google Vertex AI
+
+1. Включите API Vertex AI в вашем GCP-проекте
+2. Сгенерируйте токен доступа с помощью `gcloud auth print-access-token`
+
+```toml
+[[profiles]]
+name = "vertex-ai"
+provider_type = "DirectAnthropic"
+base_url = "https://us-east5-aiplatform.googleapis.com/v1/projects/YOUR_PROJECT/locations/us-east5/publishers/anthropic/models"
+api_key = "YOUR_GCLOUD_TOKEN"
+default_model = "claude-sonnet-4@20250514"
+```
+
+```bash
+claudex profile test vertex-ai
+```
+
+<Aside type="caution">
+  Вывод `gcloud auth print-access-token` истекает примерно через 1 час. Для промышленного использования рассмотрите сервисный аккаунт с автоматическим обновлением токена.
+</Aside>
+
+### AWS Bedrock (через LiteLLM)
+
+AWS Bedrock поддерживается через прокси LiteLLM:
+
+1. Установите LiteLLM: `pip install litellm`
+2. Запустите прокси:
+
+```bash
+litellm --model bedrock/anthropic.claude-sonnet-4-20250514-v2:0
+```
+
+3. Настройте Claudex:
+
+```toml
+[[profiles]]
+name = "bedrock"
+provider_type = "OpenAICompatible"
+base_url = "http://localhost:4000/v1"
+api_key = "sk-litellm"
+default_model = "bedrock/anthropic.claude-sonnet-4-20250514-v2:0"
 ```
 
 ## OAuth-подписки
@@ -169,9 +339,9 @@ OAuth-аутентификация позволяет использовать �
 
 ```toml
 [[profiles]]
-name = "claude-sub"
+name = "claude-max"
 provider_type = "DirectAnthropic"
-base_url = "https://api.anthropic.com"
+base_url = "https://api.claude.ai"
 default_model = "claude-sonnet-4-20250514"
 auth_type = "oauth"
 oauth_provider = "claude"
@@ -183,10 +353,8 @@ opus = "claude-opus-4-20250514"
 ```
 
 <Aside type="note">
-  OAuth-профили Claude используют специальный режим аутентификации через шлюз. Claudex устанавливает `ANTHROPIC_AUTH_TOKEN` вместо `ANTHROPIC_API_KEY`, чтобы не конфликтовать с собственным механизмом входа Claude Code по подписке. Прокси пропускается для профилей с подпиской Claude.
+  OAuth-профили Claude используют специальный режим gateway auth. Claudex пропускает прокси и позволяет Claude Code использовать собственный OAuth напрямую. Отдельный шаг `claudex auth login` не требуется.
 </Aside>
-
-Отдельный шаг `claudex auth login` не требуется. Claudex читает существующую сессию из `~/.claude`.
 
 ### ChatGPT Plus / Codex CLI
 
@@ -209,14 +377,14 @@ codex auth
 name = "codex-sub"
 provider_type = "OpenAIResponses"
 base_url = "https://chatgpt.com/backend-api/codex"
-default_model = "gpt-4o"
+default_model = "gpt-5.3-codex"
 auth_type = "oauth"
 oauth_provider = "openai"
 
 [profiles.models]
-haiku = "gpt-4o-mini"
-sonnet = "gpt-4o"
-opus = "o1-pro"
+haiku = "codex-mini-latest"
+sonnet = "gpt-5.3-codex"
+opus = "gpt-5.3-codex"
 ```
 
 ```bash
@@ -231,16 +399,16 @@ claudex run codex-sub
 ```
 
 <Aside type="tip">
-  OAuth-провайдер `openai` использует `OpenAIResponses` в качестве типа провайдера. Это взаимодействие осуществляется через OpenAI Responses API (конечная точка `/responses`), а не через Chat Completions API (`/chat/completions`).
+  Поддерживаемые модели на Codex endpoint: `gpt-5.3-codex`, `gpt-5.1-codex`, `codex-mini-latest`. Модель `gpt-4o` НЕ поддерживается на endpoint `chatgpt.com` Codex. `strip_params = "auto"` автоматически обнаруживает этот endpoint и удаляет `temperature`/`top_p`/`top_k`.
 </Aside>
 
 ### Google Gemini
 
-Используйте учётную запись Google через поток OAuth Device Code.
+Используйте аккаунт Google через учётные данные Gemini CLI.
 
 ```toml
 [[profiles]]
-name = "gemini"
+name = "gemini-sub"
 provider_type = "OpenAICompatible"
 base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
 default_model = "gemini-2.5-pro"
@@ -254,8 +422,8 @@ opus = "gemini-2.5-pro"
 ```
 
 ```bash
-# Запустить поток device code (открывает браузер для входа через Google)
-claudex auth login google --profile gemini
+# Логин считывает из учётных данных Gemini CLI
+claudex auth login google --profile gemini-sub
 
 # Проверить
 claudex auth status
@@ -263,20 +431,20 @@ claudex auth status
 
 ### Qwen / Tongyi Qianwen
 
-Используйте учётную запись Qwen через поток OAuth Device Code.
+Используйте аккаунт Qwen через OAuth Device Code flow.
 
 ```toml
 [[profiles]]
 name = "qwen-oauth"
 provider_type = "OpenAICompatible"
-base_url = "https://chat.qwenlm.ai/api/chat/v1"
-default_model = "qwen-max"
+base_url = "https://chat.qwen.ai/api"
+default_model = "qwen3-235b-a22b"
 auth_type = "oauth"
 oauth_provider = "qwen"
 ```
 
 ```bash
-# Запустить поток device code
+# Запустить device code flow
 claudex auth login qwen --profile qwen-oauth
 
 # Проверить
@@ -285,7 +453,7 @@ claudex auth status
 
 ### Kimi / Moonshot (OAuth)
 
-Используйте учётную запись Kimi через поток OAuth Device Code.
+Используйте аккаунт Kimi через учётные данные Kimi CLI.
 
 ```toml
 [[profiles]]
@@ -298,7 +466,7 @@ oauth_provider = "kimi"
 ```
 
 ```bash
-# Запустить поток device code
+# Логин считывает из учётных данных Kimi CLI
 claudex auth login kimi --profile kimi-oauth
 
 # Проверить
@@ -307,11 +475,11 @@ claudex auth status
 
 ### GitHub Copilot
 
-Используйте подписку GitHub Copilot через поток OAuth Device Code.
+Используйте подписку GitHub Copilot через OAuth Device Code flow.
 
 ```toml
 [[profiles]]
-name = "github-copilot"
+name = "copilot"
 provider_type = "OpenAICompatible"
 base_url = "https://api.githubcopilot.com"
 default_model = "gpt-4o"
@@ -320,12 +488,41 @@ oauth_provider = "github"
 ```
 
 ```bash
-# Запустить поток device code (открывает браузер для входа через GitHub)
-claudex auth login github --profile github-copilot
+# Запустить device code flow (открывает браузер для входа через GitHub)
+claudex auth login github --profile copilot
 
 # Проверить
 claudex auth status
 ```
+
+### GitLab Duo
+
+Используйте подписку GitLab Duo через Personal Access Token.
+
+```toml
+[[profiles]]
+name = "gitlab-duo"
+provider_type = "OpenAICompatible"
+base_url = "https://gitlab.com/api/v4/ai/llm/proxy"
+default_model = "claude-sonnet-4-20250514"
+auth_type = "oauth"
+oauth_provider = "gitlab"
+```
+
+```bash
+# Установите токен GitLab как переменную окружения
+export GITLAB_TOKEN=glpat-...
+
+# Логин
+claudex auth login gitlab --profile gitlab-duo
+
+# Проверить
+claudex auth status
+```
+
+<Aside type="note">
+  GitLab Duo требует переменную окружения `GITLAB_TOKEN` с Personal Access Token, имеющим scope `ai_features`. Для self-managed инстансов GitLab обновите `base_url` соответственно.
+</Aside>
 
 ## Локальные модели
 
@@ -379,7 +576,7 @@ default_model = "meta-llama/Llama-3.3-70B-Instruct"
 
 ### LM Studio
 
-1. Загрузите LM Studio с [lmstudio.ai](https://lmstudio.ai/)
+1. Скачайте LM Studio с [lmstudio.ai](https://lmstudio.ai/)
 2. Загрузите модель и запустите локальный сервер (порт по умолчанию: 1234)
 
 ```toml
@@ -387,8 +584,8 @@ default_model = "meta-llama/Llama-3.3-70B-Instruct"
 name = "lm-studio"
 provider_type = "OpenAICompatible"
 base_url = "http://localhost:1234/v1"
-api_key = ""
-default_model = "loaded-model-name"
+api_key = "lm-studio"
+default_model = "local-model"
 ```
 
 ## Проверка настройки

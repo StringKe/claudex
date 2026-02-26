@@ -1,0 +1,111 @@
+---
+title: Hipervinculos en terminal
+description: Hipervinculos clicables OSC 8 en la salida del terminal con deteccion automatica
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Claudex soporta hipervinculos OSC 8 en terminal, haciendo que las rutas de archivo, URLs y referencias en la salida de Claude Code sean clicables en terminales compatibles.
+
+## Descripcion general
+
+OSC 8 es un estandar de secuencia de escape de terminal que incrusta hipervinculos directamente en la salida del terminal. Cuando esta soportado, al hacer clic en un enlace se abre en el manejador predeterminado (navegador para URLs, editor para rutas de archivo).
+
+El formato de la secuencia de escape:
+
+```
+\x1b]8;;URL\x07DISPLAY_TEXT\x1b]8;;\x07
+```
+
+## Configuracion
+
+```toml
+# En config.toml (ajuste global)
+hyperlinks = "auto"    # "auto" | true | false
+```
+
+| Valor | Comportamiento |
+|-------|----------------|
+| `"auto"` | Detectar soporte del terminal automaticamente (por defecto) |
+| `true` | Forzar activacion de hipervinculos |
+| `false` | Forzar desactivacion de hipervinculos |
+
+Tambien puedes habilitar hipervinculos por sesion mediante el flag de CLI:
+
+```bash
+claudex run grok --hyperlinks
+```
+
+## Deteccion de terminal
+
+Cuando `hyperlinks = "auto"`, Claudex comprueba lo siguiente en orden:
+
+| Prioridad | Comprobacion | Resultado |
+|-----------|-------------|-----------|
+| 1 | Variable de entorno `FORCE_HYPERLINKS=1` | Habilitar |
+| 2 | No es un TTY | Deshabilitar |
+| 3 | Variable de entorno `DOMTERM` establecida | Habilitar |
+| 4 | `TERM_PROGRAM` = iTerm.app | Habilitar |
+| 5 | `TERM_PROGRAM` = WezTerm | Habilitar |
+| 6 | `TERM_PROGRAM` = vscode | Habilitar |
+| 7 | `TERM_PROGRAM` = Tabby | Habilitar |
+| 8 | `TERM_PROGRAM` = Hyper | Habilitar |
+| 9 | `TERM_PROGRAM` = mintty | Habilitar |
+| 10 | `TERM_PROGRAM` = WarpTerminal | Habilitar |
+| 11 | `TERM` = xterm-kitty | Habilitar |
+| 12 | `TERM` = xterm-ghostty | Habilitar |
+| 13 | `VTE_VERSION` >= 5000 | Habilitar |
+| 14 | Variable de entorno `WT_SESSION` establecida (Windows Terminal) | Habilitar |
+| 15 | Ninguna de las anteriores | Deshabilitar (por defecto seguro) |
+
+<Aside type="note">
+  VTE_VERSION >= 5000 cubre GNOME Terminal (3.68+), xfce4-terminal y otros terminales basados en VTE.
+</Aside>
+
+## Terminales soportados
+
+| Terminal | Plataforma | Metodo de deteccion |
+|----------|-----------|-------------------|
+| iTerm2 | macOS | `TERM_PROGRAM` |
+| WezTerm | Multiplataforma | `TERM_PROGRAM` |
+| Kitty | Multiplataforma | `TERM` (xterm-kitty) |
+| Ghostty | Multiplataforma | `TERM` (xterm-ghostty) |
+| VS Code Terminal | Multiplataforma | `TERM_PROGRAM` |
+| Windows Terminal | Windows | `WT_SESSION` |
+| GNOME Terminal | Linux | `VTE_VERSION` |
+| Tabby | Multiplataforma | `TERM_PROGRAM` |
+| Hyper | Multiplataforma | `TERM_PROGRAM` |
+| mintty (Git Bash) | Windows | `TERM_PROGRAM` |
+| WarpTerminal | macOS | `TERM_PROGRAM` |
+| DomTerm | Multiplataforma | `DOMTERM` |
+
+## Modo proxy PTY
+
+Cuando los hipervinculos estan habilitados en sistemas Unix, Claudex lanza el proceso de Claude Code bajo un proxy PTY (pseudo-terminal). Esto permite a Claudex interceptar y mejorar la salida del terminal con hipervinculos preservando la experiencia completa del terminal (colores, movimiento del cursor, etc.).
+
+El proxy PTY es transparente para el usuario. Solo se activa para sesiones interactivas (el modo no interactivo con `--print` omite el PTY).
+
+<Aside type="tip">
+  Si experimentas problemas con el renderizado del terminal, puedes deshabilitar los hipervinculos con `hyperlinks = false` en tu configuracion o omitiendo el flag `--hyperlinks`.
+</Aside>
+
+## Forzar activacion/desactivacion
+
+Para terminales que no estan en la lista de deteccion automatica, puedes forzar los hipervinculos:
+
+```bash
+# Via variable de entorno
+FORCE_HYPERLINKS=1 claudex run grok
+
+# Via configuracion
+hyperlinks = true
+
+# Via flag de CLI
+claudex run grok --hyperlinks
+```
+
+Para forzar la desactivacion (por ejemplo, al redirigir la salida):
+
+```toml
+hyperlinks = false
+```

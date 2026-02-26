@@ -1,0 +1,239 @@
+---
+title: Compatibilite des fournisseurs
+description: Table de compatibilite complete pour tous les fournisseurs IA supportes
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## Table de compatibilite des fournisseurs
+
+| Fournisseur | Type | Auth | Streaming | Outils | Slots de modele | Notes |
+|-------------|------|------|-----------|--------|-----------------|-------|
+| Anthropic | DirectAnthropic | Cle API | Oui | Oui | Oui | Natif, pas de traduction |
+| MiniMax | DirectAnthropic | Cle API | Oui | Oui | Oui | Proxy compatible Anthropic |
+| Google Vertex AI | DirectAnthropic | Access Token | Oui | Oui | Oui | `gcloud auth print-access-token` |
+| OpenRouter | OpenAICompatible | Cle API | Oui | Oui | Oui | 200+ modeles via une seule API |
+| Grok (xAI) | OpenAICompatible | Cle API | Oui | Oui | Oui | |
+| OpenAI | OpenAICompatible | Cle API | Oui | Oui | Oui | |
+| DeepSeek | OpenAICompatible | Cle API | Oui | Oui | Oui | |
+| Kimi / Moonshot | OpenAICompatible | Cle API / OAuth | Oui | Oui | Oui | |
+| GLM (Zhipu) | OpenAICompatible | Cle API | Oui | Oui | Oui | |
+| Groq | OpenAICompatible | Cle API | Oui | Oui | Oui | Inference ultra-rapide |
+| Mistral AI | OpenAICompatible | Cle API | Oui | Oui | Oui | |
+| Together AI | OpenAICompatible | Cle API | Oui | Oui | Oui | |
+| Perplexity | OpenAICompatible | Cle API | Oui | Limite | Oui | Recherche web integree |
+| Cerebras | OpenAICompatible | Cle API | Oui | Oui | Oui | Inference rapide |
+| Azure OpenAI | OpenAICompatible | Cle API | Oui | Oui | Oui | En-tete `api-key` + `query_params` |
+| GitHub Copilot | OpenAICompatible | OAuth | Oui | Oui | Oui | Flux Device Code |
+| GitLab Duo | OpenAICompatible | OAuth (PAT) | Oui | Oui | Oui | Env `GITLAB_TOKEN` |
+| ChatGPT/Codex | OpenAIResponses | OAuth | Oui | Oui | Oui | API Responses |
+| Claude (Abo) | DirectAnthropic | OAuth | Oui | Oui | Oui | Contourne le proxy |
+| Google Gemini (Abo) | OpenAICompatible | OAuth | Oui | Oui | Oui | Credentials Gemini CLI |
+| Qwen (Abo) | OpenAICompatible | OAuth | Oui | Oui | Oui | Flux Device Code |
+| Ollama | OpenAICompatible | Aucune | Oui | Selon le modele | Oui | Local, pas de cle API |
+| vLLM | OpenAICompatible | Aucune | Oui | Selon le modele | Oui | Local |
+| LM Studio | OpenAICompatible | Aucune | Oui | Selon le modele | Oui | Local |
+| Bedrock (LiteLLM) | OpenAICompatible | Cle API | Oui | Oui | Oui | Via proxy LiteLLM |
+
+## Details des fournisseurs
+
+### Anthropic
+
+- **URL de base** : `https://api.anthropic.com`
+- **Type** : DirectAnthropic (pas de traduction necessaire)
+- **Auth** : Cle API (`sk-ant-*`)
+- **Modeles** : claude-opus-4, claude-sonnet-4, claude-haiku-4
+- **Obtenir une cle API** : [console.anthropic.com](https://console.anthropic.com/)
+
+### MiniMax
+
+- **URL de base** : `https://api.minimax.io/anthropic`
+- **Type** : DirectAnthropic (pas de traduction necessaire)
+- **Auth** : Cle API
+- **Modeles** : Utilise les noms de modeles Anthropic (proxy)
+- **Obtenir une cle API** : [platform.minimaxi.com](https://platform.minimaxi.com/)
+
+### Google Vertex AI
+
+- **URL de base** : `https://REGION-aiplatform.googleapis.com/v1/projects/PROJECT/locations/REGION/publishers/anthropic/models`
+- **Type** : DirectAnthropic
+- **Auth** : Token d'acces GCP (`gcloud auth print-access-token`)
+- **Modeles** : claude-sonnet-4@20250514, claude-opus-4@20250514
+- **Configuration** : [Console Vertex AI](https://console.cloud.google.com/vertex-ai)
+
+### OpenRouter
+
+- **URL de base** : `https://openrouter.ai/api/v1`
+- **Type** : OpenAICompatible
+- **Auth** : Cle API (`sk-or-*`)
+- **Modeles** : 200+ modeles de multiples fournisseurs
+- **Obtenir une cle API** : [openrouter.ai/keys](https://openrouter.ai/keys)
+
+### Grok (xAI)
+
+- **URL de base** : `https://api.x.ai/v1`
+- **Type** : OpenAICompatible
+- **Auth** : Cle API (`xai-*`)
+- **Modeles** : grok-3-beta, grok-3-mini-beta
+- **Obtenir une cle API** : [console.x.ai](https://console.x.ai/)
+
+### OpenAI
+
+- **URL de base** : `https://api.openai.com/v1`
+- **Type** : OpenAICompatible
+- **Auth** : Cle API (`sk-*`)
+- **Modeles** : gpt-4o, gpt-4o-mini, o1, o1-mini
+- **Obtenir une cle API** : [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+
+### DeepSeek
+
+- **URL de base** : `https://api.deepseek.com`
+- **Type** : OpenAICompatible
+- **Auth** : Cle API
+- **Modeles** : deepseek-chat, deepseek-reasoner
+- **Obtenir une cle API** : [platform.deepseek.com](https://platform.deepseek.com/)
+
+### Kimi / Moonshot
+
+- **URL de base** : `https://api.moonshot.ai/v1`
+- **Type** : OpenAICompatible
+- **Auth** : Cle API / OAuth
+- **Modeles** : kimi-k2-0905-preview, moonshot-v1-128k
+- **Obtenir une cle API** : [platform.moonshot.cn](https://platform.moonshot.cn/)
+
+### GLM (Zhipu)
+
+- **URL de base** : `https://api.z.ai/api/paas/v4`
+- **Type** : OpenAICompatible
+- **Auth** : Cle API
+- **Modeles** : glm-4.6, glm-4-plus
+- **Obtenir une cle API** : [open.bigmodel.cn](https://open.bigmodel.cn/)
+
+### Groq
+
+- **URL de base** : `https://api.groq.com/openai/v1`
+- **Type** : OpenAICompatible
+- **Auth** : Cle API (`gsk_*`)
+- **Modeles** : llama-3.3-70b-versatile, mixtral-8x7b-32768, gemma2-9b-it
+- **Obtenir une cle API** : [console.groq.com](https://console.groq.com/)
+- **Note** : Inference extremement rapide pour les modeles open source
+
+### Mistral AI
+
+- **URL de base** : `https://api.mistral.ai/v1`
+- **Type** : OpenAICompatible
+- **Auth** : Cle API
+- **Modeles** : mistral-large-latest, mistral-small-latest
+- **Obtenir une cle API** : [console.mistral.ai](https://console.mistral.ai/)
+
+### Together AI
+
+- **URL de base** : `https://api.together.xyz/v1`
+- **Type** : OpenAICompatible
+- **Auth** : Cle API
+- **Modeles** : meta-llama/Llama-3.3-70B-Instruct-Turbo, et de nombreux modeles open source
+- **Obtenir une cle API** : [api.together.ai](https://api.together.ai/)
+
+### Perplexity
+
+- **URL de base** : `https://api.perplexity.ai`
+- **Type** : OpenAICompatible
+- **Auth** : Cle API (`pplx-*`)
+- **Modeles** : sonar-pro, sonar
+- **Obtenir une cle API** : [perplexity.ai/settings/api](https://www.perplexity.ai/settings/api)
+- **Note** : Les modeles incluent des capacites de recherche web integrees
+
+### Cerebras
+
+- **URL de base** : `https://api.cerebras.ai/v1`
+- **Type** : OpenAICompatible
+- **Auth** : Cle API
+- **Modeles** : llama-3.3-70b
+- **Obtenir une cle API** : [cloud.cerebras.ai](https://cloud.cerebras.ai/)
+- **Note** : Plateforme d'inference rapide
+
+### Azure OpenAI
+
+- **URL de base** : `https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT`
+- **Type** : OpenAICompatible
+- **Auth** : Cle API (via en-tete `api-key`, auto-detecte)
+- **Modeles** : Selon le deploiement (gpt-4o, gpt-4, etc.)
+- **Configuration** : [Portail Azure](https://portal.azure.com/)
+- **Note** : Necessite `api-version` dans `query_params`
+
+### GitHub Copilot
+
+- **URL de base** : `https://api.githubcopilot.com`
+- **Type** : OpenAICompatible
+- **Auth** : OAuth (flux Device Code)
+- **Modeles** : gpt-4o (defaut)
+- **Note** : Necessite un abonnement GitHub Copilot actif
+
+### GitLab Duo
+
+- **URL de base** : `https://gitlab.com/api/v4/ai/llm/proxy` (ou auto-heberge)
+- **Type** : OpenAICompatible
+- **Auth** : OAuth (Personal Access Token via `GITLAB_TOKEN`)
+- **Modeles** : claude-sonnet-4-20250514
+- **Note** : Supporte `--enterprise-url` pour les instances auto-hebergees
+
+### ChatGPT / Codex (Abonnement)
+
+- **URL de base** : `https://chatgpt.com/backend-api/codex`
+- **Type** : OpenAIResponses
+- **Auth** : OAuth (PKCE navigateur / Device Code)
+- **Modeles** : gpt-5.3-codex, gpt-5.1-codex, codex-mini-latest
+- **Note** : Utilise l'API Responses, pas Chat Completions. `strip_params = "auto"` supprime les parametres non supportes.
+
+### Claude (Abonnement)
+
+- **URL de base** : `https://api.claude.ai`
+- **Type** : DirectAnthropic
+- **Auth** : OAuth (lit `~/.claude/.credentials.json`)
+- **Modeles** : claude-sonnet-4, claude-opus-4, claude-haiku-4
+- **Note** : Le proxy est contourne. Claude Code utilise son propre OAuth directement.
+
+### Google Gemini (Abonnement)
+
+- **URL de base** : `https://generativelanguage.googleapis.com/v1beta/openai`
+- **Type** : OpenAICompatible
+- **Auth** : OAuth (credentials Gemini CLI)
+- **Modeles** : gemini-2.5-pro, gemini-2.0-flash
+
+### Qwen (Abonnement)
+
+- **URL de base** : `https://chat.qwen.ai/api`
+- **Type** : OpenAICompatible
+- **Auth** : OAuth (flux Device Code)
+- **Modeles** : qwen3-235b-a22b, qwen-max
+
+### Ollama
+
+- **URL de base** : `http://localhost:11434/v1`
+- **Type** : OpenAICompatible
+- **Auth** : Aucune requise
+- **Modeles** : Tout modele telecharge (qwen2.5, llama3.3, etc.)
+- **Configuration** : [ollama.com](https://ollama.com/)
+
+### vLLM
+
+- **URL de base** : `http://localhost:8000/v1`
+- **Type** : OpenAICompatible
+- **Auth** : Aucune requise
+- **Modeles** : Selon le modele servi
+
+### LM Studio
+
+- **URL de base** : `http://localhost:1234/v1`
+- **Type** : OpenAICompatible
+- **Auth** : Aucune / `"lm-studio"`
+- **Modeles** : Selon le modele charge
+- **Configuration** : [lmstudio.ai](https://lmstudio.ai/)
+
+### AWS Bedrock (via LiteLLM)
+
+- **URL de base** : `http://localhost:4000/v1` (proxy LiteLLM)
+- **Type** : OpenAICompatible
+- **Auth** : Cle API (cle LiteLLM)
+- **Modeles** : bedrock/anthropic.claude-sonnet-4-20250514-v2:0
+- **Configuration** : [docs.litellm.ai/docs/providers/bedrock](https://docs.litellm.ai/docs/providers/bedrock)

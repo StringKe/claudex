@@ -1,58 +1,80 @@
 ---
-title: Proxy tłumaczące
-description: Automatyczne tłumaczenie protokołu Anthropic na OpenAI
+title: Proxy tlumaczace
+description: Automatyczne tlumaczenie protokolu Anthropic na OpenAI dla ponad 20 dostawcow
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Proxy tłumaczące jest rdzeniem Claudex. Działa między Claude Code a dostawcami AI, transparentnie konwertując między Anthropic Messages API a OpenAI Chat Completions API.
+Proxy tlumaczace jest rdzeniem Claudex. Dziala miedzy Claude Code a dostawcami AI, transparentnie konwertujac miedzy Anthropic Messages API a OpenAI Chat Completions API (lub Responses API).
 
-## Jak to działa
+## Jak to dziala
 
 ```
-Claude Code → żądanie Anthropic Messages API
+Claude Code → zadanie Anthropic Messages API
     │
     └── Proxy Claudex (127.0.0.1:13456)
         │
-        ├── Dostawca DirectAnthropic → przekazuje z nagłówkami
+        ├── Dostawca DirectAnthropic → przekazuje z naglowkami
         │
         ├── Dostawca OpenAICompatible
-        │   ├── Tłumaczenie żądania: Anthropic → OpenAI Chat Completions
+        │   ├── Tlumaczenie zadania: Anthropic → OpenAI Chat Completions
+        │   ├── Zastosowanie query_params, strip_params, custom_headers
         │   ├── Przekazanie do dostawcy
-        │   └── Tłumaczenie odpowiedzi: OpenAI → Anthropic
+        │   └── Tlumaczenie odpowiedzi: OpenAI → Anthropic
         │
         └── Dostawca OpenAIResponses
-            ├── Tłumaczenie żądania: Anthropic → OpenAI Responses API
+            ├── Tlumaczenie zadania: Anthropic → OpenAI Responses API
             ├── Przekazanie do dostawcy
-            └── Tłumaczenie odpowiedzi: Responses → Anthropic
+            └── Tlumaczenie odpowiedzi: Responses → Anthropic
 ```
 
-## Co jest tłumaczone
+## Adaptery dostawcow
 
-### Tłumaczenie żądań (Anthropic → OpenAI)
+Claudex uzywa cechy `ProviderAdapter` do obslugi roznic miedzy API dostawcow. Zaimplementowano trzy adaptery:
+
+| Adapter | Tlumaczenie | Uzywany przez |
+|---------|-------------|---------------|
+| **DirectAnthropic** | Brak (passthrough) | Anthropic, MiniMax, Vertex AI |
+| **ChatCompletions** | Pelne tlumaczenie Anthropic ↔ OpenAI | Grok, OpenAI, DeepSeek, Kimi, GLM, OpenRouter, Groq, Mistral, Together AI, Perplexity, Cerebras, Azure OpenAI, GitHub Copilot, GitLab Duo, Ollama, vLLM, LM Studio |
+| **Responses** | Anthropic ↔ OpenAI Responses API | Subskrypcje ChatGPT/Codex |
+
+## Co jest tlumaczone
+
+### Tlumaczenie zadan (Anthropic → OpenAI)
 
 | Anthropic | OpenAI |
 |-----------|--------|
-| Pole `system` | Wiadomość systemowa w tablicy `messages` |
-| Bloki `messages[].content` (text, image, tool_use) | `messages[].content` + `tool_calls` |
-| Tablica `tools` (JSON Schema) | Tablica `tools` (format funkcji) |
-| `tool_choice` | `tool_choice` |
-| `max_tokens` | `max_tokens` |
-| `temperature`, `top_p` | Bezpośrednie mapowanie |
+| Pole `system` | Wiadomosc systemowa w tablicy `messages` |
+| Bloki `messages[].content` (text, image, tool_use, tool_result) | `messages[].content` + `tool_calls` |
+| Tablica `tools` (JSON Schema z `input_schema`) | Tablica `tools` (format funkcji z `parameters`) |
+| `tool_choice` (`auto`, `any`, `{name}`) | `tool_choice` (`auto`, `required`, `{function: {name}}`) |
+| `max_tokens` | `max_tokens` (ograniczone przez ustawienie `max_tokens` profilu jesli ustawione) |
+| `temperature`, `top_p` | Bezposrednie mapowanie (usuwane jesli `strip_params` pasuje) |
 
-### Tłumaczenie odpowiedzi (OpenAI → Anthropic)
+### Tlumaczenie odpowiedzi (OpenAI → Anthropic)
 
 | OpenAI | Anthropic |
 |--------|-----------|
-| `choices[0].message.content` | Bloki `content` |
-| `choices[0].message.tool_calls` | Bloki zawartości `tool_use` |
+| `choices[0].message.content` | Bloki `content` (typ: text) |
+| `choices[0].message.tool_calls` | Bloki `content` (typ: tool_use) |
 | `finish_reason: stop` | `stop_reason: end_turn` |
 | `finish_reason: tool_calls` | `stop_reason: tool_use` |
 | `usage.prompt_tokens` / `completion_tokens` | `usage.input_tokens` / `output_tokens` |
 
-## Tłumaczenie strumieniowe
+### Kompatybilnosc nazw narzedzi
 
-Claudex w pełni obsługuje strumieniowanie SSE (Server-Sent Events), tłumacząc fragmenty strumienia OpenAI na zdarzenia strumienia Anthropic w czasie rzeczywistym:
+Claude Code moze generowac nazwy narzedzi dluzsze niz 64 znaki (np. `mcp__server-name__very-long-tool-name-that-exceeds-the-limit`). OpenAI i wielu dostawcow narzuca limit 64 znakow.
+
+Claudex automatycznie:
+1. Skraca nazwy przekraczajace 64 znaki w zadaniach wychodzacych
+2. Buduje tablice mapowania skroconych → oryginalnych nazw
+3. Przywraca oryginalne nazwy w odpowiedziach dostawcy
+
+Ten mechanizm jest calkowicie transparentny.
+
+## Tlumaczenie strumieniowe
+
+Claudex w pelni obsluguje strumieniowanie SSE (Server-Sent Events), tlumaczac fragmenty strumienia OpenAI na zdarzenia strumienia Anthropic w czasie rzeczywistym:
 
 | OpenAI SSE | Anthropic SSE |
 |------------|---------------|
@@ -61,35 +83,64 @@ Claudex w pełni obsługuje strumieniowanie SSE (Server-Sent Events), tłumaczą
 | `choices[0].delta.tool_calls` | `content_block_delta` (input_json_delta) |
 | Obecny `finish_reason` | `content_block_stop` + `message_delta` + `message_stop` |
 
-Translator strumieniowy utrzymuje maszynę stanów do prawidłowej obsługi akumulacji wywołań narzędzi i granic bloków zawartości.
+Translator strumieniowy utrzymuje maszyne stanow do prawidlowej obslugi akumulacji wywolan narzedzi i granic blokow zawartosci.
 
-## Obsługiwani dostawcy
+## Obsluga Azure OpenAI
+
+Azure OpenAI uzywa innego schematu uwierzytelniania i URL:
+
+- **Uwierzytelnianie**: naglowek `api-key` zamiast `Authorization: Bearer`
+- **Format URL**: `https://{resource}.openai.azure.com/openai/deployments/{deployment}`
+- **Wersja API**: Wymagana przez `query_params`
+
+Claudex automatycznie wykrywa Azure sprawdzajac, czy `base_url` zawiera `openai.azure.com` i odpowiednio dostosowuje uwierzytelnianie.
+
+## Obslugiwani dostawcy
 
 | Dostawca | Typ | Base URL |
 |----------|-----|----------|
 | Anthropic | DirectAnthropic | `https://api.anthropic.com` |
 | MiniMax | DirectAnthropic | `https://api.minimax.io/anthropic` |
+| Google Vertex AI | DirectAnthropic | `https://REGION-aiplatform.googleapis.com/v1/projects/...` |
 | OpenRouter | OpenAICompatible | `https://openrouter.ai/api/v1` |
 | Grok (xAI) | OpenAICompatible | `https://api.x.ai/v1` |
 | OpenAI | OpenAICompatible | `https://api.openai.com/v1` |
 | DeepSeek | OpenAICompatible | `https://api.deepseek.com` |
-| Kimi/Moonshot | OpenAICompatible | `https://api.moonshot.cn/v1` |
-| GLM (Zhipu) | OpenAICompatible | `https://open.bigmodel.cn/api/paas/v4` |
+| Kimi/Moonshot | OpenAICompatible | `https://api.moonshot.ai/v1` |
+| GLM (Zhipu) | OpenAICompatible | `https://api.z.ai/api/paas/v4` |
+| Groq | OpenAICompatible | `https://api.groq.com/openai/v1` |
+| Mistral AI | OpenAICompatible | `https://api.mistral.ai/v1` |
+| Together AI | OpenAICompatible | `https://api.together.xyz/v1` |
+| Perplexity | OpenAICompatible | `https://api.perplexity.ai` |
+| Cerebras | OpenAICompatible | `https://api.cerebras.ai/v1` |
+| Azure OpenAI | OpenAICompatible | `https://{resource}.openai.azure.com/...` |
+| GitHub Copilot | OpenAICompatible | `https://api.githubcopilot.com` |
+| GitLab Duo | OpenAICompatible | `https://gitlab.com/api/v4/ai/llm/proxy` |
 | Ollama | OpenAICompatible | `http://localhost:11434/v1` |
 | vLLM | OpenAICompatible | `http://localhost:8000/v1` |
+| LM Studio | OpenAICompatible | `http://localhost:1234/v1` |
 | ChatGPT/Codex sub | OpenAIResponses | `https://chatgpt.com/backend-api/codex` |
 
 <Aside type="tip">
-  Dostawcy DirectAnthropic nie wymagają tłumaczenia. Dostawcy OpenAIResponses używają Responses API (endpoint `/responses`) zamiast Chat Completions (`/chat/completions`).
+  Dostawcy DirectAnthropic nie wymagaja tlumaczenia. Dostawcy OpenAIResponses uzywaja Responses API (endpoint `/responses`) zamiast Chat Completions (`/chat/completions`).
 </Aside>
 
-## Zarządzanie proxy
+## Endpoint modeli
+
+Proxy udostepnia endpoint `/v1/models`, ktory listuje wszystkie wlaczone profile. Kazdy wpis zawiera pola niestandardowe:
+
+- `x-claudex-profile`: nazwa profilu
+- `x-claudex-provider`: typ dostawcy (`anthropic`, `openai-compatible`, `openai-responses`)
+
+Claude Code odpytuje ten endpoint w celu odkrycia dostepnych modeli.
+
+## Zarzadzanie proxy
 
 ```bash
 # Uruchom proxy jako demon
 claudex proxy start -d
 
-# Sprawdź status proxy
+# Sprawdz status proxy
 claudex proxy status
 
 # Zatrzymaj demona proxy
@@ -99,4 +150,4 @@ claudex proxy stop
 claudex proxy start -p 8080
 ```
 
-Po uruchomieniu `claudex run <profile>` proxy jest automatycznie uruchamiane w tle, jeśli jeszcze nie działa.
+Po uruchomieniu `claudex run <profile>` proxy jest automatycznie uruchamiane w tle, jesli jeszcze nie dziala.

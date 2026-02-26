@@ -1,0 +1,196 @@
+---
+title: Conjuntos de Configuracao
+description: Instale e gerencie pacotes reutilizaveis de regras, skills e servidores MCP
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Conjuntos de configuracao sao pacotes instalaveis e versionados que agrupam regras CLAUDE.md, skills e configuracoes de servidores MCP. Eles fornecem uma forma portavel de compartilhar e reutilizar configuracoes do Claude Code entre projetos e equipes.
+
+## Visao Geral
+
+Um conjunto de configuracao e um diretorio contendo um `manifest.json` (ou `manifest.yaml`) que declara seus componentes:
+
+```
+my-set/
+├── manifest.json
+├── rules/
+│   └── coding-standards.md
+├── skills/
+│   └── deploy.md
+└── claude.md
+```
+
+## Schema do Manifesto
+
+```json
+{
+  "name": "my-config-set",
+  "version": "1.0.0",
+  "description": "My team's coding standards and tools",
+  "author": "team-name",
+  "components": {
+    "claude_md": {
+      "path": "claude.md",
+      "strategy": "append"
+    },
+    "rules": [
+      {
+        "name": "coding-standards",
+        "path": "rules/coding-standards.md"
+      }
+    ],
+    "skills": [
+      {
+        "name": "deploy",
+        "path": "skills/deploy.md"
+      }
+    ],
+    "mcp_servers": [
+      {
+        "name": "my-server",
+        "server_type": "stdio",
+        "command": "npx",
+        "args": ["-y", "@myorg/mcp-server"],
+        "env": {
+          "API_KEY": "${MY_API_KEY}"
+        }
+      }
+    ]
+  },
+  "env": [
+    {
+      "name": "MY_API_KEY",
+      "description": "API key for the MCP server",
+      "required": true
+    }
+  ]
+}
+```
+
+### Validacao de Nomes
+
+Nomes de conjuntos devem corresponder ao padrao `^[a-z0-9][a-z0-9._-]*$`:
+- Comecar com uma letra minuscula ou digito
+- Conter apenas letras minusculas, digitos, pontos, underscores e hifens
+
+### Componentes
+
+| Componente | Descricao |
+|-----------|-----------|
+| `claude_md` | Conteudo a ser mesclado no CLAUDE.md do projeto |
+| `rules` | Arquivos de regras instalados em `.claude/rules/` |
+| `skills` | Definicoes de skills instaladas em `.claude/skills/` |
+| `mcp_servers` | Configuracoes de servidores MCP adicionadas ao `.claude/settings.json` |
+
+### Tipos de Servidor MCP
+
+| Tipo | Campos Obrigatorios | Descricao |
+|------|---------------------|-----------|
+| `stdio` | `command` | Processo local via stdin/stdout |
+| `http` | `url` | Servidor MCP remoto baseado em HTTP |
+
+```json
+// servidor stdio
+{
+  "name": "local-tools",
+  "server_type": "stdio",
+  "command": "node",
+  "args": ["./server.js"],
+  "env": {"DEBUG": "true"}
+}
+
+// servidor http
+{
+  "name": "remote-api",
+  "server_type": "http",
+  "url": "https://mcp.example.com/api",
+  "headers": {"Authorization": "Bearer ${TOKEN}"}
+}
+```
+
+### Variaveis de Ambiente
+
+O array `env` declara variaveis de ambiente obrigatorias ou opcionais:
+
+```json
+{
+  "env": [
+    {
+      "name": "API_KEY",
+      "description": "API key for the service",
+      "required": true
+    },
+    {
+      "name": "DEBUG",
+      "description": "Enable debug mode",
+      "required": false,
+      "default": "false"
+    }
+  ]
+}
+```
+
+Variaveis referenciadas como `${VAR_NAME}` em configuracoes de servidores MCP sao resolvidas do ambiente no momento da instalacao.
+
+## Comandos CLI
+
+### Instalar um Conjunto
+
+```bash
+claudex sets add ./path/to/set
+```
+
+Valida o manifesto, verifica conflitos com conjuntos existentes e instala todos os componentes.
+
+### Listar Conjuntos Instalados
+
+```bash
+claudex sets list
+```
+
+Exibe todos os conjuntos instalados com versao, descricao e contagem de componentes.
+
+### Exibir Detalhes do Conjunto
+
+```bash
+claudex sets show <NAME>
+```
+
+Mostra informacoes detalhadas sobre um conjunto instalado, incluindo todas as regras, skills e servidores MCP.
+
+### Atualizar um Conjunto
+
+```bash
+claudex sets update <NAME> ./path/to/new-version
+```
+
+Atualiza um conjunto existente para uma nova versao. Remove componentes antigos e instala os novos.
+
+### Remover um Conjunto
+
+```bash
+claudex sets remove <NAME>
+```
+
+Remove um conjunto instalado e todos os seus componentes.
+
+## Deteccao de Conflitos
+
+Ao instalar um conjunto, o Claudex verifica conflitos:
+
+- **Conflitos de nomes de regras**: Dois conjuntos nao podem instalar regras com o mesmo nome de arquivo
+- **Conflitos de nomes de skills**: Dois conjuntos nao podem instalar skills com o mesmo nome
+- **Conflitos de servidores MCP**: Dois conjuntos nao podem definir servidores MCP com o mesmo nome
+
+Se um conflito for detectado, a instalacao e abortada com uma mensagem de erro descritiva indicando qual conjunto existente possui o componente conflitante.
+
+## Arquivo de Lock
+
+Conjuntos instalados sao rastreados em um arquivo de lock que registra:
+
+- Nome e versao do conjunto
+- Caminhos dos componentes instalados
+- Timestamp da instalacao
+
+Isso permite operacoes limpas de remocao e atualizacao.

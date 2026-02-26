@@ -1,0 +1,141 @@
+---
+title: モデルスロットマッピング
+description: Claude Code の /model スイッチャーを任意のプロバイダーモデルにマッピング
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Claude Code には組み込みの `/model` コマンドがあり、**haiku**（高速）、**sonnet**（バランス）、**opus**（高性能）の 3 つのモデルスロットを切り替えられます。デフォルトでは Anthropic モデルにマッピングされますが、Claudex を使えば各スロットを任意のプロバイダーモデルにマッピングできます。
+
+## 設定
+
+任意のプロファイルに `[profiles.models]` テーブルを追加します:
+
+```toml
+[[profiles]]
+name = "grok"
+provider_type = "OpenAICompatible"
+base_url = "https://api.x.ai/v1"
+api_key = "xai-..."
+default_model = "grok-3-beta"
+
+[profiles.models]
+haiku = "grok-3-mini-beta"
+sonnet = "grok-3-beta"
+opus = "grok-3-beta"
+```
+
+Claude Code 内で `/model sonnet` と入力すると、Claudex は `grok-3-beta` に解決します。`/model opus` コマンドも `grok-3-beta` にマッピングされます。
+
+## 動作の仕組み
+
+Claude Code を起動する際、Claudex は 3 つの環境変数を設定します:
+
+| 環境変数 | 説明 |
+|---------|------|
+| `ANTHROPIC_DEFAULT_HAIKU_MODEL` | haiku スロットのモデル名 |
+| `ANTHROPIC_DEFAULT_SONNET_MODEL` | sonnet スロットのモデル名 |
+| `ANTHROPIC_DEFAULT_OPUS_MODEL` | opus スロットのモデル名 |
+
+Claude Code はこれらの変数を読み取って `/model` スイッチャーに反映します。プロファイルでスロットが設定されていない場合、プロファイルの `default_model` がフォールバックとして使用されます。
+
+## プロバイダー別マッピング例
+
+### Grok (xAI)
+
+```toml
+[profiles.models]
+haiku = "grok-3-mini-beta"
+sonnet = "grok-3-beta"
+opus = "grok-3-beta"
+```
+
+### OpenAI
+
+```toml
+[profiles.models]
+haiku = "gpt-4o-mini"
+sonnet = "gpt-4o"
+opus = "o1"
+```
+
+### DeepSeek
+
+```toml
+[profiles.models]
+haiku = "deepseek-chat"
+sonnet = "deepseek-chat"
+opus = "deepseek-reasoner"
+```
+
+### Google Gemini
+
+```toml
+[profiles.models]
+haiku = "gemini-2.0-flash"
+sonnet = "gemini-2.5-pro"
+opus = "gemini-2.5-pro"
+```
+
+### ChatGPT Codex（サブスクリプション）
+
+```toml
+[profiles.models]
+haiku = "codex-mini-latest"
+sonnet = "gpt-5.3-codex"
+opus = "gpt-5.3-codex"
+```
+
+### Claude（サブスクリプション）
+
+```toml
+[profiles.models]
+haiku = "claude-haiku-4-20250514"
+sonnet = "claude-sonnet-4-20250514"
+opus = "claude-opus-4-20250514"
+```
+
+### Groq
+
+```toml
+[profiles.models]
+haiku = "gemma2-9b-it"
+sonnet = "llama-3.3-70b-versatile"
+opus = "llama-3.3-70b-versatile"
+```
+
+### Mistral
+
+```toml
+[profiles.models]
+haiku = "mistral-small-latest"
+sonnet = "mistral-large-latest"
+opus = "mistral-large-latest"
+```
+
+### Ollama（ローカル）
+
+```toml
+[profiles.models]
+haiku = "qwen2.5:7b"
+sonnet = "qwen2.5:32b"
+opus = "qwen2.5:72b"
+```
+
+## デフォルト動作
+
+`[profiles.models]` が指定されていない場合、3 つのスロットすべてがプロファイルの `default_model` にフォールバックします。つまり、`/model haiku`、`/model sonnet`、`/model opus` はすべて同じモデルを使用します。
+
+<Aside type="tip">
+  1 つか 2 つのモデルティアしかないプロバイダーでは、複数のスロットを同じモデルにマッピングするのが一般的です。例えば、DeepSeek では haiku と sonnet の両方を `deepseek-chat` にマッピングし、opus を `deepseek-reasoner` に割り当てています。
+</Aside>
+
+## 環境変数によるオーバーライド
+
+設定ファイルを変更せずに環境変数を直接設定してスロットをオーバーライドできます:
+
+```bash
+ANTHROPIC_DEFAULT_HAIKU_MODEL=my-fast-model claudex run grok
+```
+
+環境変数はプロファイル設定より優先されます。

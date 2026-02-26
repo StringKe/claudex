@@ -4,7 +4,7 @@ description: 多實例 Claude Code 管理器，內建智慧翻譯代理
 template: splash
 hero:
   title: Claudex
-  tagline: 讓 Claude Code 無縫使用任何 AI 提供商 — Grok、ChatGPT、DeepSeek、Kimi、GLM、Ollama 等。
+  tagline: 讓 Claude Code 搭配任何 AI 提供商使用 — Grok、ChatGPT、DeepSeek、Gemini、Kimi、GLM、Ollama、Azure、Groq、Mistral 等 20 多家。
   actions:
     - text: 快速開始
       link: /zh-tw/installation/
@@ -22,36 +22,53 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 
 <CardGrid stagger>
   <Card title="翻譯代理" icon="translate">
-    自動 Anthropic-to-OpenAI 協定翻譯。讓 Claude Code 無縫使用 Grok、ChatGPT、DeepSeek、Kimi、GLM 等任何 OpenAI 相容提供商。
+    自動 Anthropic 至 OpenAI 協定翻譯。讓 Claude Code 搭配 20 多家提供商使用，包括 Grok、ChatGPT、DeepSeek、Gemini、Kimi、GLM、Azure OpenAI、Groq、Mistral、Together AI、Perplexity、Cerebras 及任何 OpenAI 相容端點。
   </Card>
   <Card title="斷路器" icon="warning">
-    內建斷路器，自動故障轉移到備用提供商。可設定閾值和復原逾時，確保工作流程不中斷。
+    Per-profile 斷路器，自動故障轉移到備用提供商。可設定失敗閾值、復原逾時，以及 OAuth 401 重試與 token 刷新。
   </Card>
   <Card title="智慧路由" icon="random">
-    基於意圖的自動路由，透過本地分類器將 code、analysis、creative、search、math 任務自動分配到最佳提供商。
+    基於意圖的自動路由，透過本地分類器將 code、analysis、creative、search、math 任務自動分配到最佳提供商 profile。
   </Card>
   <Card title="上下文引擎" icon="document">
     對話壓縮、跨 profile 上下文共享、本地 RAG 向量檢索。用更豐富的上下文增強 AI 互動體驗。
   </Card>
   <Card title="TUI 儀表板" icon="laptop">
-    即時終端儀表板，顯示 profile 健康狀態、請求指標、日誌和快速啟動。完整鍵盤導覽支援。
+    即時終端儀表板，顯示 profile 健康狀態、請求指標、日誌和快速啟動功能。完整鍵盤導覽支援。
   </Card>
   <Card title="自動更新" icon="up-caret">
     一條指令檢查並安裝最新版本，直接從 GitHub Releases 下載。輕鬆保持最新。
   </Card>
   <Card title="OAuth 訂閱認證" icon="approve-check">
-    直接使用現有的 Claude、OpenAI、Google、Qwen、Kimi 或 GitHub 訂閱，無需 API 金鑰。`claudex auth login` 從各提供商原生 CLI 設定中讀取 token。
+    使用現有的 Claude、ChatGPT、Google、Qwen、Kimi、GitHub Copilot 或 GitLab Duo 訂閱。支援瀏覽器 PKCE、Device Code 流程，以及從原生 CLI 讀取憑證鏈。
+  </Card>
+  <Card title="設定集" icon="setting">
+    透過 `claudex sets add` 安裝和管理可重用的 CLAUDE.md 規則、技能和 MCP 伺服器套件包。版本化清單，帶衝突偵測。
+  </Card>
+  <Card title="終端超連結" icon="external">
+    終端輸出中的 OSC 8 可點擊超連結。自動偵測終端支援（iTerm、WezTerm、Kitty、Ghostty、VS Code、Windows Terminal），並支援 PTY 代理模式。
+  </Card>
+  <Card title="模型 Slot 映射" icon="puzzle">
+    透過 `[profiles.models]` 將 Claude Code 的 `/model` 切換器（haiku、sonnet、opus）映射到任意提供商模型。Per-profile 模型設定，支援環境變數覆寫。
   </Card>
   <Card title="非互動模式" icon="rocket">
     透過 `claudex run <profile> "prompt" --print` 一次性執行。適用於 CI/CD 流水線和腳本自動化。
   </Card>
-  <Card title="模型 Slot 映射" icon="setting">
-    透過 `[profiles.models]` 設定，將 Claude Code 的 `/model` 切換器（haiku、sonnet、opus）映射到任意提供商模型。
-  </Card>
-  <Card title="工具名稱相容" icon="puzzle">
-    自動截斷超過 64 字元的工具名稱以相容 OpenAI，回應時透明還原原始名稱。
+  <Card title="工具名稱相容" icon="list-format">
+    自動截斷超過 64 字元的工具名稱以相容 OpenAI，回應時透明還原原始名稱，完整雙向轉換。
   </Card>
 </CardGrid>
+
+## 支援的提供商
+
+| 類別 | 提供商 |
+|------|--------|
+| **Direct Anthropic** | Anthropic、MiniMax |
+| **OpenAI Compatible** | Grok (xAI)、OpenAI、DeepSeek、Kimi/Moonshot、GLM (Zhipu)、OpenRouter、Groq、Mistral、Together AI、Perplexity、Cerebras |
+| **雲端平台** | Azure OpenAI、Google Vertex AI |
+| **OAuth 訂閱** | Claude Max/Pro、ChatGPT Plus/Pro (Codex)、Google Gemini、GitHub Copilot、GitLab Duo、Qwen、Kimi |
+| **本地模型** | Ollama、vLLM、LM Studio、llama.cpp |
+| **透過 LiteLLM** | AWS Bedrock 及任何 LiteLLM 支援的提供商 |
 
 ## 快速安裝
 
@@ -64,12 +81,12 @@ curl -fsSL https://raw.githubusercontent.com/StringKe/claudex/main/install.sh | 
 ```
 claudex run grok
     │
-    ├── 啟動代理 → 127.0.0.1:13456
+    ├── Start proxy → 127.0.0.1:13456
     │
-    └── 執行 claude，設定：
+    └── exec claude with:
         ANTHROPIC_BASE_URL=http://127.0.0.1:13456/proxy/grok
         ANTHROPIC_AUTH_TOKEN=<session-token>
         ANTHROPIC_MODEL=grok-3-beta
 ```
 
-代理透明地在 Anthropic 和 OpenAI 協定之間進行翻譯，讓 Claude Code 與任何支援的提供商無縫協作。使用 OAuth profile 時，設定 `ANTHROPIC_AUTH_TOKEN`（而非 `ANTHROPIC_API_KEY`）以避免與 Claude 自身訂閱登入衝突。
+代理透明地在 Anthropic 和 OpenAI 協定之間進行翻譯，讓 Claude Code 與任何支援的提供商無縫協作。使用 OAuth profile 時，設定 `ANTHROPIC_AUTH_TOKEN`（而非 `ANTHROPIC_API_KEY`）以避免與 Claude 自身訂閱登入機制衝突。

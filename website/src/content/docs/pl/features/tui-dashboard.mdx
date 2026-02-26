@@ -1,9 +1,9 @@
 ---
 title: Pulpit TUI
-description: Terminalowy pulpit czasu rzeczywistego do monitorowania i zarządzania profilami
+description: Terminalowy pulpit czasu rzeczywistego do monitorowania i zarzadzania profilami
 ---
 
-Pulpit TUI zapewnia terminalowy interfejs czasu rzeczywistego do monitorowania kondycji profili, przeglądania metryk i szybkiego uruchamiania sesji Claude Code.
+Pulpit TUI zapewnia terminalowy interfejs czasu rzeczywistego do monitorowania kondycji profili, przegladania metryk i szybkiego uruchamiania sesji Claude Code.
 
 ## Uruchomienie
 
@@ -11,42 +11,42 @@ Pulpit TUI zapewnia terminalowy interfejs czasu rzeczywistego do monitorowania k
 # Jawne uruchomienie
 claudex dashboard
 
-# Automatyczne uruchomienie (gdy profile istnieją i nie podano podpolecenia)
+# Automatyczne uruchomienie (gdy profile istnieja i nie podano podpolecenia)
 claudex
 ```
 
-## Skróty klawiaturowe
+## Skroty klawiaturowe
 
 | Klawisz | Akcja |
 |---------|-------|
-| `j` / `↓` | Przesuń zaznaczenie w dół |
-| `k` / `↑` | Przesuń zaznaczenie w górę |
+| `j` / `↓` | Przesun zaznaczenie w dol |
+| `k` / `↑` | Przesun zaznaczenie w gore |
 | `Enter` | Uruchom Claude Code z wybranym profilem |
-| `t` | Przetestuj łączność dla wybranego profilu |
-| `a` | Dodaj nowy profil (pokazuje podpowiedź) |
-| `d` | Usuń wybrany profil (pokazuje podpowiedź) |
-| `p` | Przełącz uruchomienie/zatrzymanie proxy |
-| `/` | Wejdź w tryb wyszukiwania |
-| `Esc` | Wyjdź z trybu wyszukiwania / zamknij pomoc |
-| `?` | Pokaż wyskakujące okno pomocy |
+| `t` | Przetestuj lacznosc dla wybranego profilu |
+| `a` | Dodaj nowy profil (pokazuje podpowiedz) |
+| `d` | Usun wybrany profil (pokazuje podpowiedz) |
+| `p` | Przelacz uruchomienie/zatrzymanie proxy |
+| `/` | Wejdz w tryb wyszukiwania |
+| `Esc` | Wyjdz z trybu wyszukiwania / zamknij pomoc |
+| `?` | Pokaz wyskakujace okno pomocy |
 | `q` / `Ctrl+C` | Zamknij pulpit |
 
-## Układ pulpitu
+## Uklad pulpitu
 
-Pulpit wyświetla:
+Pulpit wyswietla:
 
-- **Lista profili** — Wszystkie skonfigurowane profile z nazwą, modelem, typem dostawcy i statusem kondycji
-- **Wskaźniki kondycji** — Status kodowany kolorami (zielony = zdrowy, żółty = zdegradowany, czerwony = wyłącznik automatyczny otwarty)
-- **Panel metryk** — Liczba żądań per profil, wskaźnik sukcesu, średnie opóźnienie
-- **Panel logów** — Wyjście logów przewijane w czasie rzeczywistym
+- **Lista profili** — Wszystkie skonfigurowane profile z nazwa, modelem, typem dostawcy i statusem kondycji
+- **Wskazniki kondycji** — Status kodowany kolorami (zielony = zdrowy, zolty = zdegradowany, czerwony = wylacznik automatyczny otwarty)
+- **Panel metryk** — Liczba zadan per profil, wskaznik sukcesu, srednie opoznienie
+- **Panel logow** — Wyjscie logow przewijane w czasie rzeczywistym
 
 ## Status kondycji
 
-Pulpit uruchamia sprawdzanie kondycji w tle, które pinguje wszystkie aktywne profile co ~30 sekund. Status kondycji jest odzwierciedlany w czasie rzeczywistym:
+Pulpit uruchamia sprawdzanie kondycji w tle, ktore pinguje wszystkie aktywne profile co ~30 sekund. Status kondycji jest odzwierciedlany w czasie rzeczywistym:
 
 | Kolor | Znaczenie |
 |-------|-----------|
 | Zielony | Dostawca odpowiada normalnie |
-| Żółty | Wykryto ostatnie awarie |
-| Czerwony | Wyłącznik automatyczny jest otwarty |
-| Szary | Profil jest wyłączony |
+| Zolty | Wykryto ostatnie awarie |
+| Czerwony | Wylacznik automatyczny jest otwarty |
+| Szary | Profil jest wylaczony |

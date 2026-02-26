@@ -1,19 +1,19 @@
 ---
-title: Context Engine
+title: Motore di contesto
 description: Compressione delle conversazioni, condivisione tra profili e RAG locale
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Il context engine arricchisce le tue interazioni AI attraverso tre meccanismi: compressione delle conversazioni, condivisione del contesto tra profili e RAG locale (Retrieval-Augmented Generation).
+Il motore di contesto arricchisce le tue interazioni AI attraverso tre meccanismi: compressione delle conversazioni, condivisione del contesto tra profili e RAG locale (Retrieval-Augmented Generation).
 
 <Aside type="caution">
-  Le funzionalità del context engine richiedono un servizio LLM per la generazione di riassunti ed embedding. Puoi usare qualsiasi profilo esistente (Ollama locale, provider cloud come OpenRouter, ecc.).
+  Le funzionalita del motore di contesto richiedono un servizio LLM per la generazione di riassunti ed embedding. Puoi usare qualsiasi profilo esistente (Ollama locale, fornitori cloud come OpenRouter, ecc.).
 </Aside>
 
-## Compressione delle Conversazioni
+## Compressione delle conversazioni
 
-Quando le conversazioni superano una soglia di token, Claudex usa un LLM per riassumere i messaggi più vecchi, mantenendo intatti quelli recenti.
+Quando le conversazioni superano una soglia di token, Claudex usa un LLM per riassumere i messaggi piu vecchi, mantenendo intatti quelli recenti.
 
 ```toml
 [context.compression]
@@ -21,19 +21,19 @@ enabled = true
 threshold_tokens = 50000    # comprimi quando i token totali superano questo valore
 keep_recent = 10            # mantieni sempre gli ultimi N messaggi
 profile = "openrouter"      # riutilizza base_url + api_key di un profilo
-model = "qwen/qwen-2.5-7b-instruct"  # modello override (opzionale)
+model = "qwen/qwen-2.5-7b-instruct"  # override modello (opzionale)
 ```
 
-### Come Funziona
+### Come funziona
 
 1. Prima di inoltrare una richiesta, Claudex stima il conteggio totale dei token
-2. Se i token superano `threshold_tokens`, i messaggi più vecchi (oltre `keep_recent`) vengono sostituiti con un riassunto
+2. Se i token superano `threshold_tokens`, i messaggi piu vecchi (oltre `keep_recent`) vengono sostituiti con un riassunto
 3. Il riassunto viene generato dall'LLM locale configurato
-4. La conversazione compressa viene poi inoltrata al provider
+4. La conversazione compressa viene poi inoltrata al fornitore
 
-## Condivisione tra Profili
+## Condivisione tra profili
 
-Condividi il contesto tra diversi profili provider all'interno della stessa sessione.
+Condividi il contesto tra diversi profili fornitore all'interno della stessa sessione.
 
 ```toml
 [context.sharing]
@@ -41,9 +41,9 @@ enabled = true
 max_context_size = 2000    # token massimi da iniettare da altri profili
 ```
 
-Questo è utile quando si cambia provider a metà attività — il contesto rilevante delle interazioni precedenti viene incluso automaticamente.
+Utile quando si cambia fornitore a meta attivita: il contesto rilevante delle interazioni precedenti viene incluso automaticamente.
 
-## RAG Locale
+## RAG locale
 
 Indicizza codice e documentazione locali per la generazione arricchita con recupero. I frammenti di codice rilevanti vengono automaticamente iniettati nelle richieste.
 
@@ -57,12 +57,12 @@ chunk_size = 512                       # dimensione del chunk di testo
 top_k = 5                             # numero di risultati da iniettare
 ```
 
-### Come Funziona
+### Come funziona
 
 1. All'avvio, Claudex indicizza i file in `index_paths` usando il modello di embedding
 2. Per ogni richiesta, il messaggio dell'utente viene embeddato e confrontato con l'indice
-3. I top-k chunk più rilevanti vengono iniettati come contesto aggiuntivo nella richiesta
-4. Il provider riceve un contesto più ricco sulla tua codebase
+3. I top-k chunk piu rilevanti vengono iniettati come contesto aggiuntivo nella richiesta
+4. Il fornitore riceve un contesto piu ricco sulla tua codebase
 
 <Aside type="tip">
   Per i migliori risultati con RAG locale, usa un modello di embedding dedicato come `nomic-embed-text` tramite Ollama.

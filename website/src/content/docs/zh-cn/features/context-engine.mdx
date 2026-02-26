@@ -28,7 +28,7 @@ model = "qwen/qwen-2.5-7b-instruct"  # 覆盖模型（可选）
 
 1. 转发请求前，Claudex 估算总 token 数
 2. 若超过 `threshold_tokens`，`keep_recent` 之前的旧消息被替换为摘要
-3. 摘要由配置的本地 LLM 生成
+3. 摘要由配置的 LLM 生成
 4. 压缩后的对话转发到提供商
 
 ## 跨 Profile 共享
@@ -41,7 +41,7 @@ enabled = true
 max_context_size = 2000    # 从其他 profile 注入的最大 token 数
 ```
 
-在任务中切换提供商时很有用 — 之前交互的相关上下文会自动包含。
+在任务中切换提供商时很有用，之前交互的相关上下文会自动包含。
 
 ## 本地 RAG
 

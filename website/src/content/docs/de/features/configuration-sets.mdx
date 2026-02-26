@@ -1,0 +1,196 @@
+---
+title: Konfigurationssets
+description: Wiederverwendbare Pakete aus Regeln, Skills und MCP-Servern installieren und verwalten
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Konfigurationssets sind installierbare, versionierte Pakete, die CLAUDE.md-Regeln, Skills und MCP-Server-Konfigurationen buendeln. Sie bieten eine portable Moeglichkeit, Claude Code-Konfigurationen projekt- und teamuebergreifend zu teilen und wiederzuverwenden.
+
+## Ueberblick
+
+Ein Konfigurationsset ist ein Verzeichnis mit einer `manifest.json` (oder `manifest.yaml`), die seine Komponenten deklariert:
+
+```
+my-set/
+├── manifest.json
+├── rules/
+│   └── coding-standards.md
+├── skills/
+│   └── deploy.md
+└── claude.md
+```
+
+## Manifest-Schema
+
+```json
+{
+  "name": "my-config-set",
+  "version": "1.0.0",
+  "description": "My team's coding standards and tools",
+  "author": "team-name",
+  "components": {
+    "claude_md": {
+      "path": "claude.md",
+      "strategy": "append"
+    },
+    "rules": [
+      {
+        "name": "coding-standards",
+        "path": "rules/coding-standards.md"
+      }
+    ],
+    "skills": [
+      {
+        "name": "deploy",
+        "path": "skills/deploy.md"
+      }
+    ],
+    "mcp_servers": [
+      {
+        "name": "my-server",
+        "server_type": "stdio",
+        "command": "npx",
+        "args": ["-y", "@myorg/mcp-server"],
+        "env": {
+          "API_KEY": "${MY_API_KEY}"
+        }
+      }
+    ]
+  },
+  "env": [
+    {
+      "name": "MY_API_KEY",
+      "description": "API key for the MCP server",
+      "required": true
+    }
+  ]
+}
+```
+
+### Namensvalidierung
+
+Set-Namen muessen dem Muster `^[a-z0-9][a-z0-9._-]*$` entsprechen:
+- Mit einem Kleinbuchstaben oder einer Ziffer beginnen
+- Nur Kleinbuchstaben, Ziffern, Punkte, Unterstriche und Bindestriche enthalten
+
+### Komponenten
+
+| Komponente | Beschreibung |
+|------------|--------------|
+| `claude_md` | Inhalt, der in die CLAUDE.md des Projekts eingefuegt wird |
+| `rules` | Regeldateien, die nach `.claude/rules/` installiert werden |
+| `skills` | Skill-Definitionen, die nach `.claude/skills/` installiert werden |
+| `mcp_servers` | MCP-Server-Konfigurationen, die zu `.claude/settings.json` hinzugefuegt werden |
+
+### MCP-Servertypen
+
+| Typ | Erforderliche Felder | Beschreibung |
+|-----|---------------------|--------------|
+| `stdio` | `command` | Lokaler Prozess ueber stdin/stdout |
+| `http` | `url` | Remote-HTTP-basierter MCP-Server |
+
+```json
+// stdio-Server
+{
+  "name": "local-tools",
+  "server_type": "stdio",
+  "command": "node",
+  "args": ["./server.js"],
+  "env": {"DEBUG": "true"}
+}
+
+// http-Server
+{
+  "name": "remote-api",
+  "server_type": "http",
+  "url": "https://mcp.example.com/api",
+  "headers": {"Authorization": "Bearer ${TOKEN}"}
+}
+```
+
+### Umgebungsvariablen
+
+Das `env`-Array deklariert erforderliche oder optionale Umgebungsvariablen:
+
+```json
+{
+  "env": [
+    {
+      "name": "API_KEY",
+      "description": "API key for the service",
+      "required": true
+    },
+    {
+      "name": "DEBUG",
+      "description": "Enable debug mode",
+      "required": false,
+      "default": "false"
+    }
+  ]
+}
+```
+
+Variablen, die als `${VAR_NAME}` in MCP-Server-Konfigurationen referenziert werden, werden bei der Installation aus der Umgebung aufgeloest.
+
+## CLI-Befehle
+
+### Set installieren
+
+```bash
+claudex sets add ./path/to/set
+```
+
+Dies validiert das Manifest, prueft auf Konflikte mit vorhandenen Sets und installiert alle Komponenten.
+
+### Installierte Sets auflisten
+
+```bash
+claudex sets list
+```
+
+Zeigt alle installierten Sets mit Version, Beschreibung und Komponentenanzahl an.
+
+### Set-Details anzeigen
+
+```bash
+claudex sets show <NAME>
+```
+
+Zeigt detaillierte Informationen ueber ein installiertes Set an, einschliesslich aller Regeln, Skills und MCP-Server.
+
+### Set aktualisieren
+
+```bash
+claudex sets update <NAME> ./path/to/new-version
+```
+
+Aktualisiert ein vorhandenes Set auf eine neue Version. Entfernt alte Komponenten und installiert neue.
+
+### Set entfernen
+
+```bash
+claudex sets remove <NAME>
+```
+
+Entfernt ein installiertes Set und alle seine Komponenten.
+
+## Konflikterkennung
+
+Bei der Installation eines Sets prueft Claudex auf Konflikte:
+
+- **Regelnamen-Konflikte**: Zwei Sets koennen keine Regeln mit demselben Dateinamen installieren
+- **Skill-Namen-Konflikte**: Zwei Sets koennen keine Skills mit demselben Namen installieren
+- **MCP-Server-Konflikte**: Zwei Sets koennen keine MCP-Server mit demselben Namen definieren
+
+Wenn ein Konflikt erkannt wird, wird die Installation mit einer beschreibenden Fehlermeldung abgebrochen, die angibt, welches vorhandene Set die konfligierende Komponente besitzt.
+
+## Lock-Datei
+
+Installierte Sets werden in einer Lock-Datei verfolgt, die aufzeichnet:
+
+- Set-Name und -Version
+- Installierte Komponentenpfade
+- Installationszeitstempel
+
+Dies ermoeglicht saubere Entfernungs- und Aktualisierungsvorgaenge.

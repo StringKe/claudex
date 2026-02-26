@@ -1,0 +1,141 @@
+---
+title: 모델 슬롯 매핑
+description: Claude Code의 /model 전환기를 임의의 프로바이더 모델에 매핑
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Claude Code에는 **haiku**(빠름), **sonnet**(균형), **opus**(강력) 세 가지 모델 슬롯 간에 전환하는 내장 `/model` 명령이 있습니다. 기본적으로 Anthropic 모델에 매핑되지만, Claudex를 통해 각 슬롯을 임의의 프로바이더 모델에 매핑할 수 있습니다.
+
+## 설정
+
+프로파일에 `[profiles.models]` 테이블을 추가합니다:
+
+```toml
+[[profiles]]
+name = "grok"
+provider_type = "OpenAICompatible"
+base_url = "https://api.x.ai/v1"
+api_key = "xai-..."
+default_model = "grok-3-beta"
+
+[profiles.models]
+haiku = "grok-3-mini-beta"
+sonnet = "grok-3-beta"
+opus = "grok-3-beta"
+```
+
+Claude Code 내에서 `/model sonnet`을 입력하면 Claudex가 `grok-3-beta`로 해석합니다. `/model opus` 명령은 `grok-3-beta`에, 나머지도 같은 방식으로 매핑됩니다.
+
+## 작동 방식
+
+Claude Code를 실행할 때 Claudex는 세 가지 환경 변수를 설정합니다:
+
+| 환경 변수 | 설명 |
+|---------------------|-------------|
+| `ANTHROPIC_DEFAULT_HAIKU_MODEL` | haiku 슬롯의 모델 이름 |
+| `ANTHROPIC_DEFAULT_SONNET_MODEL` | sonnet 슬롯의 모델 이름 |
+| `ANTHROPIC_DEFAULT_OPUS_MODEL` | opus 슬롯의 모델 이름 |
+
+Claude Code가 이 변수를 읽어 `/model` 전환기를 구성합니다. 프로파일에서 슬롯이 설정되지 않은 경우, 프로파일의 `default_model`이 폴백으로 사용됩니다.
+
+## 프로바이더별 모델 매핑 예시
+
+### Grok (xAI)
+
+```toml
+[profiles.models]
+haiku = "grok-3-mini-beta"
+sonnet = "grok-3-beta"
+opus = "grok-3-beta"
+```
+
+### OpenAI
+
+```toml
+[profiles.models]
+haiku = "gpt-4o-mini"
+sonnet = "gpt-4o"
+opus = "o1"
+```
+
+### DeepSeek
+
+```toml
+[profiles.models]
+haiku = "deepseek-chat"
+sonnet = "deepseek-chat"
+opus = "deepseek-reasoner"
+```
+
+### Google Gemini
+
+```toml
+[profiles.models]
+haiku = "gemini-2.0-flash"
+sonnet = "gemini-2.5-pro"
+opus = "gemini-2.5-pro"
+```
+
+### ChatGPT Codex (구독)
+
+```toml
+[profiles.models]
+haiku = "codex-mini-latest"
+sonnet = "gpt-5.3-codex"
+opus = "gpt-5.3-codex"
+```
+
+### Claude (구독)
+
+```toml
+[profiles.models]
+haiku = "claude-haiku-4-20250514"
+sonnet = "claude-sonnet-4-20250514"
+opus = "claude-opus-4-20250514"
+```
+
+### Groq
+
+```toml
+[profiles.models]
+haiku = "gemma2-9b-it"
+sonnet = "llama-3.3-70b-versatile"
+opus = "llama-3.3-70b-versatile"
+```
+
+### Mistral
+
+```toml
+[profiles.models]
+haiku = "mistral-small-latest"
+sonnet = "mistral-large-latest"
+opus = "mistral-large-latest"
+```
+
+### Ollama (로컬)
+
+```toml
+[profiles.models]
+haiku = "qwen2.5:7b"
+sonnet = "qwen2.5:32b"
+opus = "qwen2.5:72b"
+```
+
+## 기본 동작
+
+`[profiles.models]`가 지정되지 않으면 세 슬롯 모두 프로파일의 `default_model`로 폴백됩니다. 즉, `/model haiku`, `/model sonnet`, `/model opus` 모두 같은 모델을 사용합니다.
+
+<Aside type="tip">
+  모델 티어가 하나 또는 둘뿐인 프로바이더의 경우, 여러 슬롯을 같은 모델에 매핑하는 것이 일반적입니다. 예를 들어, DeepSeek은 haiku와 sonnet을 `deepseek-chat`에, opus를 `deepseek-reasoner`에 매핑합니다.
+</Aside>
+
+## 환경 변수 오버라이드
+
+설정을 수정하지 않고 환경 변수를 직접 설정하여 슬롯을 오버라이드할 수 있습니다:
+
+```bash
+ANTHROPIC_DEFAULT_HAIKU_MODEL=my-fast-model claudex run grok
+```
+
+환경 변수가 프로파일 설정보다 우선합니다.

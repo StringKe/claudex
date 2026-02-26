@@ -1,0 +1,198 @@
+---
+title: OAuth 訂閱認證
+description: 透過 OAuth 認證使用現有的提供商訂閱搭配 Claude Code
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Claudex 支援 7 家提供商的 OAuth 認證，讓你可以使用現有訂閱（Claude Max、ChatGPT Plus、GitHub Copilot 等），無需單獨的 API 金鑰。
+
+## 概述
+
+設定 `auth_type = "oauth"` 並指定 `oauth_provider`，取代提供 `api_key`。Claudex 會處理完整的憑證鏈：從原生 CLI 設定讀取 token、執行 Device Code 流程、將 token 儲存到系統金鑰鏈，以及在過期前自動刷新。
+
+```toml
+[[profiles]]
+name = "codex-sub"
+provider_type = "OpenAIResponses"
+base_url = "https://chatgpt.com/backend-api/codex"
+default_model = "gpt-5.3-codex"
+auth_type = "oauth"
+oauth_provider = "openai"
+```
+
+## 支援的提供商
+
+| 提供商 | `oauth_provider` | 登入方式 | 回退 |
+|--------|-----------------|----------|------|
+| Claude | `claude` | 讀取 `~/.claude/.credentials.json` | — |
+| ChatGPT/Codex | `openai` | 瀏覽器 PKCE 或 Device Code | `~/.codex/auth.json`（Codex CLI） |
+| Google Gemini | `google` | 讀取 Gemini CLI 憑證 | — |
+| Kimi | `kimi` | 讀取 Kimi CLI 憑證 | — |
+| Qwen | `qwen` | Device Code 流程 | — |
+| GitHub Copilot | `github` | Device Code 流程 | `~/.config/github-copilot/` |
+| GitLab Duo | `gitlab` | `GITLAB_TOKEN` 環境變數 | — |
+
+## 憑證鏈
+
+每個提供商遵循憑證鏈模式：
+
+1. **檢查系統金鑰鏈** 是否有先前儲存的 token
+2. **從原生 CLI 設定讀取**（提供商特定路徑）
+3. **啟動 OAuth 流程**（瀏覽器 PKCE 或 Device Code），若找不到 token
+
+取得 token 後，會儲存到系統金鑰鏈供後續使用。
+
+## Token 管理
+
+### Token 結構
+
+```
+OAuthToken {
+    access_token: String,
+    refresh_token: Option<String>,
+    expires_at: Option<i64>,       // Unix 毫秒
+    token_type: Option<String>,
+    scopes: Option<Vec<String>>,
+    extra: Option<Value>,          // 提供商特定資料
+}
+```
+
+### 自動刷新
+
+代理在每次請求前檢查 token 過期時間。若 token 在 60 秒內即將過期：
+
+1. 嘗試使用 `refresh_token` 刷新（若可用）
+2. 刷新成功後更新金鑰鏈
+3. 若刷新失敗，使 token 失效並在下次使用時提示重新登入
+
+### 401 重試
+
+當提供商回傳 HTTP 401 時，代理會：
+
+1. 使當前 token 失效
+2. 嘗試從憑證鏈重新載入新 token
+3. 使用新 token 重試請求一次
+4. 若重試也失敗，將錯誤回傳給 Claude Code
+
+## 提供商詳細說明
+
+### Claude
+
+Claude OAuth profile 有特殊處理：**完全跳過代理**。執行 Claude OAuth profile 時，Claudex 直接啟動 Claude Code，不設定 `ANTHROPIC_BASE_URL`。Claude Code 使用自身的內建 OAuth 工作階段（來自 `~/.claude/.credentials.json`）。
+
+```toml
+[[profiles]]
+name = "claude-max"
+provider_type = "DirectAnthropic"
+base_url = "https://api.claude.ai"
+default_model = "claude-sonnet-4-20250514"
+auth_type = "oauth"
+oauth_provider = "claude"
+```
+
+無需 `claudex auth login` 步驟。若你已登入 Claude Code，即可直接使用。
+
+### ChatGPT / Codex
+
+支援兩種 OAuth 流程：
+
+1. **瀏覽器 PKCE**：開啟瀏覽器視窗進行 OpenAI 登入，透過本地回呼伺服器接收 token
+2. **Device Code**：適用於無頭環境，顯示一組代碼讓你在 URL 上輸入
+
+Claudex 也會從 Codex CLI 設定 `~/.codex/auth.json` 讀取 token 作為回退。`ChatGPT-Account-ID` 標頭會從 Codex CLI 認證檔案自動擷取。
+
+```bash
+# 瀏覽器流程（預設）
+claudex auth login openai --profile codex-sub
+
+# Device Code 流程（無頭）
+claudex auth login openai --profile codex-sub --headless
+```
+
+### GitHub Copilot
+
+使用 GitHub 的 Device Code 流程：
+
+1. `claudex auth login github` 顯示一組 Device Code
+2. 開啟 `https://github.com/login/device` 並輸入代碼
+3. Token 儲存到系統金鑰鏈
+
+若可用，會回退至讀取 `~/.config/github-copilot/` 中的現有 token。
+
+### GitLab Duo
+
+透過 `GITLAB_TOKEN` 環境變數使用 Personal Access Token：
+
+```bash
+export GITLAB_TOKEN=glpat-...
+claudex auth login gitlab --profile gitlab-duo
+```
+
+自行管理的 GitLab 實例：
+
+```bash
+claudex auth login gitlab --enterprise-url https://gitlab.mycompany.com --profile gitlab-duo
+```
+
+### Google Gemini
+
+從 Gemini CLI 設定讀取憑證。先安裝並認證 Gemini CLI，然後 `claudex auth login google` 讀取已儲存的 token。
+
+### Qwen
+
+使用 OAuth Device Code 流程。Claudex 顯示代碼和 URL 進行認證：
+
+```bash
+claudex auth login qwen --profile qwen-oauth
+# 顯示：Go to https://... and enter code: XXXX-XXXX
+```
+
+### Kimi
+
+從 Kimi CLI 設定讀取憑證，流程類似 Google Gemini。
+
+## Gateway Auth 模式
+
+以 OAuth profile（Claude 除外）啟動 Claude Code 時，Claudex 設定：
+
+```
+ANTHROPIC_AUTH_TOKEN=claudex-passthrough
+```
+
+這使用 `Authorization: Bearer` 標頭取代 `X-Api-Key`，防止與 Claude Code 自身的 `ANTHROPIC_API_KEY` 機制衝突。代理隨後會將 passthrough token 替換為實際的 OAuth token。
+
+## CLI 指令
+
+```bash
+# 登入提供商
+claudex auth login <PROVIDER> [--profile <NAME>] [--enterprise-url <URL>] [--headless]
+
+# 檢查所有 OAuth profile 的認證狀態
+claudex auth status
+
+# 檢查特定提供商
+claudex auth status openai
+
+# 手動刷新 token
+claudex auth refresh <PROVIDER>
+
+# 移除已儲存的 token
+claudex auth logout <PROVIDER>
+```
+
+## 提供商預設值
+
+以 `auth_type = "oauth"` 建立 profile 時，每個提供商有內建的 `base_url`、`provider_type` 和 `default_model` 預設值：
+
+| 提供商 | 預設 base_url | 預設 provider_type | 預設模型 |
+|--------|--------------|-------------------|----------|
+| Claude | `https://api.claude.ai` | DirectAnthropic | `claude-sonnet-4-20250514` |
+| ChatGPT | `https://chatgpt.com/backend-api/codex` | OpenAIResponses | `gpt-5.3-codex` |
+| GitHub | `https://api.githubcopilot.com` | OpenAICompatible | `gpt-4o` |
+| GitLab | `https://gitlab.com/api/v4/ai/llm/proxy` | OpenAICompatible | `claude-sonnet-4-20250514` |
+| Google | `https://generativelanguage.googleapis.com/v1beta/openai` | OpenAICompatible | `gemini-2.5-pro` |
+| Qwen | `https://chat.qwen.ai/api` | OpenAICompatible | `qwen3-235b-a22b` |
+| Kimi | `https://api.moonshot.cn/v1` | OpenAICompatible | `kimi-k2-0905-preview` |
+
+若 profile 設定中省略 `base_url` 或 `default_model`，會使用這些預設值。

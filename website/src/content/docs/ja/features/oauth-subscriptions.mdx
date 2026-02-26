@@ -1,0 +1,198 @@
+---
+title: OAuth サブスクリプション
+description: OAuth 認証で既存のプロバイダーサブスクリプションを Claude Code で使用
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Claudex は 7 つのプロバイダーに対する OAuth ベース認証をサポートしており、既存のサブスクリプション（Claude Max、ChatGPT Plus、GitHub Copilot など）を別途 API キーなしで使用できます。
+
+## 概要
+
+`api_key` を提供する代わりに、`auth_type = "oauth"` を設定して `oauth_provider` を指定します。Claudex はクレデンシャルチェーン全体を処理します: ネイティブ CLI 設定からのトークン読み取り、デバイスコードフローの実行、システムキーリングへのトークン保存、有効期限前の自動リフレッシュ。
+
+```toml
+[[profiles]]
+name = "codex-sub"
+provider_type = "OpenAIResponses"
+base_url = "https://chatgpt.com/backend-api/codex"
+default_model = "gpt-5.3-codex"
+auth_type = "oauth"
+oauth_provider = "openai"
+```
+
+## 対応プロバイダー
+
+| プロバイダー | `oauth_provider` | ログイン方法 | フォールバック |
+|-------------|-----------------|-------------|--------------|
+| Claude | `claude` | `~/.claude/.credentials.json` から読み取り | -- |
+| ChatGPT/Codex | `openai` | ブラウザ PKCE またはデバイスコード | `~/.codex/auth.json`（Codex CLI） |
+| Google Gemini | `google` | Gemini CLI のクレデンシャルから読み取り | -- |
+| Kimi | `kimi` | Kimi CLI のクレデンシャルから読み取り | -- |
+| Qwen | `qwen` | デバイスコードフロー | -- |
+| GitHub Copilot | `github` | デバイスコードフロー | `~/.config/github-copilot/` |
+| GitLab Duo | `gitlab` | `GITLAB_TOKEN` 環境変数 | -- |
+
+## クレデンシャルチェーン
+
+各プロバイダーはクレデンシャルチェーンパターンに従います:
+
+1. **システムキーリングを確認**: 以前保存されたトークンがあるか
+2. **ネイティブ CLI 設定から読み取り**: プロバイダー固有のパス
+3. **OAuth フローを開始**: トークンが見つからない場合、ブラウザ PKCE またはデバイスコード
+
+取得されたトークンは以降の使用のためにシステムキーリングに保存されます。
+
+## トークン管理
+
+### トークン構造
+
+```
+OAuthToken {
+    access_token: String,
+    refresh_token: Option<String>,
+    expires_at: Option<i64>,       // Unix ミリ秒
+    token_type: Option<String>,
+    scopes: Option<Vec<String>>,
+    extra: Option<Value>,          // プロバイダー固有のデータ
+}
+```
+
+### 自動リフレッシュ
+
+プロキシは各リクエストの前にトークンの有効期限を確認します。トークンが期限切れまで 60 秒以内の場合:
+
+1. `refresh_token`（利用可能な場合）を使用してリフレッシュを試行
+2. リフレッシュ成功時、キーリングを更新
+3. リフレッシュ失敗時、トークンを無効化し次回使用時に再ログインを要求
+
+### 401 リトライ
+
+プロバイダーが HTTP 401 を返した場合、プロキシは:
+
+1. 現在のトークンを無効化
+2. クレデンシャルチェーンから新しいトークンの読み込みを試行
+3. 新しいトークンでリクエストを 1 回リトライ
+4. リトライも失敗した場合、エラーを Claude Code に返す
+
+## プロバイダー詳細
+
+### Claude
+
+Claude OAuth プロファイルは特別です: **プロキシが完全にスキップされます**。Claude OAuth プロファイルを実行すると、Claudex は `ANTHROPIC_BASE_URL` を設定せずに Claude Code を直接起動します。Claude Code は `~/.claude/.credentials.json` にある自身の組み込み OAuth セッションを使用します。
+
+```toml
+[[profiles]]
+name = "claude-max"
+provider_type = "DirectAnthropic"
+base_url = "https://api.claude.ai"
+default_model = "claude-sonnet-4-20250514"
+auth_type = "oauth"
+oauth_provider = "claude"
+```
+
+`claudex auth login` の手順は不要です。Claude Code にすでにログインしていれば、すぐに動作します。
+
+### ChatGPT / Codex
+
+2 つの OAuth フローをサポートしています:
+
+1. **ブラウザ PKCE**: ブラウザウィンドウを開いて OpenAI にログインし、ローカルコールバックサーバー経由でトークンを受信
+2. **デバイスコード**: ヘッドレス環境向けに、URL で入力するコードを表示
+
+Claudex はフォールバックとして Codex CLI の設定 `~/.codex/auth.json` からもトークンを読み取ります。`ChatGPT-Account-ID` ヘッダーは Codex CLI の認証ファイルから自動抽出されます。
+
+```bash
+# ブラウザフロー（デフォルト）
+claudex auth login openai --profile codex-sub
+
+# デバイスコードフロー（ヘッドレス）
+claudex auth login openai --profile codex-sub --headless
+```
+
+### GitHub Copilot
+
+GitHub のデバイスコードフローを使用します:
+
+1. `claudex auth login github` がデバイスコードを表示
+2. `https://github.com/login/device` を開いてコードを入力
+3. トークンがシステムキーリングに保存される
+
+利用可能な場合、`~/.config/github-copilot/` の既存トークンからの読み取りにフォールバックします。
+
+### GitLab Duo
+
+`GITLAB_TOKEN` 環境変数を通じてパーソナルアクセストークンを使用します:
+
+```bash
+export GITLAB_TOKEN=glpat-...
+claudex auth login gitlab --profile gitlab-duo
+```
+
+セルフホスト GitLab インスタンスの場合:
+
+```bash
+claudex auth login gitlab --enterprise-url https://gitlab.mycompany.com --profile gitlab-duo
+```
+
+### Google Gemini
+
+Gemini CLI の設定からクレデンシャルを読み取ります。Gemini CLI をインストールして認証した後、`claudex auth login google` で保存されたトークンを読み取ります。
+
+### Qwen
+
+OAuth デバイスコードフローを使用します。Claudex は認証用のコードと URL を表示します:
+
+```bash
+claudex auth login qwen --profile qwen-oauth
+# 表示: Go to https://... and enter code: XXXX-XXXX
+```
+
+### Kimi
+
+Google Gemini フローと同様に、Kimi CLI の設定からクレデンシャルを読み取ります。
+
+## ゲートウェイ認証モード
+
+OAuth プロファイル（Claude を除く）で Claude Code を起動する際、Claudex は以下を設定します:
+
+```
+ANTHROPIC_AUTH_TOKEN=claudex-passthrough
+```
+
+これは `X-Api-Key` の代わりに `Authorization: Bearer` ヘッダーを使用し、Claude Code 自体の `ANTHROPIC_API_KEY` 機構との競合を防ぎます。プロキシはパススルートークンを実際の OAuth トークンに置き換えます。
+
+## CLI コマンド
+
+```bash
+# プロバイダーにログイン
+claudex auth login <PROVIDER> [--profile <NAME>] [--enterprise-url <URL>] [--headless]
+
+# すべての OAuth プロファイルの認証ステータスを確認
+claudex auth status
+
+# 特定のプロバイダーを確認
+claudex auth status openai
+
+# 手動でトークンをリフレッシュ
+claudex auth refresh <PROVIDER>
+
+# 保存されたトークンを削除
+claudex auth logout <PROVIDER>
+```
+
+## プロバイダーデフォルト
+
+`auth_type = "oauth"` でプロファイルを作成すると、各プロバイダーには `base_url`、`provider_type`、`default_model` の組み込みデフォルトがあります:
+
+| プロバイダー | デフォルト base_url | デフォルト provider_type | デフォルトモデル |
+|-------------|-------------------|------------------------|-----------------|
+| Claude | `https://api.claude.ai` | DirectAnthropic | `claude-sonnet-4-20250514` |
+| ChatGPT | `https://chatgpt.com/backend-api/codex` | OpenAIResponses | `gpt-5.3-codex` |
+| GitHub | `https://api.githubcopilot.com` | OpenAICompatible | `gpt-4o` |
+| GitLab | `https://gitlab.com/api/v4/ai/llm/proxy` | OpenAICompatible | `claude-sonnet-4-20250514` |
+| Google | `https://generativelanguage.googleapis.com/v1beta/openai` | OpenAICompatible | `gemini-2.5-pro` |
+| Qwen | `https://chat.qwen.ai/api` | OpenAICompatible | `qwen3-235b-a22b` |
+| Kimi | `https://api.moonshot.cn/v1` | OpenAICompatible | `kimi-k2-0905-preview` |
+
+これらのデフォルトは、プロファイル設定で `base_url` や `default_model` を省略した場合に使用されます。

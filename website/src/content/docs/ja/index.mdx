@@ -1,10 +1,10 @@
 ---
 title: マルチインスタンス Claude Code マネージャー
-description: インテリジェントな翻訳プロキシを内蔵したマルチインスタンス Claude Code マネージャー
+description: インテリジェント翻訳プロキシを内蔵したマルチインスタンス Claude Code マネージャー
 template: splash
 hero:
   title: Claudex
-  tagline: Grok、ChatGPT、DeepSeek、Kimi、GLM、Ollama など、あらゆる AI プロバイダーで Claude Code を使用できます。
+  tagline: Claude Code をあらゆる AI プロバイダーで使用可能に。Grok、ChatGPT、DeepSeek、Gemini、Kimi、GLM、Ollama、Azure、Groq、Mistral など 20 以上に対応。
   actions:
     - text: はじめる
       link: /ja/installation/
@@ -18,40 +18,57 @@ hero:
 
 import { Card, CardGrid } from '@astrojs/starlight/components';
 
-## 機能
+## 機能一覧
 
 <CardGrid stagger>
   <Card title="翻訳プロキシ" icon="translate">
-    Anthropic から OpenAI へのプロトコル自動変換。Grok、ChatGPT、DeepSeek、Kimi、GLM、その他 OpenAI 互換プロバイダーで Claude Code を使用できます。
+    Anthropic と OpenAI プロトコル間の自動翻訳。Grok、ChatGPT、DeepSeek、Gemini、Kimi、GLM、Azure OpenAI、Groq、Mistral、Together AI、Perplexity、Cerebras をはじめ、あらゆる OpenAI 互換エンドポイントで Claude Code を利用できます。20 以上のプロバイダーに対応。
   </Card>
   <Card title="サーキットブレーカー" icon="warning">
-    バックアッププロバイダーへの自動フェイルオーバー機能を備えた組み込みサーキットブレーカー。設定可能なしきい値とリカバリタイムアウトでワークフローを継続させます。
+    プロファイルごとのサーキットブレーカーとバックアッププロバイダーへの自動フェイルオーバー。障害しきい値、回復タイムアウトの設定が可能。OAuth 401 発生時にはトークンリフレッシュ付きリトライも行います。
   </Card>
   <Card title="スマートルーティング" icon="random">
-    ローカル分類器によるインテントベースの自動ルーティング。コード、分析、クリエイティブ、検索、数学タスクを最適なプロバイダーに自動的にマッピングします。
+    ローカル分類器によるインテントベースの自動ルーティング。コード、分析、クリエイティブ、検索、数学タスクを最適なプロバイダープロファイルに自動マッピングします。
   </Card>
   <Card title="コンテキストエンジン" icon="document">
-    会話の圧縮、クロスプロファイルのコンテキスト共有、エンベディングを使ったローカル RAG。豊富なコンテキストで AI インタラクションを強化します。
+    会話圧縮、プロファイル間コンテキスト共有、エンベディングによるローカル RAG。より豊かなコンテキストで AI とのやり取りを強化します。
   </Card>
   <Card title="TUI ダッシュボード" icon="laptop">
-    プロファイルの健全性、リクエストメトリクス、ログ、クイック起動機能をリアルタイムで表示するターミナルダッシュボード。完全なキーボードナビゲーション対応。
+    プロファイルのヘルス状態、リクエストメトリクス、ログ、クイック起動を表示するリアルタイムターミナルダッシュボード。フルキーボードナビゲーション対応。
   </Card>
-  <Card title="自己更新" icon="up-caret">
-    GitHub Releases から最新バージョンを確認してインストールするワンコマンド。常に最新状態を保てます。
+  <Card title="セルフアップデート" icon="up-caret">
+    1 つのコマンドで GitHub Releases から最新バージョンを確認・インストール。常に最新の状態を維持できます。
   </Card>
-  <Card title="OAuth サブスクリプション認証" icon="approve-check">
-    既存の Claude、OpenAI、Google、Qwen、Kimi、GitHub サブスクリプションを使用できます。API キー不要。`claudex auth login` は各プロバイダーのネイティブ CLI 設定からトークンを読み取ります。
+  <Card title="OAuth サブスクリプション" icon="approve-check">
+    既存の Claude、ChatGPT、Google、Qwen、Kimi、GitHub Copilot、GitLab Duo のサブスクリプションをそのまま使用可能。ブラウザ PKCE、デバイスコードフロー、ネイティブ CLI からのクレデンシャルチェーンに対応。
   </Card>
-  <Card title="非インタラクティブモード" icon="rocket">
-    `claudex run <profile> "prompt" --print` によるワンショット実行。CI/CD パイプラインやスクリプト自動化に最適です。
+  <Card title="コンフィギュレーションセット" icon="setting">
+    CLAUDE.md のルール、スキル、MCP サーバーの再利用可能なバンドルを `claudex sets add` でインストール・管理。バージョン管理されたマニフェストと競合検出機能付き。
   </Card>
-  <Card title="モデルスロットマッピング" icon="setting">
-    `[profiles.models]` 設定で Claude Code の `/model` スイッチャー（haiku、sonnet、opus）を任意のプロバイダーモデルにマッピングできます。
+  <Card title="ターミナルハイパーリンク" icon="external">
+    ターミナル出力に OSC 8 クリック可能なハイパーリンクを表示。ターミナルのサポートを自動検出（iTerm、WezTerm、Kitty、Ghostty、VS Code、Windows Terminal）。PTY プロキシモード対応。
   </Card>
-  <Card title="ツール名の互換性" icon="puzzle">
-    OpenAI 互換性のため 64 文字を超えるツール名を自動的に短縮し、レスポンス処理時に元の名前を透過的に復元します。
+  <Card title="モデルスロットマッピング" icon="puzzle">
+    Claude Code の `/model` スイッチャー（haiku、sonnet、opus）を `[profiles.models]` で任意のプロバイダーモデルにマッピング。プロファイルごとのモデル設定と環境変数によるオーバーライドが可能。
+  </Card>
+  <Card title="非対話モード" icon="rocket">
+    `claudex run <profile> "prompt" --print` によるワンショット実行。CI/CD パイプラインやスクリプト自動化に最適。
+  </Card>
+  <Card title="ツール名互換性" icon="list-format">
+    64 文字を超えるツール名を OpenAI 互換性のために自動短縮し、レスポンス時に透過的に元の名前に復元します。
   </Card>
 </CardGrid>
+
+## 対応プロバイダー
+
+| カテゴリ | プロバイダー |
+|----------|-------------|
+| **Direct Anthropic** | Anthropic、MiniMax |
+| **OpenAI 互換** | Grok (xAI)、OpenAI、DeepSeek、Kimi/Moonshot、GLM (Zhipu)、OpenRouter、Groq、Mistral、Together AI、Perplexity、Cerebras |
+| **クラウドプラットフォーム** | Azure OpenAI、Google Vertex AI |
+| **OAuth サブスクリプション** | Claude Max/Pro、ChatGPT Plus/Pro (Codex)、Google Gemini、GitHub Copilot、GitLab Duo、Qwen、Kimi |
+| **ローカルモデル** | Ollama、vLLM、LM Studio、llama.cpp |
+| **LiteLLM 経由** | AWS Bedrock、その他 LiteLLM 対応プロバイダー |
 
 ## クイックインストール
 
@@ -59,17 +76,17 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 curl -fsSL https://raw.githubusercontent.com/StringKe/claudex/main/install.sh | bash
 ```
 
-## 仕組み
+## 動作の仕組み
 
 ```
 claudex run grok
     │
-    ├── プロキシを起動 → 127.0.0.1:13456
+    ├── Start proxy → 127.0.0.1:13456
     │
-    └── 以下の設定で claude を実行:
+    └── exec claude with:
         ANTHROPIC_BASE_URL=http://127.0.0.1:13456/proxy/grok
         ANTHROPIC_AUTH_TOKEN=<session-token>
         ANTHROPIC_MODEL=grok-3-beta
 ```
 
-プロキシは Anthropic と OpenAI のプロトコル間を透過的に変換するため、Claude Code はサポートされるあらゆるプロバイダーとシームレスに連携します。OAuth プロファイルを使用する場合、Claude 自身のサブスクリプションログインとの競合を避けるため、`ANTHROPIC_API_KEY` ではなく `ANTHROPIC_AUTH_TOKEN` が設定されます。
+プロキシは Anthropic と OpenAI のプロトコル間を透過的に翻訳するため、Claude Code は対応プロバイダーとシームレスに連携します。OAuth プロファイル使用時は、Claude Code 自体のサブスクリプションログイン機構との競合を避けるため、`ANTHROPIC_API_KEY` ではなく `ANTHROPIC_AUTH_TOKEN` が設定されます。

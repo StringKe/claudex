@@ -1,9 +1,9 @@
 ---
 title: TUI-Dashboard
-description: Echtzeit-Terminal-Dashboard zur Überwachung und Verwaltung von Profilen
+description: Echtzeit-Terminal-Dashboard zur Ueberwachung und Verwaltung von Profilen
 ---
 
-Das TUI-Dashboard bietet eine Echtzeit-Terminal-Oberfläche zur Überwachung des Profilzustands, Anzeige von Metriken und schnellen Start von Claude Code-Sitzungen.
+Das TUI-Dashboard bietet eine Echtzeit-Terminal-Oberflaeche zur Ueberwachung des Profilzustands, Anzeige von Metriken und schnellen Start von Claude Code-Sitzungen.
 
 ## Starten
 
@@ -15,19 +15,19 @@ claudex dashboard
 claudex
 ```
 
-## Tastaturkürzel
+## Tastaturkuerzel
 
 | Taste | Aktion |
-|-----|--------|
+|-------|--------|
 | `j` / `↓` | Auswahl nach unten bewegen |
 | `k` / `↑` | Auswahl nach oben bewegen |
-| `Enter` | Claude Code mit ausgewähltem Profil starten |
-| `t` | Verbindung für ausgewähltes Profil testen |
-| `a` | Neues Profil hinzufügen (zeigt Hinweis) |
-| `d` | Ausgewähltes Profil löschen (zeigt Hinweis) |
+| `Enter` | Claude Code mit ausgewaehltem Profil starten |
+| `t` | Verbindung fuer ausgewaehltes Profil testen |
+| `a` | Neues Profil hinzufuegen (zeigt Hinweis) |
+| `d` | Ausgewaehltes Profil loeschen (zeigt Hinweis) |
 | `p` | Proxy starten/stoppen umschalten |
 | `/` | Suchmodus aktivieren |
-| `Esc` | Suchmodus beenden / Hilfe schließen |
+| `Esc` | Suchmodus beenden / Hilfe schliessen |
 | `?` | Hilfe-Popup anzeigen |
 | `q` / `Ctrl+C` | Dashboard beenden |
 
@@ -35,18 +35,18 @@ claudex
 
 Das Dashboard zeigt:
 
-- **Profilliste** — Alle konfigurierten Profile mit Name, Modell, Anbietertyp und Gesundheitsstatus
-- **Gesundheitsindikatoren** — Farbcodierter Status (grün = gesund, gelb = beeinträchtigt, rot = Circuit Breaker offen)
-- **Metrik-Panel** — Anfragenanzahl, Erfolgsrate und durchschnittliche Latenz pro Profil
-- **Protokoll-Panel** — Echtzeit-scrollendes Protokollausgabe
+- **Profilliste** -- Alle konfigurierten Profile mit Name, Modell, Anbietertyp und Gesundheitsstatus
+- **Gesundheitsindikatoren** -- Farbcodierter Status (gruen = gesund, gelb = beeintraechtigt, rot = Circuit Breaker offen)
+- **Metrik-Panel** -- Anfragenanzahl, Erfolgsrate und durchschnittliche Latenz pro Profil
+- **Protokoll-Panel** -- Echtzeit-scrollende Protokollausgabe
 
 ## Gesundheitsstatus
 
-Das Dashboard führt einen Hintergrund-Gesundheitsprüfer aus, der alle aktivierten Profile alle ~30 Sekunden anpingt. Der Gesundheitsstatus wird in Echtzeit aktualisiert:
+Das Dashboard fuehrt einen Hintergrund-Gesundheitspruefer aus, der alle aktivierten Profile alle ~30 Sekunden anpingt. Der Gesundheitsstatus wird in Echtzeit aktualisiert:
 
 | Farbe | Bedeutung |
-|-------|---------|
-| Grün | Anbieter antwortet normal |
-| Gelb | Kürzliche Fehler erkannt |
+|-------|-----------|
+| Gruen | Anbieter antwortet normal |
+| Gelb | Kuerzliche Fehler erkannt |
 | Rot | Circuit Breaker ist offen |
 | Grau | Profil ist deaktiviert |

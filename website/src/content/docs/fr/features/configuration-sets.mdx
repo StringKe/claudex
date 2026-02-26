@@ -1,0 +1,196 @@
+---
+title: Jeux de configuration
+description: Installez et gerez des ensembles reutilisables de regles, skills et serveurs MCP
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Les jeux de configuration sont des paquets installables et versiones qui regroupent des regles CLAUDE.md, des skills et des configurations de serveurs MCP. Ils offrent un moyen portable de partager et reutiliser des configurations Claude Code entre projets et equipes.
+
+## Vue d'ensemble
+
+Un jeu de configuration est un repertoire contenant un `manifest.json` (ou `manifest.yaml`) qui declare ses composants :
+
+```
+my-set/
+├── manifest.json
+├── rules/
+│   └── coding-standards.md
+├── skills/
+│   └── deploy.md
+└── claude.md
+```
+
+## Schema du manifeste
+
+```json
+{
+  "name": "my-config-set",
+  "version": "1.0.0",
+  "description": "My team's coding standards and tools",
+  "author": "team-name",
+  "components": {
+    "claude_md": {
+      "path": "claude.md",
+      "strategy": "append"
+    },
+    "rules": [
+      {
+        "name": "coding-standards",
+        "path": "rules/coding-standards.md"
+      }
+    ],
+    "skills": [
+      {
+        "name": "deploy",
+        "path": "skills/deploy.md"
+      }
+    ],
+    "mcp_servers": [
+      {
+        "name": "my-server",
+        "server_type": "stdio",
+        "command": "npx",
+        "args": ["-y", "@myorg/mcp-server"],
+        "env": {
+          "API_KEY": "${MY_API_KEY}"
+        }
+      }
+    ]
+  },
+  "env": [
+    {
+      "name": "MY_API_KEY",
+      "description": "API key for the MCP server",
+      "required": true
+    }
+  ]
+}
+```
+
+### Validation des noms
+
+Les noms de jeux doivent correspondre au patron `^[a-z0-9][a-z0-9._-]*$` :
+- Commencer par une lettre minuscule ou un chiffre
+- Contenir uniquement des lettres minuscules, chiffres, points, underscores et tirets
+
+### Composants
+
+| Composant | Description |
+|-----------|-------------|
+| `claude_md` | Contenu a fusionner dans le CLAUDE.md du projet |
+| `rules` | Fichiers de regles installes dans `.claude/rules/` |
+| `skills` | Definitions de skills installees dans `.claude/skills/` |
+| `mcp_servers` | Configurations de serveurs MCP ajoutees a `.claude/settings.json` |
+
+### Types de serveurs MCP
+
+| Type | Champs requis | Description |
+|------|--------------|-------------|
+| `stdio` | `command` | Processus local via stdin/stdout |
+| `http` | `url` | Serveur MCP distant base sur HTTP |
+
+```json
+// stdio server
+{
+  "name": "local-tools",
+  "server_type": "stdio",
+  "command": "node",
+  "args": ["./server.js"],
+  "env": {"DEBUG": "true"}
+}
+
+// http server
+{
+  "name": "remote-api",
+  "server_type": "http",
+  "url": "https://mcp.example.com/api",
+  "headers": {"Authorization": "Bearer ${TOKEN}"}
+}
+```
+
+### Variables d'environnement
+
+Le tableau `env` declare les variables d'environnement requises ou optionnelles :
+
+```json
+{
+  "env": [
+    {
+      "name": "API_KEY",
+      "description": "API key for the service",
+      "required": true
+    },
+    {
+      "name": "DEBUG",
+      "description": "Enable debug mode",
+      "required": false,
+      "default": "false"
+    }
+  ]
+}
+```
+
+Les variables referencees en `${VAR_NAME}` dans les configs de serveurs MCP sont resolues depuis l'environnement au moment de l'installation.
+
+## Commandes CLI
+
+### Installer un jeu
+
+```bash
+claudex sets add ./path/to/set
+```
+
+Valide le manifeste, verifie les conflits avec les jeux existants, et installe tous les composants.
+
+### Lister les jeux installes
+
+```bash
+claudex sets list
+```
+
+Affiche tous les jeux installes avec leur version, description et nombre de composants.
+
+### Afficher les details d'un jeu
+
+```bash
+claudex sets show <NAME>
+```
+
+Affiche les informations detaillees sur un jeu installe, incluant toutes les regles, skills et serveurs MCP.
+
+### Mettre a jour un jeu
+
+```bash
+claudex sets update <NAME> ./path/to/new-version
+```
+
+Met a jour un jeu existant vers une nouvelle version. Supprime les anciens composants et installe les nouveaux.
+
+### Supprimer un jeu
+
+```bash
+claudex sets remove <NAME>
+```
+
+Supprime un jeu installe et tous ses composants.
+
+## Detection de conflits
+
+Lors de l'installation d'un jeu, Claudex verifie les conflits :
+
+- **Conflits de noms de regles** : deux jeux ne peuvent pas installer des regles avec le meme nom de fichier
+- **Conflits de noms de skills** : deux jeux ne peuvent pas installer des skills avec le meme nom
+- **Conflits de serveurs MCP** : deux jeux ne peuvent pas definir des serveurs MCP avec le meme nom
+
+Si un conflit est detecte, l'installation est annulee avec un message d'erreur descriptif indiquant quel jeu existant possede le composant en conflit.
+
+## Fichier de verrouillage
+
+Les jeux installes sont suivis dans un fichier de verrouillage qui enregistre :
+
+- Nom et version du jeu
+- Chemins des composants installes
+- Horodatage d'installation
+
+Cela permet des operations de suppression et de mise a jour propres.

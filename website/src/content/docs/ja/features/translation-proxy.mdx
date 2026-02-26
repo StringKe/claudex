@@ -1,58 +1,80 @@
 ---
 title: 翻訳プロキシ
-description: Anthropic から OpenAI へのプロトコル自動変換
+description: 20 以上のプロバイダーに対応する Anthropic と OpenAI 間の自動プロトコル翻訳
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-翻訳プロキシは Claudex の中核です。Claude Code と AI プロバイダーの間に位置し、Anthropic Messages API と OpenAI Chat Completions API 間を透過的に変換します。
+翻訳プロキシは Claudex の中核です。Claude Code と AI プロバイダーの間に位置し、Anthropic Messages API と OpenAI Chat Completions API（または Responses API）間を透過的に変換します。
 
-## 仕組み
+## 動作の仕組み
 
 ```
-Claude Code → Anthropic Messages API リクエスト
+Claude Code → Anthropic Messages API request
     │
-    └── Claudex プロキシ (127.0.0.1:13456)
+    └── Claudex Proxy (127.0.0.1:13456)
         │
-        ├── DirectAnthropic プロバイダー → ヘッダー付きで転送
+        ├── DirectAnthropic provider → forward with headers
         │
-        ├── OpenAICompatible プロバイダー
-        │   ├── リクエスト変換: Anthropic → OpenAI Chat Completions
-        │   ├── プロバイダーへ転送
-        │   └── レスポンス変換: OpenAI → Anthropic
+        ├── OpenAICompatible provider
+        │   ├── Translate request: Anthropic → OpenAI Chat Completions
+        │   ├── Apply query_params, strip_params, custom_headers
+        │   ├── Forward to provider
+        │   └── Translate response: OpenAI → Anthropic
         │
-        └── OpenAIResponses プロバイダー
-            ├── リクエスト変換: Anthropic → OpenAI Responses API
-            ├── プロバイダーへ転送
-            └── レスポンス変換: Responses → Anthropic
+        └── OpenAIResponses provider
+            ├── Translate request: Anthropic → OpenAI Responses API
+            ├── Forward to provider
+            └── Translate response: Responses → Anthropic
 ```
 
-## 変換される内容
+## プロバイダーアダプター
 
-### リクエスト変換 (Anthropic → OpenAI)
+Claudex はプロバイダー API 間の差異を処理するために `ProviderAdapter` トレイトを使用しています。3 つのアダプターが実装されています:
+
+| アダプター | 翻訳 | 使用先 |
+|-----------|------|--------|
+| **DirectAnthropic** | なし（パススルー） | Anthropic、MiniMax、Vertex AI |
+| **ChatCompletions** | 完全な Anthropic と OpenAI 間の翻訳 | Grok、OpenAI、DeepSeek、Kimi、GLM、OpenRouter、Groq、Mistral、Together AI、Perplexity、Cerebras、Azure OpenAI、GitHub Copilot、GitLab Duo、Ollama、vLLM、LM Studio |
+| **Responses** | Anthropic と OpenAI Responses API 間の翻訳 | ChatGPT/Codex サブスクリプション |
+
+## 翻訳される内容
+
+### リクエスト翻訳（Anthropic → OpenAI）
 
 | Anthropic | OpenAI |
 |-----------|--------|
 | `system` フィールド | `messages` 配列内のシステムメッセージ |
-| `messages[].content` ブロック (text、image、tool_use) | `messages[].content` + `tool_calls` |
-| `tools` 配列 (JSON Schema) | `tools` 配列 (function 形式) |
-| `tool_choice` | `tool_choice` |
-| `max_tokens` | `max_tokens` |
-| `temperature`、`top_p` | 直接マッピング |
+| `messages[].content` ブロック（text、image、tool_use、tool_result） | `messages[].content` + `tool_calls` |
+| `tools` 配列（`input_schema` を持つ JSON Schema） | `tools` 配列（`parameters` を持つ function 形式） |
+| `tool_choice`（`auto`、`any`、`{name}`） | `tool_choice`（`auto`、`required`、`{function: {name}}`） |
+| `max_tokens` | `max_tokens`（プロファイルの `max_tokens` 設定がある場合は上限適用） |
+| `temperature`、`top_p` | 直接マッピング（`strip_params` に一致する場合は除去） |
 
-### レスポンス変換 (OpenAI → Anthropic)
+### レスポンス翻訳（OpenAI → Anthropic）
 
 | OpenAI | Anthropic |
 |--------|-----------|
-| `choices[0].message.content` | `content` ブロック |
-| `choices[0].message.tool_calls` | `tool_use` コンテントブロック |
+| `choices[0].message.content` | `content` ブロック（type: text） |
+| `choices[0].message.tool_calls` | `content` ブロック（type: tool_use） |
 | `finish_reason: stop` | `stop_reason: end_turn` |
 | `finish_reason: tool_calls` | `stop_reason: tool_use` |
 | `usage.prompt_tokens` / `completion_tokens` | `usage.input_tokens` / `output_tokens` |
 
-## ストリーミング変換
+### ツール名互換性
 
-Claudex は SSE (Server-Sent Events) ストリーミングを完全にサポートし、OpenAI のストリームチャンクをリアルタイムで Anthropic のストリームイベントに変換します:
+Claude Code は 64 文字を超えるツール名を生成することがあります（例: `mcp__server-name__very-long-tool-name-that-exceeds-the-limit`）。OpenAI や多くのプロバイダーは 64 文字の制限を課しています。
+
+Claudex は自動的に:
+1. 送信リクエストで 64 文字を超える名前を短縮
+2. 短縮名と元の名前のマッピングテーブルを構築
+3. プロバイダーのレスポンスで元の名前を復元
+
+このラウンドトリップは完全に透過的です。
+
+## ストリーミング翻訳
+
+Claudex は SSE（Server-Sent Events）ストリーミングを完全にサポートし、OpenAI のストリームチャンクをリアルタイムで Anthropic のストリームイベントに変換します:
 
 | OpenAI SSE | Anthropic SSE |
 |------------|---------------|
@@ -61,7 +83,17 @@ Claudex は SSE (Server-Sent Events) ストリーミングを完全にサポー�
 | `choices[0].delta.tool_calls` | `content_block_delta` (input_json_delta) |
 | `finish_reason` あり | `content_block_stop` + `message_delta` + `message_stop` |
 
-ストリーミング変換機能はステートマシンを維持し、ツールコールの蓄積とコンテントブロックの境界を適切に処理します。
+ストリーミングトランスレーターはステートマシンを維持し、ツールコールの蓄積とコンテントブロックの境界を適切に処理します。
+
+## Azure OpenAI サポート
+
+Azure OpenAI は異なる認証と URL スキームを使用します:
+
+- **認証**: `Authorization: Bearer` の代わりに `api-key` ヘッダー
+- **URL 形式**: `https://{resource}.openai.azure.com/openai/deployments/{deployment}`
+- **API バージョン**: `query_params` で必須
+
+Claudex は `base_url` に `openai.azure.com` が含まれているかどうかで Azure を自動検出し、認証を適宜調整します。
 
 ## 対応プロバイダー
 
@@ -69,19 +101,38 @@ Claudex は SSE (Server-Sent Events) ストリーミングを完全にサポー�
 |------------|--------|-----------|
 | Anthropic | DirectAnthropic | `https://api.anthropic.com` |
 | MiniMax | DirectAnthropic | `https://api.minimax.io/anthropic` |
+| Google Vertex AI | DirectAnthropic | `https://REGION-aiplatform.googleapis.com/v1/projects/...` |
 | OpenRouter | OpenAICompatible | `https://openrouter.ai/api/v1` |
 | Grok (xAI) | OpenAICompatible | `https://api.x.ai/v1` |
 | OpenAI | OpenAICompatible | `https://api.openai.com/v1` |
 | DeepSeek | OpenAICompatible | `https://api.deepseek.com` |
-| Kimi/Moonshot | OpenAICompatible | `https://api.moonshot.cn/v1` |
-| GLM (Zhipu) | OpenAICompatible | `https://open.bigmodel.cn/api/paas/v4` |
+| Kimi/Moonshot | OpenAICompatible | `https://api.moonshot.ai/v1` |
+| GLM (Zhipu) | OpenAICompatible | `https://api.z.ai/api/paas/v4` |
+| Groq | OpenAICompatible | `https://api.groq.com/openai/v1` |
+| Mistral AI | OpenAICompatible | `https://api.mistral.ai/v1` |
+| Together AI | OpenAICompatible | `https://api.together.xyz/v1` |
+| Perplexity | OpenAICompatible | `https://api.perplexity.ai` |
+| Cerebras | OpenAICompatible | `https://api.cerebras.ai/v1` |
+| Azure OpenAI | OpenAICompatible | `https://{resource}.openai.azure.com/...` |
+| GitHub Copilot | OpenAICompatible | `https://api.githubcopilot.com` |
+| GitLab Duo | OpenAICompatible | `https://gitlab.com/api/v4/ai/llm/proxy` |
 | Ollama | OpenAICompatible | `http://localhost:11434/v1` |
 | vLLM | OpenAICompatible | `http://localhost:8000/v1` |
+| LM Studio | OpenAICompatible | `http://localhost:1234/v1` |
 | ChatGPT/Codex サブスクリプション | OpenAIResponses | `https://chatgpt.com/backend-api/codex` |
 
 <Aside type="tip">
-  DirectAnthropic プロバイダーは変換を必要としません。OpenAIResponses プロバイダーは Chat Completions (`/chat/completions`) ではなく Responses API (`/responses` エンドポイント) を使用します。
+  DirectAnthropic プロバイダーは翻訳を必要としません。OpenAIResponses プロバイダーは Chat Completions（`/chat/completions`）ではなく Responses API（`/responses` エンドポイント）を使用します。
 </Aside>
+
+## Models エンドポイント
+
+プロキシは有効なすべてのプロファイルを一覧表示する `/v1/models` エンドポイントを公開しています。各エントリにはカスタムフィールドが含まれます:
+
+- `x-claudex-profile`: プロファイル名
+- `x-claudex-provider`: プロバイダータイプ（`anthropic`、`openai-compatible`、`openai-responses`）
+
+Claude Code はこのエンドポイントを照会して利用可能なモデルを検出します。
 
 ## プロキシ管理
 

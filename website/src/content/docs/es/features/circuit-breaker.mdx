@@ -1,11 +1,11 @@
 ---
-title: Interruptor de Circuito y Conmutacion por Error
-description: Deteccion automatica de fallos y conmutacion por error al proveedor de respaldo
+title: Circuit Breaker y failover
+description: Deteccion automatica de fallos y failover a proveedores de respaldo
 ---
 
-Claudex incluye un interruptor de circuito integrado para cada perfil de proveedor, con conmutacion automatica a proveedores de respaldo cuando se detectan fallos.
+Claudex incluye un circuit breaker integrado para cada perfil de proveedor, con failover automatico a proveedores de respaldo cuando se detectan fallos.
 
-## Estados del Interruptor de Circuito
+## Estados del circuit breaker
 
 ```
          success
@@ -24,19 +24,19 @@ Claudex incluye un interruptor de circuito integrado para cada perfil de proveed
 | Estado | Comportamiento |
 |--------|----------------|
 | **Closed** | Operacion normal. Las solicitudes pasan. Los fallos se cuentan. |
-| **Open** | Las solicitudes se bloquean. Se activa la conmutacion a proveedores de respaldo. |
-| **HalfOpen** | Tras el tiempo de recuperacion, se permite pasar una solicitud de sonda. Exito: pasa a Closed; Fallo: vuelve a Open. |
+| **Open** | Las solicitudes se bloquean. Se activa el failover a proveedores de respaldo. |
+| **HalfOpen** | Tras el tiempo de recuperacion, se permite una solicitud de prueba. Exito: pasa a Closed; fallo: vuelve a Open. |
 
-## Parametros Predeterminados
+## Parametros por defecto
 
 | Parametro | Valor |
 |-----------|-------|
 | Umbral de fallos | 3 fallos consecutivos |
 | Tiempo de recuperacion | 30 segundos |
 
-## Configuracion de la Conmutacion por Error
+## Configuracion del failover
 
-Define proveedores de respaldo en tu perfil para habilitar la conmutacion automatica por error:
+Define proveedores de respaldo en tu perfil para habilitar el failover automatico:
 
 ```toml
 [[profiles]]
@@ -45,19 +45,30 @@ provider_type = "OpenAICompatible"
 base_url = "https://api.x.ai/v1"
 api_key = "xai-..."
 default_model = "grok-3-beta"
-backup_providers = ["deepseek", "chatgpt"]   # cadena de conmutacion por error
+backup_providers = ["deepseek", "chatgpt"]   # cadena de failover
 ```
 
 Cuando `grok` falla 3 veces consecutivas:
-1. El interruptor de circuito se abre para `grok`
+1. El circuit breaker se abre para `grok`
 2. La solicitud se reintenta con `deepseek`
 3. Si `deepseek` tambien falla, se prueba `chatgpt`
-4. Cada proveedor de respaldo tiene su propio interruptor de circuito independiente
+4. Cada proveedor de respaldo tiene su propio circuit breaker independiente
 
-## Comprobacion de Estado
+## Reintento en 401 OAuth
 
-Un verificador de estado en segundo plano se ejecuta cada ~30 segundos, enviando solicitudes de sonda ligeras a todos los perfiles habilitados. El estado de salud se muestra en el panel TUI con codificacion por colores:
+Para perfiles OAuth, las respuestas HTTP 401 reciben un tratamiento especial:
+
+1. El proxy invalida el token OAuth actual
+2. Intenta una carga fresca del token desde la cadena de credenciales
+3. Reintenta la solicitud con el nuevo token
+4. Solo cuenta como fallo del circuit breaker si el reintento tambien falla
+
+Esto evita que la expiracion temporal de tokens provoque failovers innecesarios.
+
+## Comprobacion de estado
+
+Un verificador de estado en segundo plano se ejecuta cada ~30 segundos, enviando solicitudes de prueba ligeras a todos los perfiles habilitados. El estado de salud se muestra en el panel TUI con codificacion por colores:
 
 - Verde: saludable
 - Amarillo: degradado (fallos recientes)
-- Rojo: interruptor de circuito abierto
+- Rojo: circuit breaker abierto

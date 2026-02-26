@@ -1,34 +1,41 @@
 ---
 title: Riferimento CLI
-description: Riferimento completo dei comandi per la CLI Claudex
+description: Riferimento completo dei comandi per la CLI di Claudex
 ---
 
-## Utilizzo Globale
+## Utilizzo globale
 
 ```
-claudex [COMMAND]
+claudex [OPTIONS] [COMMAND]
 ```
 
-Quando viene eseguito senza un comando, Claudex avvia la dashboard TUI se i profili sono configurati, oppure mostra un messaggio di benvenuto se non esistono profili.
+| Opzione | Descrizione |
+|---------|-------------|
+| `--config <PATH>` | Sovrascrive il percorso del file di configurazione |
+| `--version` | Stampa la versione |
+| `--help` | Stampa l'aiuto |
+
+Quando viene eseguito senza un comando, Claudex avvia la dashboard TUI se i profili sono configurati, o mostra un messaggio di benvenuto se non esistono profili.
 
 ## Comandi
 
 ### `run`
 
-Esegui Claude Code con un profilo provider specifico.
+Esegui Claude Code con un profilo fornitore specifico.
 
 ```bash
-claudex run <PROFILE> [PROMPT] [-m MODEL] [--print] [--dangerously-skip-permissions] [ARGS...]
+claudex run <PROFILE> [PROMPT] [OPTIONS] [-- ARGS...]
 ```
 
-| Argomento | Descrizione |
-|-----------|-------------|
+| Argomento / Opzione | Descrizione |
+|---------------------|-------------|
 | `PROFILE` | Nome del profilo, o `auto` per il routing intelligente |
 | `PROMPT` | Prompt opzionale per l'esecuzione non interattiva (one-shot) |
 | `-m, --model MODEL` | Sovrascrive il modello predefinito per questa sessione |
-| `--print` | Stampa la risposta ed esci (modalità non interattiva) |
+| `--hyperlinks` | Forza l'abilitazione degli hyperlink OSC 8 nel terminale |
+| `--print` | Stampa la risposta ed esci (modalita non interattiva) |
 | `--dangerously-skip-permissions` | Salta tutti i prompt di autorizzazione (usa con `--print` per CI/CD) |
-| `ARGS...` | Argomenti aggiuntivi passati a `claude` |
+| `ARGS...` | Argomenti aggiuntivi passati a `claude` (dopo `--`) |
 
 ```bash
 # Usa Grok (interattivo)
@@ -40,11 +47,14 @@ claudex run grok -m grok-3-mini-beta
 # Routing intelligente
 claudex run auto
 
+# Forza hyperlink nel terminale
+claudex run grok --hyperlinks
+
 # Esecuzione one-shot non interattiva
-claudex run grok "Spiega questa codebase" --print
+claudex run grok "Explain this codebase" --print
 
 # Utilizzo in pipeline CI/CD (nessun prompt, nessuna autorizzazione)
-claudex run grok "Correggi gli errori lint" --print --dangerously-skip-permissions
+claudex run grok "Fix lint errors" --print --dangerously-skip-permissions
 
 # Passa argomenti extra a claude
 claudex run grok -- --verbose
@@ -52,7 +62,7 @@ claudex run grok -- --verbose
 
 ### `profile`
 
-Gestisci i profili provider.
+Gestisci i profili fornitore.
 
 #### `profile list`
 
@@ -60,7 +70,7 @@ Gestisci i profili provider.
 claudex profile list
 ```
 
-Elenca tutti i profili configurati con il loro stato.
+Elenca tutti i profili configurati con il loro stato, tipo di fornitore e modello.
 
 #### `profile add`
 
@@ -68,7 +78,7 @@ Elenca tutti i profili configurati con il loro stato.
 claudex profile add
 ```
 
-Procedura guidata interattiva per aggiungere un nuovo profilo. Guida attraverso la selezione del provider, l'inserimento della chiave API (con archiviazione opzionale nel portachiavi), la selezione del modello e il test di connettività.
+Procedura guidata interattiva per aggiungere un nuovo profilo. Guida attraverso la selezione del fornitore, l'inserimento della chiave API (con archiviazione opzionale nel portachiavi), la selezione del modello e il test di connettivita.
 
 #### `profile show`
 
@@ -76,7 +86,7 @@ Procedura guidata interattiva per aggiungere un nuovo profilo. Guida attraverso 
 claudex profile show <NAME>
 ```
 
-Mostra i dettagli per un profilo specifico.
+Mostra i dettagli per un profilo specifico inclusi tutti i campi di configurazione.
 
 #### `profile remove`
 
@@ -92,31 +102,41 @@ Rimuove un profilo dalla configurazione.
 claudex profile test <NAME|all>
 ```
 
-Testa la connettività per un profilo specifico o per tutti i profili.
+Testa la connettivita per un profilo specifico o per tutti i profili. Invia una richiesta leggera all'endpoint `/models` del fornitore.
 
 ### `auth`
 
-Gestisci l'autenticazione OAuth con abbonamento per i profili provider.
+Gestisci l'autenticazione OAuth con abbonamento per i profili fornitore.
 
 #### `auth login`
 
 ```bash
-claudex auth login <PROVIDER>
+claudex auth login <PROVIDER> [OPTIONS]
 ```
 
-Accedi a un provider tramite OAuth. Provider supportati: `claude`, `openai`, `google`, `qwen`, `kimi`, `github`.
+| Opzione | Descrizione |
+|---------|-------------|
+| `--profile <NAME>` | Associa a un profilo specifico |
+| `--enterprise-url <URL>` | URL personalizzato del server enterprise (per GitLab self-hosted, ecc.) |
+| `--headless` | Usa il flusso headless (device code), salta l'apertura del browser |
 
-Per **OpenAI**, Claudex legge i token dalla configurazione Codex CLI (`~/.codex/auth.json`). Per **Claude**, legge da `~/.claude`. Gli altri provider usano un server di callback locale o il flusso device code.
+Accedi a un fornitore tramite OAuth. Fornitori supportati: `claude`, `openai`, `google`, `qwen`, `kimi`, `github`, `gitlab`.
 
 ```bash
 # Accedi a OpenAI (legge da Codex CLI)
-claudex auth login openai
+claudex auth login openai --profile codex-sub
 
 # Accedi a Claude (legge da ~/.claude)
 claudex auth login claude
 
 # Accedi a Google
-claudex auth login google
+claudex auth login google --profile gemini-sub
+
+# Accedi a GitLab con URL enterprise
+claudex auth login gitlab --enterprise-url https://gitlab.mycompany.com
+
+# Modalita headless (nessun browser, solo device code)
+claudex auth login github --headless
 ```
 
 #### `auth status`
@@ -125,13 +145,13 @@ claudex auth login google
 claudex auth status [PROVIDER]
 ```
 
-Mostra lo stato corrente dell'autenticazione. Senza un argomento provider, mostra lo stato per tutti i profili OAuth configurati.
+Mostra lo stato corrente dell'autenticazione. Senza un argomento fornitore, mostra lo stato per tutti i profili OAuth configurati.
 
 ```bash
 # Verifica tutti i profili OAuth
 claudex auth status
 
-# Verifica un provider specifico
+# Verifica un fornitore specifico
 claudex auth status openai
 ```
 
@@ -141,7 +161,7 @@ claudex auth status openai
 claudex auth refresh <PROVIDER>
 ```
 
-Aggiorna manualmente il token OAuth per un provider. I token vengono aggiornati automaticamente anche dal proxy quando scadono.
+Aggiorna manualmente il token OAuth per un fornitore. I token vengono aggiornati automaticamente anche dal proxy quando scadono.
 
 #### `auth logout`
 
@@ -149,7 +169,7 @@ Aggiorna manualmente il token OAuth per un provider. I token vengono aggiornati 
 claudex auth logout <PROVIDER>
 ```
 
-Rimuove i token OAuth archiviati per un provider.
+Rimuove i token OAuth archiviati per un fornitore dal portachiavi di sistema.
 
 ### `proxy`
 
@@ -158,7 +178,7 @@ Gestisci il server proxy di traduzione.
 #### `proxy start`
 
 ```bash
-claudex proxy start [-p PORT] [-d]
+claudex proxy start [OPTIONS]
 ```
 
 | Flag | Descrizione |
@@ -172,7 +192,7 @@ claudex proxy start [-p PORT] [-d]
 claudex proxy stop
 ```
 
-Ferma il daemon del proxy (invia SIGTERM).
+Ferma il daemon del proxy (invia SIGTERM tramite file PID).
 
 #### `proxy status`
 
@@ -180,7 +200,7 @@ Ferma il daemon del proxy (invia SIGTERM).
 claudex proxy status
 ```
 
-Mostra se il proxy è in esecuzione e su quale porta.
+Mostra se il proxy e in esecuzione e su quale porta.
 
 ### `dashboard`
 
@@ -192,24 +212,132 @@ Avvia la dashboard TUI per il monitoraggio in tempo reale e l'avvio rapido.
 
 ### `config`
 
+Gestisci i file di configurazione.
+
+#### `config show`
+
 ```bash
-claudex config [--init]
+claudex config show
 ```
 
-| Flag | Descrizione |
-|------|-------------|
-| `--init` | Crea un nuovo file di configurazione nella directory corrente |
+Mostra il percorso del file di configurazione caricato, l'ordine di ricerca e i valori di configurazione correnti.
 
-Senza `--init`, mostra il percorso del file di configurazione caricato e l'ordine di ricerca.
+#### `config path`
+
+```bash
+claudex config path
+```
+
+Stampa solo il percorso del file di configurazione risolto.
+
+#### `config init`
+
+```bash
+claudex config init
+```
+
+Crea un nuovo file di configurazione nella directory corrente dal template integrato.
+
+#### `config recreate`
+
+```bash
+claudex config recreate
+```
+
+Ricrea il file di configurazione da `config.example.toml`, sovrascrivendo il config esistente.
+
+#### `config edit`
+
+```bash
+claudex config edit
+```
+
+Apre il file di configurazione nel tuo `$EDITOR` (o `$VISUAL`).
+
+#### `config validate`
+
+```bash
+claudex config validate
+```
+
+Valida la sintassi del config, i riferimenti ai profili (backup_providers, regole del router) e le impostazioni dei fornitori OAuth. Riporta errori e avvertimenti.
+
+#### `config get`
+
+```bash
+claudex config get <KEY>
+```
+
+Ottieni un valore specifico della configurazione tramite percorso chiave (ad es. `proxy_port`, `profiles.0.name`).
+
+#### `config set`
+
+```bash
+claudex config set <KEY> <VALUE>
+```
+
+Imposta un valore specifico della configurazione tramite percorso chiave.
+
+#### `config export`
+
+```bash
+claudex config export
+```
+
+Esporta la configurazione unificata corrente su stdout in formato TOML.
+
+### `sets`
+
+Gestisci i set di configurazione (pacchetti installabili di regole, skill e server MCP).
+
+#### `sets add`
+
+```bash
+claudex sets add <PATH>
+```
+
+Installa un set di configurazione da una directory locale contenente un `manifest.json` (o `manifest.yaml`).
+
+#### `sets remove`
+
+```bash
+claudex sets remove <NAME>
+```
+
+Rimuove un set di configurazione installato per nome.
+
+#### `sets list`
+
+```bash
+claudex sets list
+```
+
+Elenca tutti i set di configurazione installati con la loro versione, descrizione e riepilogo dei componenti.
+
+#### `sets update`
+
+```bash
+claudex sets update <NAME> <PATH>
+```
+
+Aggiorna un set di configurazione esistente da un nuovo percorso del manifesto.
+
+#### `sets show`
+
+```bash
+claudex sets show <NAME>
+```
+
+Mostra informazioni dettagliate su un set di configurazione installato, inclusi tutti i componenti.
 
 ### `update`
 
 ```bash
-claudex update [--check]
+claudex update [OPTIONS]
 ```
 
 | Flag | Descrizione |
 |------|-------------|
 | `--check` | Verifica solo gli aggiornamenti, non installarli |
 
-Senza `--check`, scarica e installa l'ultima versione.
+Senza `--check`, scarica e installa l'ultima versione da GitHub Releases.

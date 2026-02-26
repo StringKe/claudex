@@ -3,11 +3,17 @@ title: CLI リファレンス
 description: Claudex CLI の完全なコマンドリファレンス
 ---
 
-## 基本的な使い方
+## グローバルオプション
 
 ```
-claudex [COMMAND]
+claudex [OPTIONS] [COMMAND]
 ```
+
+| オプション | 説明 |
+|-----------|------|
+| `--config <PATH>` | 設定ファイルパスを上書き |
+| `--version` | バージョンを表示 |
+| `--help` | ヘルプを表示 |
 
 コマンドなしで実行すると、プロファイルが設定されている場合は TUI ダッシュボードを起動し、プロファイルが存在しない場合はウェルカムメッセージを表示します。
 
@@ -18,20 +24,21 @@ claudex [COMMAND]
 特定のプロバイダープロファイルで Claude Code を実行します。
 
 ```bash
-claudex run <PROFILE> [PROMPT] [-m MODEL] [--print] [--dangerously-skip-permissions] [ARGS...]
+claudex run <PROFILE> [PROMPT] [OPTIONS] [-- ARGS...]
 ```
 
-| 引数 | 説明 |
-|------|------|
+| 引数 / オプション | 説明 |
+|----------|------|
 | `PROFILE` | プロファイル名、またはスマートルーティングの場合は `auto` |
-| `PROMPT` | 非インタラクティブ (ワンショット) 実行のための任意のプロンプト |
+| `PROMPT` | 非対話（ワンショット）実行のための任意のプロンプト |
 | `-m, --model MODEL` | このセッションのデフォルトモデルを上書き |
-| `--print` | レスポンスを出力して終了 (非インタラクティブモード) |
-| `--dangerously-skip-permissions` | すべての許可プロンプトをスキップ (`--print` と組み合わせて CI/CD に使用) |
-| `ARGS...` | `claude` に渡す追加引数 |
+| `--hyperlinks` | OSC 8 ターミナルハイパーリンクを強制有効化 |
+| `--print` | レスポンスを出力して終了（非対話モード） |
+| `--dangerously-skip-permissions` | すべての権限プロンプトをスキップ（CI/CD で `--print` と併用） |
+| `ARGS...` | `claude` に渡す追加引数（`--` の後） |
 
 ```bash
-# Grok を使用 (インタラクティブ)
+# Grok を使用（対話モード）
 claudex run grok
 
 # 特定のモデルで Grok を使用
@@ -40,10 +47,13 @@ claudex run grok -m grok-3-mini-beta
 # スマートルーティング
 claudex run auto
 
-# 非インタラクティブなワンショット実行
+# ターミナルハイパーリンクを強制有効化
+claudex run grok --hyperlinks
+
+# 非対話ワンショット実行
 claudex run grok "Explain this codebase" --print
 
-# CI/CD パイプラインでの使用 (プロンプトなし、許可なし)
+# CI/CD パイプラインでの使用（プロンプトなし、権限なし）
 claudex run grok "Fix lint errors" --print --dangerously-skip-permissions
 
 # claude に追加引数を渡す
@@ -60,7 +70,7 @@ claudex run grok -- --verbose
 claudex profile list
 ```
 
-ステータスを含む設定済みのすべてのプロファイルを一覧表示します。
+ステータス、プロバイダータイプ、モデルを含む設定済みのすべてのプロファイルを一覧表示します。
 
 #### `profile add`
 
@@ -68,7 +78,7 @@ claudex profile list
 claudex profile add
 ```
 
-新しいプロファイルを追加するインタラクティブウィザード。プロバイダーの選択、API キーの入力 (キーリングへの保存オプション付き)、モデルの選択、接続テストをガイドします。
+新しいプロファイルを追加する対話型ウィザード。プロバイダー選択、API キー入力（オプションでキーリング保存）、モデル選択、接続テストをガイドします。
 
 #### `profile show`
 
@@ -76,7 +86,7 @@ claudex profile add
 claudex profile show <NAME>
 ```
 
-特定のプロファイルの詳細を表示します。
+すべての設定フィールドを含む特定プロファイルの詳細を表示します。
 
 #### `profile remove`
 
@@ -92,7 +102,7 @@ claudex profile remove <NAME>
 claudex profile test <NAME|all>
 ```
 
-特定のプロファイルまたはすべてのプロファイルの接続テストを行います。
+特定のプロファイルまたはすべてのプロファイルの接続テストを行います。プロバイダーの `/models` エンドポイントに軽量リクエストを送信します。
 
 ### `auth`
 
@@ -101,22 +111,32 @@ claudex profile test <NAME|all>
 #### `auth login`
 
 ```bash
-claudex auth login <PROVIDER>
+claudex auth login <PROVIDER> [OPTIONS]
 ```
 
-OAuth を使用してプロバイダーにログインします。対応プロバイダー: `claude`、`openai`、`google`、`qwen`、`kimi`、`github`。
+| オプション | 説明 |
+|-----------|------|
+| `--profile <NAME>` | 特定のプロファイルに関連付け |
+| `--enterprise-url <URL>` | カスタムエンタープライズサーバー URL（セルフホスト GitLab 等） |
+| `--headless` | ヘッドレス（デバイスコード）フローを使用、ブラウザ起動をスキップ |
 
-**OpenAI** の場合、Claudex は Codex CLI 設定 (`~/.codex/auth.json`) からトークンを読み取ります。**Claude** の場合は `~/.claude` から読み取ります。その他のプロバイダーはローカルコールバックサーバーまたはデバイスコードフローを使用します。
+OAuth を使用してプロバイダーにログインします。対応プロバイダー: `claude`、`openai`、`google`、`qwen`、`kimi`、`github`、`gitlab`。
 
 ```bash
-# OpenAI にログイン (Codex CLI から読み取り)
-claudex auth login openai
+# OpenAI にログイン（Codex CLI から読み取り）
+claudex auth login openai --profile codex-sub
 
-# Claude にログイン (~/.claude から読み取り)
+# Claude にログイン（~/.claude から読み取り）
 claudex auth login claude
 
 # Google にログイン
-claudex auth login google
+claudex auth login google --profile gemini-sub
+
+# エンタープライズ URL で GitLab にログイン
+claudex auth login gitlab --enterprise-url https://gitlab.mycompany.com
+
+# ヘッドレスモード（ブラウザなし、デバイスコードのみ）
+claudex auth login github --headless
 ```
 
 #### `auth status`
@@ -125,7 +145,7 @@ claudex auth login google
 claudex auth status [PROVIDER]
 ```
 
-現在の認証状態を表示します。プロバイダー引数がない場合は、設定済みのすべての OAuth プロファイルのステータスを表示します。
+現在の認証ステータスを表示します。プロバイダー引数なしの場合、設定済みのすべての OAuth プロファイルのステータスを表示します。
 
 ```bash
 # すべての OAuth プロファイルを確認
@@ -141,7 +161,7 @@ claudex auth status openai
 claudex auth refresh <PROVIDER>
 ```
 
-プロバイダーの OAuth トークンを手動で更新します。トークンは期限が切れる際にプロキシによっても自動的に更新されます。
+プロバイダーの OAuth トークンを手動でリフレッシュします。トークンは期限切れ時にプロキシによっても自動的にリフレッシュされます。
 
 #### `auth logout`
 
@@ -149,7 +169,7 @@ claudex auth refresh <PROVIDER>
 claudex auth logout <PROVIDER>
 ```
 
-プロバイダーの保存済み OAuth トークンを削除します。
+プロバイダーの保存済み OAuth トークンをシステムキーリングから削除します。
 
 ### `proxy`
 
@@ -158,12 +178,12 @@ claudex auth logout <PROVIDER>
 #### `proxy start`
 
 ```bash
-claudex proxy start [-p PORT] [-d]
+claudex proxy start [OPTIONS]
 ```
 
 | フラグ | 説明 |
 |--------|------|
-| `-p, --port PORT` | プロキシポートを上書き (デフォルト: 設定から) |
+| `-p, --port PORT` | プロキシポートを上書き（デフォルト: 設定から） |
 | `-d, --daemon` | バックグラウンドデーモンとして実行 |
 
 #### `proxy stop`
@@ -172,7 +192,7 @@ claudex proxy start [-p PORT] [-d]
 claudex proxy stop
 ```
 
-プロキシデーモンを停止します (SIGTERM を送信)。
+プロキシデーモンを停止します（PID ファイル経由で SIGTERM を送信）。
 
 #### `proxy status`
 
@@ -192,24 +212,132 @@ claudex dashboard
 
 ### `config`
 
+設定ファイルを管理します。
+
+#### `config show`
+
 ```bash
-claudex config [--init]
+claudex config show
 ```
 
-| フラグ | 説明 |
-|--------|------|
-| `--init` | カレントディレクトリに新しい設定ファイルを作成 |
+読み込まれた設定ファイルパス、検索順序、現在の設定値を表示します。
 
-`--init` なしの場合は、読み込まれた設定ファイルのパスと検索順序を表示します。
+#### `config path`
+
+```bash
+claudex config path
+```
+
+解決された設定ファイルパスのみを表示します。
+
+#### `config init`
+
+```bash
+claudex config init
+```
+
+組み込みテンプレートからカレントディレクトリに新しい設定ファイルを作成します。
+
+#### `config recreate`
+
+```bash
+claudex config recreate
+```
+
+`config.example.toml` から設定ファイルを再作成し、既存の設定を上書きします。
+
+#### `config edit`
+
+```bash
+claudex config edit
+```
+
+`$EDITOR`（または `$VISUAL`）で設定ファイルを開きます。
+
+#### `config validate`
+
+```bash
+claudex config validate
+```
+
+設定の構文、プロファイル参照（backup_providers、router rules）、OAuth プロバイダー設定を検証します。エラーと警告を報告します。
+
+#### `config get`
+
+```bash
+claudex config get <KEY>
+```
+
+キーパス（例: `proxy_port`、`profiles.0.name`）で特定の設定値を取得します。
+
+#### `config set`
+
+```bash
+claudex config set <KEY> <VALUE>
+```
+
+キーパスで特定の設定値を設定します。
+
+#### `config export`
+
+```bash
+claudex config export
+```
+
+現在のマージ済み設定を TOML 形式で標準出力にエクスポートします。
+
+### `sets`
+
+コンフィギュレーションセット（ルール、スキル、MCP サーバーのインストール可能なバンドル）を管理します。
+
+#### `sets add`
+
+```bash
+claudex sets add <PATH>
+```
+
+`manifest.json`（または `manifest.yaml`）を含むローカルディレクトリからコンフィギュレーションセットをインストールします。
+
+#### `sets remove`
+
+```bash
+claudex sets remove <NAME>
+```
+
+名前を指定してインストール済みのコンフィギュレーションセットを削除します。
+
+#### `sets list`
+
+```bash
+claudex sets list
+```
+
+インストール済みのすべてのコンフィギュレーションセットをバージョン、説明、コンポーネントの概要とともに一覧表示します。
+
+#### `sets update`
+
+```bash
+claudex sets update <NAME> <PATH>
+```
+
+新しいマニフェストパスから既存のコンフィギュレーションセットを更新します。
+
+#### `sets show`
+
+```bash
+claudex sets show <NAME>
+```
+
+すべてのコンポーネントを含む、インストール済みコンフィギュレーションセットの詳細情報を表示します。
 
 ### `update`
 
 ```bash
-claudex update [--check]
+claudex update [OPTIONS]
 ```
 
 | フラグ | 説明 |
 |--------|------|
 | `--check` | アップデートの確認のみ行い、インストールしない |
 
-`--check` なしの場合は、最新バージョンをダウンロードしてインストールします。
+`--check` なしの場合は、GitHub Releases から最新バージョンをダウンロードしてインストールします。

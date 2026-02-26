@@ -1,0 +1,141 @@
+---
+title: 模型槽位映射
+description: 将 Claude Code 的 /model 切换器映射到任意提供商的模型
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Claude Code 内置 `/model` 命令，可在三个模型槽位之间切换：**haiku**（快速）、**sonnet**（均衡）和 **opus**（强大）。默认映射到 Anthropic 模型，但 Claudex 允许你将每个槽位映射到任意提供商的模型。
+
+## 配置
+
+在任意 profile 中添加 `[profiles.models]` 表：
+
+```toml
+[[profiles]]
+name = "grok"
+provider_type = "OpenAICompatible"
+base_url = "https://api.x.ai/v1"
+api_key = "xai-..."
+default_model = "grok-3-beta"
+
+[profiles.models]
+haiku = "grok-3-mini-beta"
+sonnet = "grok-3-beta"
+opus = "grok-3-beta"
+```
+
+在 Claude Code 中输入 `/model sonnet` 时，Claudex 将其解析为 `grok-3-beta`。`/model opus` 命令映射到 `grok-3-beta`，以此类推。
+
+## 工作原理
+
+启动 Claude Code 时，Claudex 设置三个环境变量：
+
+| 环境变量 | 说明 |
+|----------|------|
+| `ANTHROPIC_DEFAULT_HAIKU_MODEL` | haiku 槽位的模型名称 |
+| `ANTHROPIC_DEFAULT_SONNET_MODEL` | sonnet 槽位的模型名称 |
+| `ANTHROPIC_DEFAULT_OPUS_MODEL` | opus 槽位的模型名称 |
+
+Claude Code 读取这些变量来填充其 `/model` 切换器。如果 profile 中未配置某个槽位，则使用 profile 的 `default_model` 作为回退。
+
+## 各提供商模型映射示例
+
+### Grok (xAI)
+
+```toml
+[profiles.models]
+haiku = "grok-3-mini-beta"
+sonnet = "grok-3-beta"
+opus = "grok-3-beta"
+```
+
+### OpenAI
+
+```toml
+[profiles.models]
+haiku = "gpt-4o-mini"
+sonnet = "gpt-4o"
+opus = "o1"
+```
+
+### DeepSeek
+
+```toml
+[profiles.models]
+haiku = "deepseek-chat"
+sonnet = "deepseek-chat"
+opus = "deepseek-reasoner"
+```
+
+### Google Gemini
+
+```toml
+[profiles.models]
+haiku = "gemini-2.0-flash"
+sonnet = "gemini-2.5-pro"
+opus = "gemini-2.5-pro"
+```
+
+### ChatGPT Codex（订阅）
+
+```toml
+[profiles.models]
+haiku = "codex-mini-latest"
+sonnet = "gpt-5.3-codex"
+opus = "gpt-5.3-codex"
+```
+
+### Claude（订阅）
+
+```toml
+[profiles.models]
+haiku = "claude-haiku-4-20250514"
+sonnet = "claude-sonnet-4-20250514"
+opus = "claude-opus-4-20250514"
+```
+
+### Groq
+
+```toml
+[profiles.models]
+haiku = "gemma2-9b-it"
+sonnet = "llama-3.3-70b-versatile"
+opus = "llama-3.3-70b-versatile"
+```
+
+### Mistral
+
+```toml
+[profiles.models]
+haiku = "mistral-small-latest"
+sonnet = "mistral-large-latest"
+opus = "mistral-large-latest"
+```
+
+### Ollama（本地）
+
+```toml
+[profiles.models]
+haiku = "qwen2.5:7b"
+sonnet = "qwen2.5:32b"
+opus = "qwen2.5:72b"
+```
+
+## 默认行为
+
+如果未指定 `[profiles.models]`，三个槽位全部回退到 profile 的 `default_model`。这意味着 `/model haiku`、`/model sonnet` 和 `/model opus` 都使用同一个模型。
+
+<Aside type="tip">
+  对于只有一两个模型层级的提供商，常见做法是将多个槽位映射到同一个模型。例如 DeepSeek 将 haiku 和 sonnet 都映射到 `deepseek-chat`，将 opus 留给 `deepseek-reasoner`。
+</Aside>
+
+## 环境变量覆盖
+
+可以通过直接设置环境变量来覆盖槽位，无需修改配置：
+
+```bash
+ANTHROPIC_DEFAULT_HAIKU_MODEL=my-fast-model claudex run grok
+```
+
+环境变量优先于 profile 配置。
