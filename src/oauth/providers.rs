@@ -3,11 +3,13 @@ use anyhow::{Context, Result};
 use crate::config::{ClaudexConfig, ProfileConfig, ProfileModels, ProviderType};
 use crate::oauth::{AuthType, OAuthProvider, OAuthToken};
 
-/// Provider 默认配置
+/// Provider 默认配置（开箱即用）
 struct ProviderDefaults {
     provider_type: ProviderType,
     base_url: &'static str,
     default_model: &'static str,
+    models: ProfileModels,
+    max_tokens: Option<u64>,
 }
 
 fn provider_defaults(provider: &OAuthProvider) -> ProviderDefaults {
@@ -16,31 +18,67 @@ fn provider_defaults(provider: &OAuthProvider) -> ProviderDefaults {
             provider_type: ProviderType::DirectAnthropic,
             base_url: "https://api.claude.ai",
             default_model: "claude-sonnet-4-20250514",
+            models: ProfileModels {
+                haiku: Some("claude-haiku-4-5-20251001".to_string()),
+                sonnet: Some("claude-sonnet-4-20250514".to_string()),
+                opus: Some("claude-opus-4-6-20250610".to_string()),
+            },
+            max_tokens: None,
         },
         OAuthProvider::Openai => ProviderDefaults {
             provider_type: ProviderType::OpenAIResponses,
             base_url: "https://chatgpt.com/backend-api/codex",
-            default_model: "gpt-4o",
+            default_model: "gpt-5.3-codex",
+            models: ProfileModels {
+                haiku: Some("gpt-5.3-codex".to_string()),
+                sonnet: Some("gpt-5.3-codex".to_string()),
+                opus: Some("gpt-5.3-codex".to_string()),
+            },
+            max_tokens: None,
         },
         OAuthProvider::Google => ProviderDefaults {
             provider_type: ProviderType::OpenAICompatible,
             base_url: "https://generativelanguage.googleapis.com/v1beta/openai",
-            default_model: "gemini-2.5-pro",
+            default_model: "gemini-2.5-pro-preview",
+            models: ProfileModels {
+                haiku: Some("gemini-2.5-flash-preview".to_string()),
+                sonnet: Some("gemini-2.5-pro-preview".to_string()),
+                opus: Some("gemini-2.5-pro-preview".to_string()),
+            },
+            max_tokens: None,
         },
         OAuthProvider::Qwen => ProviderDefaults {
             provider_type: ProviderType::OpenAICompatible,
             base_url: "https://chat.qwen.ai/api",
-            default_model: "qwen-max",
+            default_model: "qwen3-235b-a22b",
+            models: ProfileModels {
+                haiku: Some("qwen3-30b-a3b".to_string()),
+                sonnet: Some("qwen3-235b-a22b".to_string()),
+                opus: Some("qwen3-235b-a22b".to_string()),
+            },
+            max_tokens: None,
         },
         OAuthProvider::Kimi => ProviderDefaults {
             provider_type: ProviderType::OpenAICompatible,
             base_url: "https://api.moonshot.cn/v1",
-            default_model: "moonshot-v1-128k",
+            default_model: "kimi-k2-0905-preview",
+            models: ProfileModels {
+                haiku: Some("moonshot-v1-8k".to_string()),
+                sonnet: Some("kimi-k2-0905-preview".to_string()),
+                opus: Some("kimi-k2-0905-preview".to_string()),
+            },
+            max_tokens: None,
         },
         OAuthProvider::Github => ProviderDefaults {
             provider_type: ProviderType::OpenAICompatible,
             base_url: "https://api.githubcopilot.com",
             default_model: "gpt-4o",
+            models: ProfileModels {
+                haiku: Some("gpt-4o-mini".to_string()),
+                sonnet: Some("gpt-4o".to_string()),
+                opus: Some("o3".to_string()),
+            },
+            max_tokens: None,
         },
     }
 }
@@ -76,8 +114,8 @@ fn ensure_oauth_profile(
         enabled: true,
         auth_type: AuthType::OAuth,
         oauth_provider: Some(provider.clone()),
-        models: ProfileModels::default(),
-        max_tokens: None,
+        models: defaults.models,
+        max_tokens: defaults.max_tokens,
         strip_params: crate::config::StripParams::default(),
     };
 
@@ -623,10 +661,14 @@ mod tests {
     fn test_provider_defaults_openai() {
         let defaults = provider_defaults(&OAuthProvider::Openai);
         assert_eq!(defaults.base_url, "https://chatgpt.com/backend-api/codex");
+        assert_eq!(defaults.default_model, "gpt-5.3-codex");
         assert!(matches!(
             defaults.provider_type,
             ProviderType::OpenAIResponses
         ));
+        assert!(defaults.models.haiku.is_some());
+        assert!(defaults.models.sonnet.is_some());
+        assert!(defaults.models.opus.is_some());
     }
 
     #[test]
@@ -663,7 +705,7 @@ mod tests {
             defaults.base_url,
             "https://generativelanguage.googleapis.com/v1beta/openai"
         );
-        assert_eq!(defaults.default_model, "gemini-2.5-pro");
+        assert_eq!(defaults.default_model, "gemini-2.5-pro-preview");
         assert!(matches!(
             defaults.provider_type,
             ProviderType::OpenAICompatible
@@ -674,7 +716,7 @@ mod tests {
     fn test_provider_defaults_qwen() {
         let defaults = provider_defaults(&OAuthProvider::Qwen);
         assert_eq!(defaults.base_url, "https://chat.qwen.ai/api");
-        assert_eq!(defaults.default_model, "qwen-max");
+        assert_eq!(defaults.default_model, "qwen3-235b-a22b");
         assert!(matches!(
             defaults.provider_type,
             ProviderType::OpenAICompatible
@@ -685,11 +727,41 @@ mod tests {
     fn test_provider_defaults_kimi() {
         let defaults = provider_defaults(&OAuthProvider::Kimi);
         assert_eq!(defaults.base_url, "https://api.moonshot.cn/v1");
-        assert_eq!(defaults.default_model, "moonshot-v1-128k");
+        assert_eq!(defaults.default_model, "kimi-k2-0905-preview");
         assert!(matches!(
             defaults.provider_type,
             ProviderType::OpenAICompatible
         ));
+    }
+
+    #[test]
+    fn test_all_providers_have_model_slots() {
+        let providers = [
+            OAuthProvider::Claude,
+            OAuthProvider::Openai,
+            OAuthProvider::Google,
+            OAuthProvider::Qwen,
+            OAuthProvider::Kimi,
+            OAuthProvider::Github,
+        ];
+        for provider in &providers {
+            let defaults = provider_defaults(provider);
+            assert!(
+                defaults.models.haiku.is_some(),
+                "{:?} missing haiku model",
+                provider
+            );
+            assert!(
+                defaults.models.sonnet.is_some(),
+                "{:?} missing sonnet model",
+                provider
+            );
+            assert!(
+                defaults.models.opus.is_some(),
+                "{:?} missing opus model",
+                provider
+            );
+        }
     }
 
     // ── urlencoded 边界 ───────────────────────────────────────
