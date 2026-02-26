@@ -107,6 +107,15 @@ default_model = "glm-4.6"
 enabled = true
 priority = 70
 
+[[profiles]]
+name = "mistral"
+provider_type = "OpenAICompatible"
+base_url = "https://api.mistral.ai/v1"
+api_key = "YOUR_MISTRAL_KEY"
+default_model = "mistral-small-latest"
+priority = 70
+enabled = true
+
 # ─── OAuth Subscription Profiles ───────────────────────
 # Login first: claudex auth login <provider> --profile <name>
 
