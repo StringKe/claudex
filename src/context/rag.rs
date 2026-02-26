@@ -243,3 +243,51 @@ fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
 
     dot / (norm_a * norm_b)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_cosine_similarity_identical() {
+        let a = vec![1.0, 2.0, 3.0];
+        let result = cosine_similarity(&a, &a);
+        assert!((result - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_cosine_similarity_orthogonal() {
+        let a = vec![1.0, 0.0];
+        let b = vec![0.0, 1.0];
+        let result = cosine_similarity(&a, &b);
+        assert!(result.abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_cosine_similarity_opposite() {
+        let a = vec![1.0, 0.0];
+        let b = vec![-1.0, 0.0];
+        let result = cosine_similarity(&a, &b);
+        assert!((result + 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_cosine_similarity_empty() {
+        let result = cosine_similarity(&[], &[]);
+        assert_eq!(result, 0.0);
+    }
+
+    #[test]
+    fn test_cosine_similarity_zero_vector() {
+        let a = vec![0.0, 0.0, 0.0];
+        let b = vec![1.0, 2.0, 3.0];
+        assert_eq!(cosine_similarity(&a, &b), 0.0);
+    }
+
+    #[test]
+    fn test_cosine_similarity_different_lengths() {
+        let a = vec![1.0, 2.0];
+        let b = vec![1.0, 2.0, 3.0];
+        assert_eq!(cosine_similarity(&a, &b), 0.0);
+    }
+}

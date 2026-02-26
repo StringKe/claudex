@@ -1,6 +1,9 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use super::{App, AppMode, AsyncAction, ProfileForm, RightPanel};
+use super::{
+    App, AppMode, AsyncAction, ProfileForm, RightPanel, FIELD_BASE_URL, FIELD_ENABLED, FIELD_MODEL,
+    FIELD_NAME, FIELD_PRIORITY, FIELD_PROVIDER_TYPE,
+};
 
 pub fn handle_key_event(app: &mut App, key: KeyEvent) {
     // Help overlay dismisses on any key
@@ -69,18 +72,19 @@ fn handle_normal(app: &mut App, key: KeyEvent) {
                     let mut form = ProfileForm::new_blank();
                     form.is_edit = true;
                     form.original_name = Some(name.clone());
-                    form.fields[0].value = profile.name.clone();
-                    form.fields[0].cursor_pos = profile.name.len();
-                    form.fields[1].value = profile.provider_type.clone();
-                    form.fields[2].value = profile.base_url.clone();
-                    form.fields[2].cursor_pos = profile.base_url.len();
+                    form.fields[FIELD_NAME].value = profile.name.clone();
+                    form.fields[FIELD_NAME].cursor_pos = profile.name.len();
+                    form.fields[FIELD_PROVIDER_TYPE].value = profile.provider_type.clone();
+                    form.fields[FIELD_BASE_URL].value = profile.base_url.clone();
+                    form.fields[FIELD_BASE_URL].cursor_pos = profile.base_url.len();
                     // api_key left blank (cannot read from snapshot)
-                    form.fields[4].value = profile.default_model.clone();
-                    form.fields[4].cursor_pos = profile.default_model.len();
-                    form.fields[5].value =
+                    form.fields[FIELD_MODEL].value = profile.default_model.clone();
+                    form.fields[FIELD_MODEL].cursor_pos = profile.default_model.len();
+                    form.fields[FIELD_ENABLED].value =
                         if profile.enabled { "true" } else { "false" }.to_string();
-                    form.fields[6].value = profile.priority.to_string();
-                    form.fields[6].cursor_pos = form.fields[6].value.len();
+                    form.fields[FIELD_PRIORITY].value = profile.priority.to_string();
+                    form.fields[FIELD_PRIORITY].cursor_pos =
+                        form.fields[FIELD_PRIORITY].value.len();
                     app.form = form;
                     app.mode = AppMode::EditProfile;
                 }
@@ -130,7 +134,7 @@ fn handle_form(app: &mut App, key: KeyEvent) {
     // Ctrl+S: save
     if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('s') {
         let form = app.form.clone();
-        if form.fields[0].value.is_empty() {
+        if form.fields[FIELD_NAME].value.is_empty() {
             log::warn!("Name cannot be empty");
             return;
         }
@@ -153,7 +157,7 @@ fn handle_form(app: &mut App, key: KeyEvent) {
             // If on last field, submit
             if app.form.focused_field == app.form.fields.len() - 1 {
                 let form = app.form.clone();
-                if form.fields[0].value.is_empty() {
+                if form.fields[FIELD_NAME].value.is_empty() {
                     log::warn!("Name cannot be empty");
                     return;
                 }

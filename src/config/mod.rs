@@ -1,3 +1,6 @@
+pub mod cmd;
+pub mod profile;
+
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -194,11 +197,44 @@ pub struct ProfileModels {
     pub opus: Option<String>,
 }
 
+impl Default for ProfileConfig {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            provider_type: default_provider_type(),
+            base_url: String::new(),
+            api_key: String::new(),
+            api_key_keyring: None,
+            default_model: String::new(),
+            backup_providers: Vec::new(),
+            custom_headers: HashMap::new(),
+            extra_env: HashMap::new(),
+            priority: default_priority(),
+            enabled: default_enabled(),
+            auth_type: AuthType::default(),
+            oauth_provider: None,
+            models: ProfileModels::default(),
+            max_tokens: None,
+            strip_params: StripParams::default(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ProviderType {
     DirectAnthropic,
     OpenAICompatible,
     OpenAIResponses,
+}
+
+impl std::fmt::Display for ProviderType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ProviderType::DirectAnthropic => write!(f, "Anthropic"),
+            ProviderType::OpenAICompatible => write!(f, "OpenAI"),
+            ProviderType::OpenAIResponses => write!(f, "Responses"),
+        }
+    }
 }
 
 fn default_claude_binary() -> String {
@@ -442,7 +478,7 @@ enabled = false
             if path.exists() {
                 anyhow::bail!("claudex.yaml already exists in current directory");
             }
-            let example_toml = include_str!("../config.example.toml");
+            let example_toml = include_str!("../../config.example.toml");
             // Parse TOML example, then serialize as YAML
             let figment = Figment::from(Serialized::defaults(ClaudexConfig::default()))
                 .merge(figment::providers::Toml::string(example_toml));
@@ -450,7 +486,7 @@ enabled = false
                 .extract()
                 .context("failed to parse example config")?;
             let yaml_content =
-                serde_yaml::to_string(&config).context("failed to serialize to YAML")?;
+                serde_yml::to_string(&config).context("failed to serialize to YAML")?;
             std::fs::write(&path, yaml_content)?;
             println!("Created: {}", path.display());
             Ok(path)
@@ -459,7 +495,7 @@ enabled = false
             if path.exists() {
                 anyhow::bail!("claudex.toml already exists in current directory");
             }
-            let example = include_str!("../config.example.toml");
+            let example = include_str!("../../config.example.toml");
             std::fs::write(&path, example)?;
             println!("Created: {}", path.display());
             Ok(path)
@@ -497,7 +533,7 @@ enabled = false
         }
         let content = match self.config_format {
             ConfigFormat::Yaml => {
-                serde_yaml::to_string(self).context("failed to serialize config to YAML")?
+                serde_yml::to_string(self).context("failed to serialize config to YAML")?
             }
             ConfigFormat::Toml => {
                 toml::to_string_pretty(self).context("failed to serialize config to TOML")?
@@ -561,19 +597,9 @@ mod tests {
             name: name.to_string(),
             provider_type: ProviderType::OpenAICompatible,
             base_url: "http://localhost".to_string(),
-            api_key: String::new(),
-            api_key_keyring: None,
             default_model: "test-model".to_string(),
-            backup_providers: Vec::new(),
-            custom_headers: HashMap::new(),
-            extra_env: HashMap::new(),
-            priority: 100,
             enabled,
-            auth_type: AuthType::default(),
-            oauth_provider: None,
-            models: ProfileModels::default(),
-            max_tokens: None,
-            strip_params: StripParams::default(),
+            ..Default::default()
         }
     }
 
@@ -856,7 +882,7 @@ mod tests {
 
     #[test]
     fn test_config_example_toml_parses() {
-        let example = include_str!("../config.example.toml");
+        let example = include_str!("../../config.example.toml");
         let config: ClaudexConfig = toml::from_str(example).unwrap();
         assert!(!config.profiles.is_empty());
         // 确认 OAuth profiles 在其中
@@ -1013,7 +1039,7 @@ profiles:
         config.log_level = "error".to_string();
         config.config_format = ConfigFormat::Yaml;
 
-        let yaml_content = serde_yaml::to_string(&config).unwrap();
+        let yaml_content = serde_yml::to_string(&config).unwrap();
         let figment = Figment::from(Serialized::defaults(ClaudexConfig::default()))
             .merge(figment::providers::Yaml::string(&yaml_content));
         let loaded: ClaudexConfig = figment.extract().unwrap();
@@ -1039,7 +1065,7 @@ profiles:
 
     #[test]
     fn test_figment_config_example_toml() {
-        let example = include_str!("../config.example.toml");
+        let example = include_str!("../../config.example.toml");
         let figment = Figment::from(Serialized::defaults(ClaudexConfig::default()))
             .merge(figment::providers::Toml::string(example));
         let config: ClaudexConfig = figment.extract().unwrap();

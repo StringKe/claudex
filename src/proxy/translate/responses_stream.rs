@@ -3,7 +3,7 @@ use futures::stream::{Stream, StreamExt};
 use serde_json::{json, Value};
 use std::pin::Pin;
 
-use super::util::{format_sse, ToolNameMap};
+use crate::proxy::util::{format_sse, ToolNameMap};
 
 /// Translates an OpenAI Responses API SSE stream to Anthropic SSE format.
 ///

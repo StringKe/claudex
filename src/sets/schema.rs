@@ -130,8 +130,9 @@ impl SetManifest {
             anyhow::bail!("manifest name cannot be empty");
         }
         // 验证 name 格式：^[a-z0-9][a-z0-9._-]*$
-        let name_re = regex::Regex::new(r"^[a-z0-9][a-z0-9._-]*$").unwrap();
-        if !name_re.is_match(&self.name) {
+        static NAME_RE: std::sync::LazyLock<regex::Regex> =
+            std::sync::LazyLock::new(|| regex::Regex::new(r"^[a-z0-9][a-z0-9._-]*$").unwrap());
+        if !NAME_RE.is_match(&self.name) {
             anyhow::bail!(
                 "invalid manifest name '{}': must match ^[a-z0-9][a-z0-9._-]*$",
                 self.name

@@ -369,10 +369,4 @@ fn copy_dir_recursive(source: &Path, target: &Path) -> Result<()> {
     Ok(())
 }
 
-fn prompt_input(label: &str) -> Result<String> {
-    print!("{label}: ");
-    io::stdout().flush()?;
-    let mut input = String::new();
-    io::stdin().read_line(&mut input)?;
-    Ok(input.trim().to_string())
-}
+use crate::util::prompt_input;

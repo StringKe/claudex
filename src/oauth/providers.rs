@@ -104,19 +104,12 @@ fn ensure_oauth_profile(
         name: profile_name.to_string(),
         provider_type: defaults.provider_type,
         base_url: defaults.base_url.to_string(),
-        api_key: String::new(),
-        api_key_keyring: None,
         default_model: defaults.default_model.to_string(),
-        backup_providers: Vec::new(),
-        custom_headers: std::collections::HashMap::new(),
-        extra_env: std::collections::HashMap::new(),
-        priority: 100,
-        enabled: true,
         auth_type: AuthType::OAuth,
         oauth_provider: Some(provider.clone()),
         models: defaults.models,
         max_tokens: defaults.max_tokens,
-        strip_params: crate::config::StripParams::default(),
+        ..Default::default()
     };
 
     config.profiles.push(profile);
@@ -608,39 +601,136 @@ async fn refresh_openai_token(
     Ok(new_token)
 }
 
+// ── Public APIs for handler.rs ───────────────────────────────────────────
+
+/// Device code login flow (public entry point for handler.rs)
+pub async fn login_device_code_pub(provider: &OAuthProvider) -> Result<OAuthToken> {
+    let (device_url, token_url, client_id, scope, grant_type) = match provider {
+        OAuthProvider::Github => (
+            "https://github.com/login/device/code",
+            "https://github.com/login/oauth/access_token",
+            GITHUB_CLIENT_ID,
+            "copilot",
+            "urn:ietf:params:oauth:grant-type:device_code",
+        ),
+        OAuthProvider::Qwen => (
+            "https://chat.qwen.ai/api/oauth/device/code",
+            "https://chat.qwen.ai/api/oauth/token",
+            QWEN_CLIENT_ID,
+            "",
+            "urn:ietf:params:oauth:grant-type:device_code",
+        ),
+        _ => anyhow::bail!("device code flow not supported for {:?}", provider),
+    };
+
+    println!("Starting {} device code flow...", provider.display_name());
+
+    let client = reqwest::Client::new();
+
+    let mut form = vec![("client_id", client_id)];
+    if !scope.is_empty() {
+        form.push(("scope", scope));
+    }
+
+    let resp = client
+        .post(device_url)
+        .header("Accept", "application/json")
+        .form(&form)
+        .send()
+        .await
+        .context("failed to request device code")?;
+
+    let body: serde_json::Value = resp.json().await.context("invalid device code response")?;
+
+    let user_code = body
+        .get("user_code")
+        .and_then(|v| v.as_str())
+        .context("missing user_code in response")?;
+    let verification_uri = body
+        .get("verification_uri")
+        .or_else(|| body.get("verification_url"))
+        .and_then(|v| v.as_str())
+        .context("missing verification_uri in response")?;
+    let device_code = body
+        .get("device_code")
+        .and_then(|v| v.as_str())
+        .context("missing device_code in response")?;
+    let interval = body.get("interval").and_then(|v| v.as_u64()).unwrap_or(5);
+
+    println!();
+    println!("  Open: {verification_uri}");
+    println!("  Enter code: {user_code}");
+    println!();
+    println!("Waiting for authorization...");
+
+    let _ = open_browser(verification_uri);
+
+    let token_resp = super::server::poll_device_code(
+        &client,
+        token_url,
+        device_code,
+        client_id,
+        interval,
+        grant_type,
+    )
+    .await?;
+
+    let token =
+        OAuthToken::from_token_response(&token_resp).context("failed to parse token response")?;
+
+    Ok(token)
+}
+
+/// Refresh device code token (public entry point for handler.rs)
+pub async fn refresh_device_code_pub(
+    provider: &OAuthProvider,
+    profile_name: &str,
+) -> Result<OAuthToken> {
+    let token = super::token::load_token(profile_name).context("no existing token to refresh")?;
+    let refresh_token = token
+        .refresh_token
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("no refresh_token available, please re-login"))?;
+
+    let (token_url, client_id) = match provider {
+        OAuthProvider::Github => (
+            "https://github.com/login/oauth/access_token",
+            GITHUB_CLIENT_ID,
+        ),
+        OAuthProvider::Qwen => ("https://chat.qwen.ai/api/oauth/token", QWEN_CLIENT_ID),
+        _ => anyhow::bail!("device code refresh not supported for {:?}", provider),
+    };
+
+    let client = reqwest::Client::new();
+    let resp =
+        super::server::refresh_access_token(&client, token_url, refresh_token, client_id).await?;
+
+    let mut new_token =
+        OAuthToken::from_token_response(&resp).context("failed to parse refreshed token")?;
+
+    if new_token.refresh_token.is_none() {
+        new_token.refresh_token = token.refresh_token;
+    }
+
+    Ok(new_token)
+}
+
+/// Refresh OpenAI token (public entry point for handler.rs)
+pub async fn refresh_openai_token_pub(
+    refresh_token: &str,
+    original_refresh_token: Option<String>,
+) -> Result<OAuthToken> {
+    refresh_openai_token(refresh_token, original_refresh_token).await
+}
+
 // ── Helpers ─────────────────────────────────────────────────────────────
 
 fn urlencoded(s: &str) -> String {
-    s.replace(':', "%3A")
-        .replace('/', "%2F")
-        .replace('?', "%3F")
-        .replace('&', "%26")
-        .replace('=', "%3D")
+    url::form_urlencoded::byte_serialize(s.as_bytes()).collect()
 }
 
 fn open_browser(url: &str) -> Result<()> {
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .arg(url)
-            .spawn()
-            .context("failed to open browser")?;
-    }
-    #[cfg(target_os = "linux")]
-    {
-        std::process::Command::new("xdg-open")
-            .arg(url)
-            .spawn()
-            .context("failed to open browser")?;
-    }
-    #[cfg(target_os = "windows")]
-    {
-        std::process::Command::new("cmd")
-            .args(["/C", "start", url])
-            .spawn()
-            .context("failed to open browser")?;
-    }
-    Ok(())
+    open::that(url).context("failed to open browser")
 }
 
 #[cfg(test)]
@@ -780,6 +870,24 @@ mod tests {
     #[test]
     fn test_urlencoded_no_special_chars() {
         assert_eq!(urlencoded("hello-world"), "hello-world");
+    }
+
+    #[test]
+    fn test_urlencoded_hash_and_plus() {
+        // form_urlencoded encodes '#' as %23, '+' as %2B
+        assert!(urlencoded("a#b").contains("%23"));
+        assert!(urlencoded("a+b").contains("%2B"));
+    }
+
+    #[test]
+    fn test_urlencoded_space() {
+        // form_urlencoded encodes space as '+'
+        assert_eq!(urlencoded("hello world"), "hello+world");
+    }
+
+    #[test]
+    fn test_urlencoded_at_sign() {
+        assert_eq!(urlencoded("user@host"), "user%40host");
     }
 
     // ── format_expires 边界 ───────────────────────────────────

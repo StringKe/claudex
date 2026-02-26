@@ -1,13 +1,12 @@
 pub mod adapter;
+pub mod context_engine;
+pub mod error;
 pub mod fallback;
 pub mod handler;
 pub mod health;
-pub mod middleware;
+pub mod metrics;
 pub mod models;
-pub mod responses;
-pub mod responses_streaming;
-pub mod streaming;
-pub mod translation;
+pub mod translate;
 pub mod util;
 
 use std::sync::Arc;
@@ -20,7 +19,7 @@ use tokio::sync::RwLock;
 use crate::config::ClaudexConfig;
 use crate::context::rag::RagIndex;
 use crate::context::sharing::SharedContext;
-use crate::metrics::MetricsStore;
+use metrics::MetricsStore;
 
 pub struct ProxyState {
     pub config: Arc<RwLock<ClaudexConfig>>,
@@ -98,10 +97,10 @@ pub async fn start_proxy(config: ClaudexConfig, port_override: Option<u16>) -> R
 
     tracing::info!("proxy listening on {bind_addr}");
 
-    crate::daemon::write_pid(std::process::id())?;
+    crate::process::daemon::write_pid(std::process::id())?;
 
     axum::serve(listener, app).await?;
 
-    crate::daemon::remove_pid()?;
+    crate::process::daemon::remove_pid()?;
     Ok(())
 }

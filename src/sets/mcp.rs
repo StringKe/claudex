@@ -10,13 +10,7 @@ use super::schema::{McpServer, McpServerType};
 
 /// 检测 command 是否存在于 PATH 中
 fn check_command_available(command: &str) -> bool {
-    std::process::Command::new("which")
-        .arg(command)
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
+    which::which(command).is_ok()
 }
 
 /// stdio command 不可用时的安装决策
@@ -201,8 +195,9 @@ fn build_server_json(
 fn interpolate(template: &str, env_values: &HashMap<String, String>) -> String {
     let mut result = template.to_string();
     // 匹配 ${VAR_NAME} 模式
-    let re = regex::Regex::new(r"\$\{([^}]+)\}").unwrap();
-    for cap in re.captures_iter(template) {
+    static RE: std::sync::LazyLock<regex::Regex> =
+        std::sync::LazyLock::new(|| regex::Regex::new(r"\$\{([^}]+)\}").unwrap());
+    for cap in RE.captures_iter(template) {
         let full_match = &cap[0];
         let var_name = &cap[1];
         if let Some(value) = env_values.get(var_name) {

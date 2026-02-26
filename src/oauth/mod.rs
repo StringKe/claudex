@@ -1,3 +1,4 @@
+pub mod handler;
 pub mod providers;
 pub mod server;
 pub mod token;

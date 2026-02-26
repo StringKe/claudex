@@ -108,7 +108,7 @@ pub async fn handle_messages(
     }
 
     // --- Context Engine: apply pre-processing ---
-    super::middleware::apply_context_engine(
+    super::context_engine::apply_context_engine(
         &mut body_value,
         &state,
         &resolved_profile_name,
@@ -506,4 +506,151 @@ fn truncate_at_char_boundary(s: &str, max_bytes: usize) -> &str {
         end -= 1;
     }
     &s[..end]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── truncate_at_char_boundary ──
+
+    #[test]
+    fn test_truncate_ascii_within_limit() {
+        assert_eq!(truncate_at_char_boundary("hello", 10), "hello");
+    }
+
+    #[test]
+    fn test_truncate_ascii_at_limit() {
+        assert_eq!(truncate_at_char_boundary("hello", 5), "hello");
+    }
+
+    #[test]
+    fn test_truncate_ascii_over_limit() {
+        assert_eq!(truncate_at_char_boundary("hello world", 5), "hello");
+    }
+
+    #[test]
+    fn test_truncate_utf8_boundary() {
+        // "日本語" is 3 chars, each 3 bytes = 9 bytes total
+        let s = "日本語";
+        // Truncating at 4 bytes should give us just "日" (3 bytes)
+        assert_eq!(truncate_at_char_boundary(s, 4), "日");
+        // Truncating at 6 bytes should give us "日本"
+        assert_eq!(truncate_at_char_boundary(s, 6), "日本");
+    }
+
+    #[test]
+    fn test_truncate_empty_string() {
+        assert_eq!(truncate_at_char_boundary("", 0), "");
+        assert_eq!(truncate_at_char_boundary("", 10), "");
+    }
+
+    #[test]
+    fn test_truncate_zero_length() {
+        assert_eq!(truncate_at_char_boundary("hello", 0), "");
+    }
+
+    // ── extract_and_store_context ──
+
+    #[test]
+    fn test_extract_text_from_response() {
+        let resp = serde_json::json!({
+            "content": [
+                {"type": "text", "text": "Hello world"},
+                {"type": "text", "text": " more text"}
+            ]
+        });
+        let text = resp
+            .get("content")
+            .and_then(|c| c.as_array())
+            .map(|blocks| {
+                blocks
+                    .iter()
+                    .filter_map(|b| {
+                        if b.get("type").and_then(|t| t.as_str()) == Some("text") {
+                            b.get("text").and_then(|t| t.as_str())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            })
+            .unwrap_or_default();
+        assert_eq!(text, "Hello world\n more text");
+    }
+
+    #[test]
+    fn test_extract_skips_tool_use_blocks() {
+        let resp = serde_json::json!({
+            "content": [
+                {"type": "tool_use", "name": "test"},
+                {"type": "text", "text": "Only text"}
+            ]
+        });
+        let text = resp
+            .get("content")
+            .and_then(|c| c.as_array())
+            .map(|blocks| {
+                blocks
+                    .iter()
+                    .filter_map(|b| {
+                        if b.get("type").and_then(|t| t.as_str()) == Some("text") {
+                            b.get("text").and_then(|t| t.as_str())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            })
+            .unwrap_or_default();
+        assert_eq!(text, "Only text");
+    }
+
+    #[test]
+    fn test_extract_empty_content() {
+        let resp = serde_json::json!({"content": []});
+        let text = resp
+            .get("content")
+            .and_then(|c| c.as_array())
+            .map(|blocks| {
+                blocks
+                    .iter()
+                    .filter_map(|b| {
+                        if b.get("type").and_then(|t| t.as_str()) == Some("text") {
+                            b.get("text").and_then(|t| t.as_str())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            })
+            .unwrap_or_default();
+        assert!(text.is_empty());
+    }
+
+    #[test]
+    fn test_extract_no_content_field() {
+        let resp = serde_json::json!({"role": "assistant"});
+        let text = resp
+            .get("content")
+            .and_then(|c| c.as_array())
+            .map(|blocks| {
+                blocks
+                    .iter()
+                    .filter_map(|b| {
+                        if b.get("type").and_then(|t| t.as_str()) == Some("text") {
+                            b.get("text").and_then(|t| t.as_str())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            })
+            .unwrap_or_default();
+        assert!(text.is_empty());
+    }
 }

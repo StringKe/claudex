@@ -2,19 +2,16 @@
 
 mod cli;
 mod config;
-mod config_cmd;
 mod context;
-mod daemon;
-mod launch;
-mod metrics;
 mod oauth;
-mod profile;
+mod process;
 mod proxy;
 mod router;
 mod sets;
 mod terminal;
 mod tui;
 mod update;
+mod util;
 
 use anyhow::Result;
 use clap::Parser;
@@ -75,7 +72,7 @@ async fn main() -> Result<()> {
             args,
         }) => {
             // Ensure proxy is running
-            if !daemon::is_proxy_running()? {
+            if !process::daemon::is_proxy_running()? {
                 tracing::info!("proxy not running, starting in background...");
                 start_proxy_background(&config).await?;
                 // Brief wait for proxy to be ready
@@ -87,7 +84,7 @@ async fn main() -> Result<()> {
                 .ok_or_else(|| anyhow::anyhow!("profile '{}' not found", profile_name))?
                 .clone();
 
-            launch::launch_claude(&config, &profile, model.as_deref(), &args, hyperlinks)?;
+            process::launch::launch_claude(&config, &profile, model.as_deref(), &args, hyperlinks)?;
 
             // Claude 退出后，输出日志文件路径
             if let Some(log_path) = proxy::proxy_log_path() {
@@ -99,19 +96,19 @@ async fn main() -> Result<()> {
 
         Some(Commands::Profile { action }) => match action {
             ProfileAction::List => {
-                profile::list_profiles(&config).await;
+                config::profile::list_profiles(&config).await;
             }
             ProfileAction::Show { name } => {
-                profile::show_profile(&config, &name).await?;
+                config::profile::show_profile(&config, &name).await?;
             }
             ProfileAction::Test { name } => {
-                profile::test_profile(&config, &name).await?;
+                config::profile::test_profile(&config, &name).await?;
             }
             ProfileAction::Add => {
-                profile::interactive_add(&mut config).await?;
+                config::profile::interactive_add(&mut config).await?;
             }
             ProfileAction::Remove { name } => {
-                profile::remove_profile(&mut config, &name)?;
+                config::profile::remove_profile(&mut config, &name)?;
             }
         },
 
@@ -127,23 +124,23 @@ async fn main() -> Result<()> {
                 }
             }
             ProxyAction::Stop => {
-                daemon::stop_proxy()?;
+                process::daemon::stop_proxy()?;
             }
             ProxyAction::Status => {
-                daemon::proxy_status()?;
+                process::daemon::proxy_status()?;
             }
         },
 
         Some(Commands::Dashboard) => {
             let config_arc = std::sync::Arc::new(tokio::sync::RwLock::new(config));
-            let metrics_store = metrics::MetricsStore::new();
+            let metrics_store = proxy::metrics::MetricsStore::new();
             let health =
                 std::sync::Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new()));
             tui::run_tui(config_arc, metrics_store, health).await?;
         }
 
         Some(Commands::Config { action }) => {
-            config_cmd::dispatch(action, &mut config).await?;
+            config::cmd::dispatch(action, &mut config).await?;
         }
 
         Some(Commands::Update { check }) => {
@@ -211,7 +208,7 @@ async fn main() -> Result<()> {
                 println!("Use --help for more options.");
             } else {
                 let config_arc = std::sync::Arc::new(tokio::sync::RwLock::new(config));
-                let metrics_store = metrics::MetricsStore::new();
+                let metrics_store = proxy::metrics::MetricsStore::new();
                 let health =
                     std::sync::Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new()));
                 tui::run_tui(config_arc, metrics_store, health).await?;

@@ -18,11 +18,12 @@ impl ProviderAdapter for ChatCompletionsAdapter {
         body: &Value,
         profile: &ProfileConfig,
     ) -> Result<TranslatedRequest> {
-        let (openai_body, tool_name_map) = crate::proxy::translation::anthropic_to_openai(
-            body,
-            &profile.default_model,
-            profile.max_tokens,
-        )?;
+        let (openai_body, tool_name_map) =
+            crate::proxy::translate::chat_completions::anthropic_to_openai(
+                body,
+                &profile.default_model,
+                profile.max_tokens,
+            )?;
         Ok(TranslatedRequest {
             body: openai_body,
             tool_name_map,
@@ -38,10 +39,13 @@ impl ProviderAdapter for ChatCompletionsAdapter {
     }
 
     fn translate_response(&self, body: &Value, tool_name_map: &ToolNameMap) -> Result<Value> {
-        crate::proxy::translation::openai_to_anthropic(body, tool_name_map)
+        crate::proxy::translate::chat_completions::openai_to_anthropic(body, tool_name_map)
     }
 
     fn translate_stream(&self, stream: ByteStream, tool_name_map: ToolNameMap) -> ByteStream {
-        crate::proxy::streaming::translate_sse_stream(stream, tool_name_map)
+        crate::proxy::translate::chat_completions_stream::translate_sse_stream(
+            stream,
+            tool_name_map,
+        )
     }
 }

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use anyhow::Result;
 use serde_json::{json, Value};
 
-use super::util::{truncate_tool_name, ToolNameMap};
+use crate::proxy::util::{truncate_tool_name, ToolNameMap};
 
 /// Convert Anthropic Messages API request → OpenAI Responses API request
 pub fn anthropic_to_responses(

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use anyhow::Result;
 use serde_json::{json, Value};
 
-use super::util::{truncate_tool_name, ToolNameMap};
+use crate::proxy::util::{truncate_tool_name, ToolNameMap};
 
 /// Convert Anthropic Messages API request → OpenAI Chat Completions request
 /// 返回 (openai_body, tool_name_map)，tool_name_map 用于在响应中还原被截断的工具名

@@ -50,10 +50,14 @@ pub fn spawn_with_pty(mut cmd: Command, cwd: PathBuf) -> Result<Option<String>> 
             }
 
             // Redirect stdin/stdout/stderr to the PTY slave
+            // nix 0.31: dup2 takes AsFd + &mut OwnedFd
+            // Use raw libc::dup2 for simplicity since we're about to exec
             let slave_raw = slave_fd.as_raw_fd();
-            unistd::dup2(slave_raw, 0).ok();
-            unistd::dup2(slave_raw, 1).ok();
-            unistd::dup2(slave_raw, 2).ok();
+            unsafe {
+                libc::dup2(slave_raw, 0);
+                libc::dup2(slave_raw, 1);
+                libc::dup2(slave_raw, 2);
+            }
 
             drop(slave_fd);
 
@@ -116,8 +120,6 @@ fn run_proxy_loop_inner(
     detector: &mut LinkDetector,
     resume_session_id: &mut Option<String>,
 ) -> Result<()> {
-    let master_raw = master_fd.as_raw_fd();
-    let stdin_raw = stdin_handle.as_raw_fd();
     let stdin_borrowed: BorrowedFd = stdin_handle.as_fd();
     let master_borrowed: BorrowedFd = master_fd.as_fd();
 
@@ -152,7 +154,8 @@ fn run_proxy_loop_inner(
         // stdin → PTY master (user input, pass through unmodified)
         if let Some(revents) = fds[0].revents() {
             if revents.contains(PollFlags::POLLIN) {
-                let n = nix::unistd::read(stdin_raw, &mut read_buf).context("read stdin failed")?;
+                let n = nix::unistd::read(stdin_borrowed, &mut read_buf)
+                    .context("read stdin failed")?;
                 if n == 0 {
                     break;
                 }
@@ -163,7 +166,7 @@ fn run_proxy_loop_inner(
         // PTY master → stdout (claude output, enhance with hyperlinks)
         if let Some(revents) = fds[1].revents() {
             if revents.contains(PollFlags::POLLIN) {
-                match nix::unistd::read(master_raw, &mut read_buf) {
+                match nix::unistd::read(master_borrowed, &mut read_buf) {
                     Ok(0) => break,
                     Ok(n) => {
                         // 将上次残留字节拼接到本次数据前面

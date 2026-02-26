@@ -2,7 +2,6 @@ pub mod dashboard;
 pub mod input;
 pub mod widgets;
 
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -19,9 +18,19 @@ use ratatui::Terminal;
 use tokio::sync::RwLock;
 
 use crate::config::{ClaudexConfig, ProfileConfig, ProviderType};
-use crate::metrics::MetricsStore;
 use crate::oauth::AuthType;
 use crate::proxy::health::HealthMap;
+use crate::proxy::metrics::MetricsStore;
+
+// ── Profile Form Field Indices ──
+
+const FIELD_NAME: usize = 0;
+const FIELD_PROVIDER_TYPE: usize = 1;
+const FIELD_BASE_URL: usize = 2;
+const FIELD_API_KEY: usize = 3;
+const FIELD_MODEL: usize = 4;
+const FIELD_ENABLED: usize = 5;
+const FIELD_PRIORITY: usize = 6;
 
 // ── State Machine ──
 
@@ -297,28 +306,20 @@ impl ProfileForm {
     }
 
     pub fn to_profile_config(&self) -> ProfileConfig {
-        let provider_type = match self.fields[1].value.as_str() {
+        let provider_type = match self.fields[FIELD_PROVIDER_TYPE].value.as_str() {
             "DirectAnthropic" => ProviderType::DirectAnthropic,
             "OpenAIResponses" => ProviderType::OpenAIResponses,
             _ => ProviderType::OpenAICompatible,
         };
         ProfileConfig {
-            name: self.fields[0].value.clone(),
+            name: self.fields[FIELD_NAME].value.clone(),
             provider_type,
-            base_url: self.fields[2].value.clone(),
-            api_key: self.fields[3].value.clone(),
-            api_key_keyring: None,
-            default_model: self.fields[4].value.clone(),
-            backup_providers: Vec::new(),
-            custom_headers: HashMap::new(),
-            extra_env: HashMap::new(),
-            priority: self.fields[6].value.parse().unwrap_or(100),
-            enabled: self.fields[5].value == "true",
-            auth_type: AuthType::ApiKey,
-            oauth_provider: None,
-            models: crate::config::ProfileModels::default(),
-            max_tokens: None,
-            strip_params: crate::config::StripParams::default(),
+            base_url: self.fields[FIELD_BASE_URL].value.clone(),
+            api_key: self.fields[FIELD_API_KEY].value.clone(),
+            default_model: self.fields[FIELD_MODEL].value.clone(),
+            priority: self.fields[FIELD_PRIORITY].value.parse().unwrap_or(100),
+            enabled: self.fields[FIELD_ENABLED].value == "true",
+            ..Default::default()
         }
     }
 
@@ -481,7 +482,7 @@ pub async fn run_tui(
     let mut terminal = Terminal::new(backend)?;
 
     let mut app = App::new(config, metrics, health_status);
-    app.proxy_running = crate::daemon::is_proxy_running().unwrap_or(false);
+    app.proxy_running = crate::process::daemon::is_proxy_running().unwrap_or(false);
     app.refresh_profiles().await;
 
     log::info!("Claudex dashboard started");
@@ -512,7 +513,7 @@ pub async fn run_tui(
                 let config_snapshot = config.clone();
                 drop(config);
 
-                if !crate::daemon::is_proxy_running().unwrap_or(false) {
+                if !crate::process::daemon::is_proxy_running().unwrap_or(false) {
                     println!("Starting proxy in background...");
                     let bg_config = config_snapshot.clone();
                     tokio::spawn(async move {
@@ -523,7 +524,13 @@ pub async fn run_tui(
                     tokio::time::sleep(std::time::Duration::from_millis(500)).await;
                 }
 
-                crate::launch::launch_claude(&config_snapshot, &profile, None, &[], false)?;
+                crate::process::launch::launch_claude(
+                    &config_snapshot,
+                    &profile,
+                    None,
+                    &[],
+                    false,
+                )?;
             }
             return Ok(());
         }
@@ -572,7 +579,7 @@ pub async fn run_tui(
             _ = tick.tick() => {
                 // Periodic refresh
                 app.refresh_profiles().await;
-                app.proxy_running = crate::daemon::is_proxy_running().unwrap_or(false);
+                app.proxy_running = crate::process::daemon::is_proxy_running().unwrap_or(false);
                 // Clear expired notifications
                 if let Some(ref notif) = app.notification {
                     if notif.is_expired() {
@@ -603,7 +610,7 @@ async fn handle_async_actions(app: &mut App) -> Result<()> {
                 let profile = profile.clone();
                 drop(config);
                 log::info!("Testing {}...", profile_name);
-                match crate::profile::test_connectivity(&profile).await {
+                match crate::config::profile::test_connectivity(&profile).await {
                     Ok(latency) => {
                         let msg = format!("{}: OK ({latency}ms)", profile_name);
                         log::info!("{msg}");
@@ -665,7 +672,7 @@ async fn handle_async_actions(app: &mut App) -> Result<()> {
                 }
             });
             tokio::time::sleep(std::time::Duration::from_millis(300)).await;
-            app.proxy_running = crate::daemon::is_proxy_running().unwrap_or(false);
+            app.proxy_running = crate::process::daemon::is_proxy_running().unwrap_or(false);
             if app.proxy_running {
                 app.notification = Some(Notification::success("Proxy started"));
                 log::info!("Proxy started");
@@ -674,7 +681,7 @@ async fn handle_async_actions(app: &mut App) -> Result<()> {
                 log::error!("Proxy failed to start");
             }
         }
-        AsyncAction::StopProxy => match crate::daemon::stop_proxy() {
+        AsyncAction::StopProxy => match crate::process::daemon::stop_proxy() {
             Ok(()) => {
                 app.proxy_running = false;
                 app.notification = Some(Notification::success("Proxy stopped"));

@@ -30,7 +30,7 @@ async fn check_all_profiles(state: &ProxyState) {
     drop(config);
 
     for profile in &profiles {
-        let result = crate::profile::test_connectivity(profile).await;
+        let result = crate::config::profile::test_connectivity(profile).await;
         let status = match result {
             Ok(latency) => HealthStatus {
                 healthy: true,

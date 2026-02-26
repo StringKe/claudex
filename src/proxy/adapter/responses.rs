@@ -19,7 +19,10 @@ impl ProviderAdapter for ResponsesAdapter {
         profile: &ProfileConfig,
     ) -> Result<TranslatedRequest> {
         let (responses_body, tool_name_map) =
-            crate::proxy::responses::anthropic_to_responses(body, &profile.default_model)?;
+            crate::proxy::translate::responses::anthropic_to_responses(
+                body,
+                &profile.default_model,
+            )?;
         Ok(TranslatedRequest {
             body: responses_body,
             tool_name_map,
@@ -47,10 +50,10 @@ impl ProviderAdapter for ResponsesAdapter {
     }
 
     fn translate_response(&self, body: &Value, tool_name_map: &ToolNameMap) -> Result<Value> {
-        crate::proxy::responses::responses_to_anthropic(body, tool_name_map)
+        crate::proxy::translate::responses::responses_to_anthropic(body, tool_name_map)
     }
 
     fn translate_stream(&self, stream: ByteStream, tool_name_map: ToolNameMap) -> ByteStream {
-        crate::proxy::responses_streaming::translate_responses_stream(stream, tool_name_map)
+        crate::proxy::translate::responses_stream::translate_responses_stream(stream, tool_name_map)
     }
 }

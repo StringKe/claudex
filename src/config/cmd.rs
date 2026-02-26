@@ -3,8 +3,9 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 
 use crate::cli::ConfigAction;
-use crate::config::{ClaudexConfig, CONFIG_DIR_NAMES, CONFIG_FILE_NAMES, GLOBAL_CONFIG_NAMES};
 use crate::oauth::AuthType;
+
+use super::{ClaudexConfig, CONFIG_DIR_NAMES, CONFIG_FILE_NAMES, GLOBAL_CONFIG_NAMES};
 
 pub async fn dispatch(action: Option<ConfigAction>, config: &mut ClaudexConfig) -> Result<()> {
     match action {
@@ -225,7 +226,7 @@ fn cmd_export(config: &ClaudexConfig, format: &str, output: Option<PathBuf>) -> 
     let content = match format {
         "json" => serde_json::to_string_pretty(config).context("failed to serialize to JSON")?,
         "toml" => toml::to_string_pretty(config).context("failed to serialize to TOML")?,
-        "yaml" | "yml" => serde_yaml::to_string(config).context("failed to serialize to YAML")?,
+        "yaml" | "yml" => serde_yml::to_string(config).context("failed to serialize to YAML")?,
         _ => anyhow::bail!("unsupported format: {format} (use json, toml, yaml)"),
     };
 
@@ -350,7 +351,7 @@ async fn cmd_validate(config: &ClaudexConfig, connectivity: bool) -> Result<()> 
         for p in &config.profiles {
             if p.enabled {
                 print!("Testing {}... ", p.name);
-                match crate::profile::test_connectivity(p).await {
+                match super::profile::test_connectivity(p).await {
                     Ok(latency) => println!("OK ({latency}ms)"),
                     Err(e) => println!("FAIL: {e}"),
                 }
@@ -421,7 +422,7 @@ fn cmd_recreate(config: &mut ClaudexConfig, force: bool) -> Result<()> {
     let aliases = config.model_aliases.clone();
 
     // Write example template
-    let example = include_str!("../config.example.toml");
+    let example = include_str!("../../config.example.toml");
     if let Some(parent) = global_path.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -436,4 +437,79 @@ fn cmd_recreate(config: &mut ClaudexConfig, force: bool) -> Result<()> {
     println!("Recreated: {}", global_path.display());
     println!("Your profiles and model_aliases have been preserved.");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    // ── resolve_dot_path ──
+
+    #[test]
+    fn test_resolve_simple_key() {
+        let val = json!({"proxy_port": 8080});
+        assert_eq!(resolve_dot_path(&val, "proxy_port"), Some(&json!(8080)));
+    }
+
+    #[test]
+    fn test_resolve_nested_key() {
+        let val = json!({"router": {"enabled": true}});
+        assert_eq!(resolve_dot_path(&val, "router.enabled"), Some(&json!(true)));
+    }
+
+    #[test]
+    fn test_resolve_array_index() {
+        let val = json!({"profiles": [{"name": "a"}, {"name": "b"}]});
+        assert_eq!(resolve_dot_path(&val, "profiles.1.name"), Some(&json!("b")));
+    }
+
+    #[test]
+    fn test_resolve_nonexistent_key() {
+        let val = json!({"proxy_port": 8080});
+        assert_eq!(resolve_dot_path(&val, "missing"), None);
+    }
+
+    #[test]
+    fn test_resolve_deeply_nested() {
+        let val = json!({"a": {"b": {"c": {"d": 42}}}});
+        assert_eq!(resolve_dot_path(&val, "a.b.c.d"), Some(&json!(42)));
+    }
+
+    // ── set_dot_path ──
+
+    #[test]
+    fn test_set_simple_key() {
+        let mut val = json!({"proxy_port": 8080});
+        set_dot_path(&mut val, "proxy_port", json!(9090)).unwrap();
+        assert_eq!(val["proxy_port"], json!(9090));
+    }
+
+    #[test]
+    fn test_set_nested_key() {
+        let mut val = json!({"router": {"enabled": false}});
+        set_dot_path(&mut val, "router.enabled", json!(true)).unwrap();
+        assert_eq!(val["router"]["enabled"], json!(true));
+    }
+
+    #[test]
+    fn test_set_creates_new_key() {
+        let mut val = json!({"router": {}});
+        set_dot_path(&mut val, "router.new_field", json!("hello")).unwrap();
+        assert_eq!(val["router"]["new_field"], json!("hello"));
+    }
+
+    #[test]
+    fn test_set_array_index() {
+        let mut val = json!({"items": ["a", "b", "c"]});
+        set_dot_path(&mut val, "items.1", json!("x")).unwrap();
+        assert_eq!(val["items"][1], json!("x"));
+    }
+
+    #[test]
+    fn test_set_array_out_of_bounds() {
+        let mut val = json!({"items": ["a"]});
+        let result = set_dot_path(&mut val, "items.5", json!("x"));
+        assert!(result.is_err());
+    }
 }

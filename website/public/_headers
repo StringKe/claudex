@@ -11,6 +11,36 @@
 /zh-cn/*
   Cache-Control: public, max-age=3600, s-maxage=86400
 
+/zh-tw/*
+  Cache-Control: public, max-age=3600, s-maxage=86400
+
+/ja/*
+  Cache-Control: public, max-age=3600, s-maxage=86400
+
+/ko/*
+  Cache-Control: public, max-age=3600, s-maxage=86400
+
+/ru/*
+  Cache-Control: public, max-age=3600, s-maxage=86400
+
+/fr/*
+  Cache-Control: public, max-age=3600, s-maxage=86400
+
+/pt-br/*
+  Cache-Control: public, max-age=3600, s-maxage=86400
+
+/es/*
+  Cache-Control: public, max-age=3600, s-maxage=86400
+
+/it/*
+  Cache-Control: public, max-age=3600, s-maxage=86400
+
+/de/*
+  Cache-Control: public, max-age=3600, s-maxage=86400
+
+/pl/*
+  Cache-Control: public, max-age=3600, s-maxage=86400
+
 /_astro/*
   Cache-Control: public, max-age=31536000, immutable
 

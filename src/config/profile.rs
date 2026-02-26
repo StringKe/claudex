@@ -1,12 +1,10 @@
-use std::collections::HashMap;
 use std::io::{self, Write};
 use std::time::{Duration, Instant};
 
 use anyhow::{bail, Result};
 use reqwest::Client;
 
-use crate::config::{ClaudexConfig, ProfileConfig, ProfileModels, ProviderType};
-use crate::oauth::AuthType;
+use super::{ClaudexConfig, ProfileConfig, ProviderType};
 
 pub async fn list_profiles(config: &ClaudexConfig) {
     if config.profiles.is_empty() {
@@ -19,15 +17,10 @@ pub async fn list_profiles(config: &ClaudexConfig) {
     );
     println!("{}", "-".repeat(78));
     for p in &config.profiles {
-        let type_str = match p.provider_type {
-            ProviderType::DirectAnthropic => "Anthropic",
-            ProviderType::OpenAICompatible => "OpenAI",
-            ProviderType::OpenAIResponses => "Responses",
-        };
         let status = if p.enabled { "" } else { " (disabled)" };
         println!(
             "{:<16} {:<20} {:<12} {:<30}{}",
-            p.name, p.default_model, type_str, p.base_url, status
+            p.name, p.default_model, p.provider_type, p.base_url, status
         );
     }
 }
@@ -271,15 +264,7 @@ pub async fn interactive_add(config: &mut ClaudexConfig) -> Result<()> {
         api_key_keyring,
         default_model,
         backup_providers,
-        custom_headers: HashMap::new(),
-        extra_env: HashMap::new(),
-        priority: 100,
-        enabled: true,
-        auth_type: AuthType::ApiKey,
-        oauth_provider: None,
-        models: ProfileModels::default(),
-        max_tokens: None,
-        strip_params: crate::config::StripParams::default(),
+        ..Default::default()
     };
 
     // Test connectivity
@@ -301,10 +286,4 @@ pub async fn interactive_add(config: &mut ClaudexConfig) -> Result<()> {
     Ok(())
 }
 
-fn prompt_input(label: &str) -> Result<String> {
-    print!("{label}: ");
-    io::stdout().flush()?;
-    let mut input = String::new();
-    io::stdin().read_line(&mut input)?;
-    Ok(input.trim().to_string())
-}
+use crate::util::prompt_input;

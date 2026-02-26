@@ -254,79 +254,53 @@ pub fn read_external_token(provider: &OAuthProvider) -> Result<OAuthToken> {
     }
 }
 
-/// 读取 Gemini CLI 的 OAuth 缓存
+/// Read OAuth credentials from external CLI config files.
+/// Searches candidate paths for JSON files containing access_token/token fields.
+fn read_cli_credentials(candidates: &[std::path::PathBuf], provider: &str) -> Result<OAuthToken> {
+    for path in candidates {
+        if let Ok(content) = std::fs::read_to_string(path) {
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+                let access_token = json
+                    .get("access_token")
+                    .or_else(|| json.get("token"))
+                    .and_then(|v| v.as_str());
+
+                if let Some(token) = access_token {
+                    return Ok(OAuthToken {
+                        access_token: token.to_string(),
+                        refresh_token: json
+                            .get("refresh_token")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string()),
+                        expires_at: json.get("expires_at").and_then(|v| v.as_i64()),
+                        token_type: Some("Bearer".to_string()),
+                        scopes: None,
+                        extra: None,
+                    });
+                }
+            }
+        }
+    }
+
+    anyhow::bail!("no {provider} CLI credentials found")
+}
+
 fn read_gemini_credentials() -> Result<OAuthToken> {
     let home = dirs::home_dir().context("cannot determine home directory")?;
-
-    // Gemini CLI stores credentials in ~/.gemini/oauth_creds.json or similar
     let candidates = [
         home.join(".gemini").join("oauth_creds.json"),
         home.join(".config").join("gemini").join("oauth_creds.json"),
     ];
-
-    for path in &candidates {
-        if let Ok(content) = std::fs::read_to_string(path) {
-            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
-                let access_token = json
-                    .get("access_token")
-                    .or_else(|| json.get("token"))
-                    .and_then(|v| v.as_str());
-
-                if let Some(token) = access_token {
-                    return Ok(OAuthToken {
-                        access_token: token.to_string(),
-                        refresh_token: json
-                            .get("refresh_token")
-                            .and_then(|v| v.as_str())
-                            .map(|s| s.to_string()),
-                        expires_at: json.get("expires_at").and_then(|v| v.as_i64()),
-                        token_type: Some("Bearer".to_string()),
-                        scopes: None,
-                        extra: None,
-                    });
-                }
-            }
-        }
-    }
-
-    anyhow::bail!("no Gemini CLI credentials found")
+    read_cli_credentials(&candidates, "Gemini")
 }
 
-/// 读取 Kimi CLI 的 token
 fn read_kimi_credentials() -> Result<OAuthToken> {
     let home = dirs::home_dir().context("cannot determine home directory")?;
-
     let candidates = [
         home.join(".kimi").join("auth.json"),
         home.join(".config").join("kimi").join("auth.json"),
     ];
-
-    for path in &candidates {
-        if let Ok(content) = std::fs::read_to_string(path) {
-            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
-                let access_token = json
-                    .get("access_token")
-                    .or_else(|| json.get("token"))
-                    .and_then(|v| v.as_str());
-
-                if let Some(token) = access_token {
-                    return Ok(OAuthToken {
-                        access_token: token.to_string(),
-                        refresh_token: json
-                            .get("refresh_token")
-                            .and_then(|v| v.as_str())
-                            .map(|s| s.to_string()),
-                        expires_at: json.get("expires_at").and_then(|v| v.as_i64()),
-                        token_type: Some("Bearer".to_string()),
-                        scopes: None,
-                        extra: None,
-                    });
-                }
-            }
-        }
-    }
-
-    anyhow::bail!("no Kimi CLI credentials found")
+    read_cli_credentials(&candidates, "Kimi")
 }
 
 #[cfg(test)]
