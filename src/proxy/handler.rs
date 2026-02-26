@@ -304,7 +304,8 @@ async fn try_forward(
     is_streaming: bool,
 ) -> anyhow::Result<Response> {
     let adapter = super::adapter::for_provider(&profile.provider_type);
-    let translated = adapter.translate_request(body, profile)?;
+    let mut translated = adapter.translate_request(body, profile)?;
+    adapter.filter_translated_body(&mut translated.body, profile);
 
     let url = format!(
         "{}{}",

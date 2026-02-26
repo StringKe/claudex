@@ -123,6 +123,7 @@ enabled = false
 # ChatGPT Plus/Pro / Codex subscription (via OpenAI OAuth → Responses API)
 # Supported models: gpt-5.1-codex, gpt-5.1-codex-mini, codex-mini-latest
 # Note: gpt-4o is NOT supported on the Codex ChatGPT endpoint
+# strip_params = "auto" will auto-detect chatgpt.com and strip temperature/top_p/top_k
 [[profiles]]
 name = "codex-sub"
 provider_type = "OpenAIResponses"

@@ -96,6 +96,74 @@ pub struct ProfileConfig {
     /// 最大输出 token 数上限（可选，用于限制转发给 provider 的 max_tokens）
     #[serde(default)]
     pub max_tokens: Option<u64>,
+    /// 从翻译后的请求体中剥离的参数名列表
+    /// 用于处理上游端点不支持某些参数的情况（如 Codex ChatGPT 不支持 temperature）
+    /// 设为 "auto" 时根据 base_url 自动推断
+    #[serde(default)]
+    pub strip_params: StripParams,
+}
+
+/// 参数剥离配置
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(from = "StripParamsRaw")]
+pub enum StripParams {
+    /// 根据 base_url 自动推断需要剥离的参数
+    #[default]
+    Auto,
+    /// 不剥离任何参数
+    None,
+    /// 剥离指定的参数列表
+    List(Vec<String>),
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum StripParamsRaw {
+    Str(String),
+    List(Vec<String>),
+}
+
+impl From<StripParamsRaw> for StripParams {
+    fn from(raw: StripParamsRaw) -> Self {
+        match raw {
+            StripParamsRaw::Str(s) => match s.to_lowercase().as_str() {
+                "auto" => StripParams::Auto,
+                "none" | "false" | "" => StripParams::None,
+                _ => StripParams::List(
+                    s.split(',')
+                        .map(|p| p.trim().to_string())
+                        .filter(|p| !p.is_empty())
+                        .collect(),
+                ),
+            },
+            StripParamsRaw::List(list) => StripParams::List(list),
+        }
+    }
+}
+
+impl StripParams {
+    /// 解析实际要剥离的参数列表，Auto 模式根据 base_url 推断
+    pub fn resolve(&self, base_url: &str) -> Vec<String> {
+        match self {
+            StripParams::None => vec![],
+            StripParams::List(list) => list.clone(),
+            StripParams::Auto => Self::infer_from_url(base_url),
+        }
+    }
+
+    /// 已知端点的参数兼容性规则
+    fn infer_from_url(base_url: &str) -> Vec<String> {
+        if base_url.contains("chatgpt.com") {
+            // Codex ChatGPT 端点不支持采样参数
+            vec![
+                "temperature".to_string(),
+                "top_p".to_string(),
+                "top_k".to_string(),
+            ]
+        } else {
+            vec![]
+        }
+    }
 }
 
 /// Claude Code 模型 slot 映射
@@ -386,6 +454,7 @@ mod tests {
             oauth_provider: None,
             models: ProfileModels::default(),
             max_tokens: None,
+            strip_params: StripParams::default(),
         }
     }
 

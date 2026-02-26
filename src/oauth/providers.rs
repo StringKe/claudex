@@ -78,6 +78,7 @@ fn ensure_oauth_profile(
         oauth_provider: Some(provider.clone()),
         models: ProfileModels::default(),
         max_tokens: None,
+        strip_params: crate::config::StripParams::default(),
     };
 
     config.profiles.push(profile);

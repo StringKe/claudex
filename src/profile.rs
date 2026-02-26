@@ -279,6 +279,7 @@ pub async fn interactive_add(config: &mut ClaudexConfig) -> Result<()> {
         oauth_provider: None,
         models: ProfileModels::default(),
         max_tokens: None,
+        strip_params: crate::config::StripParams::default(),
     };
 
     // Test connectivity

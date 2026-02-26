@@ -27,6 +27,22 @@ pub trait ProviderAdapter: Send + Sync {
     fn translate_request(&self, body: &Value, profile: &ProfileConfig)
         -> Result<TranslatedRequest>;
 
+    /// 根据 profile 的 strip_params 配置过滤翻译后的请求体
+    fn filter_translated_body(&self, body: &mut Value, profile: &ProfileConfig) {
+        let params_to_strip = profile.strip_params.resolve(&profile.base_url);
+        if let Some(obj) = body.as_object_mut() {
+            for param in &params_to_strip {
+                if obj.remove(param).is_some() {
+                    tracing::debug!(
+                        "stripped unsupported param '{}' for {}",
+                        param,
+                        profile.name
+                    );
+                }
+            }
+        }
+    }
+
     /// 设置认证头
     fn apply_auth(&self, builder: RequestBuilder, profile: &ProfileConfig) -> RequestBuilder;
 
