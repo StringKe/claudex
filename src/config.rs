@@ -230,17 +230,17 @@ fn default_enabled() -> bool {
 }
 
 /// Config file names to search for in project directories
-const CONFIG_FILE_NAMES: &[&str] = &["claudex.toml", "claudex.yaml", "claudex.yml"];
-const CONFIG_DIR_NAMES: &[(&str, &[&str])] =
+pub(crate) const CONFIG_FILE_NAMES: &[&str] = &["claudex.toml", "claudex.yaml", "claudex.yml"];
+pub(crate) const CONFIG_DIR_NAMES: &[(&str, &[&str])] =
     &[(".claudex", &["config.toml", "config.yaml", "config.yml"])];
 const MAX_PARENT_TRAVERSAL: usize = 10;
 
 /// Global config file names (in ~/.config/claudex/)
-const GLOBAL_CONFIG_NAMES: &[&str] = &["config.toml", "config.yaml", "config.yml"];
+pub(crate) const GLOBAL_CONFIG_NAMES: &[&str] = &["config.toml", "config.yaml", "config.yml"];
 
 impl ClaudexConfig {
     /// Global config dir: ~/.config/claudex/
-    fn config_dir() -> Result<PathBuf> {
+    pub(crate) fn config_dir() -> Result<PathBuf> {
         let home = dirs::home_dir().context("cannot determine home directory")?;
         Ok(home.join(".config").join("claudex"))
     }
@@ -466,7 +466,7 @@ enabled = false
         }
     }
 
-    fn load_from(path: &Path) -> Result<Self> {
+    pub(crate) fn load_from(path: &Path) -> Result<Self> {
         let figment = Figment::from(Serialized::defaults(ClaudexConfig::default()));
         let figment = Self::merge_file(figment, path);
         let mut config: ClaudexConfig = figment
@@ -478,7 +478,10 @@ enabled = false
         Ok(config)
     }
 
-    pub fn load() -> Result<Self> {
+    pub fn load(override_path: Option<&Path>) -> Result<Self> {
+        if let Some(path) = override_path {
+            return Self::load_from(path);
+        }
         let (config, _path) = Self::discover_config()?;
         Ok(config)
     }

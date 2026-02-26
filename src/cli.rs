@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
@@ -7,6 +9,9 @@ use clap::{Parser, Subcommand};
     about = "Multi-instance Claude Code manager with intelligent translation proxy"
 )]
 pub struct Cli {
+    /// Override config file path
+    #[arg(long, global = true, value_name = "PATH")]
+    pub config: Option<PathBuf>,
     #[command(subcommand)]
     pub command: Option<Commands>,
 }
@@ -43,14 +48,10 @@ pub enum Commands {
     /// Launch the TUI dashboard
     Dashboard,
 
-    /// Show current configuration
+    /// Manage configuration
     Config {
-        /// Initialize config in the current directory
-        #[arg(long)]
-        init: bool,
-        /// Use YAML format (with --init)
-        #[arg(long)]
-        yaml: bool,
+        #[command(subcommand)]
+        action: Option<ConfigAction>,
     },
 
     /// Self-update claudex binary
@@ -166,6 +167,66 @@ pub enum SetsAction {
         /// Show global set
         #[arg(long)]
         global: bool,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum ConfigAction {
+    /// Display configuration summary (default when no subcommand)
+    Show {
+        /// Print raw file contents
+        #[arg(long)]
+        raw: bool,
+        /// Output merged config as JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Show config file paths and search order
+    Path,
+    /// Create config file in current directory
+    Init {
+        /// Use YAML format
+        #[arg(long)]
+        yaml: bool,
+    },
+    /// Recreate global config (backup original, preserve profiles)
+    Recreate {
+        /// Skip confirmation prompt
+        #[arg(long)]
+        force: bool,
+    },
+    /// Open config file in $EDITOR
+    Edit {
+        /// Open global config
+        #[arg(long)]
+        global: bool,
+    },
+    /// Validate config syntax and semantics
+    Validate {
+        /// Also test provider connectivity
+        #[arg(long)]
+        connectivity: bool,
+    },
+    /// Get a config value by dot-path (e.g. proxy_port, profiles.0.name)
+    Get {
+        /// Dot-separated key path
+        key: String,
+    },
+    /// Set a config value by dot-path
+    Set {
+        /// Dot-separated key path
+        key: String,
+        /// Value to set (JSON or plain string)
+        value: String,
+    },
+    /// Export config to another format
+    Export {
+        /// Output format: json, toml, yaml
+        #[arg(long, default_value = "json")]
+        format: String,
+        /// Output file (stdout if omitted)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
     },
 }
 

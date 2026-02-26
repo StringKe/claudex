@@ -2,6 +2,7 @@
 
 mod cli;
 mod config;
+mod config_cmd;
 mod context;
 mod daemon;
 mod launch;
@@ -28,7 +29,7 @@ use config::ClaudexConfig;
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    let mut config = ClaudexConfig::load()?;
+    let mut config = ClaudexConfig::load(cli.config.as_deref())?;
 
     // `claudex run` 时 proxy 日志只写文件，不污染 Claude Code 终端输出
     let is_run_command = matches!(&cli.command, Some(Commands::Run { .. }));
@@ -141,52 +142,8 @@ async fn main() -> Result<()> {
             tui::run_tui(config_arc, metrics_store, health).await?;
         }
 
-        Some(Commands::Config { init, yaml }) => {
-            if init {
-                ClaudexConfig::init_local(yaml)?;
-            } else {
-                let source_display = config
-                    .config_source
-                    .as_ref()
-                    .map(|p| p.display().to_string())
-                    .unwrap_or_else(|| "(default)".to_string());
-                println!("Config loaded from: {}", source_display);
-                println!("Profiles: {}", config.profiles.len());
-                println!("Proxy: {}:{}", config.proxy_host, config.proxy_port);
-                println!(
-                    "Router: {}",
-                    if config.router.enabled {
-                        "enabled"
-                    } else {
-                        "disabled"
-                    }
-                );
-                println!("Context engine:");
-                println!(
-                    "  Compression: {}",
-                    if config.context.compression.enabled {
-                        "enabled"
-                    } else {
-                        "disabled"
-                    }
-                );
-                println!(
-                    "  Sharing: {}",
-                    if config.context.sharing.enabled {
-                        "enabled"
-                    } else {
-                        "disabled"
-                    }
-                );
-                println!(
-                    "  RAG: {}",
-                    if config.context.rag.enabled {
-                        "enabled"
-                    } else {
-                        "disabled"
-                    }
-                );
-            }
+        Some(Commands::Config { action }) => {
+            config_cmd::dispatch(action, &mut config).await?;
         }
 
         Some(Commands::Update { check }) => {
