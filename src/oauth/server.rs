@@ -44,7 +44,7 @@ pub async fn start_callback_server(port: u16) -> Result<String> {
 
     let tx_clone = tx.clone();
     let app = axum::Router::new().route(
-        "/callback",
+        "/auth/callback",
         axum::routing::get(
             move |axum::extract::Query(params): axum::extract::Query<
                 std::collections::HashMap<String, String>,
@@ -87,13 +87,19 @@ pub async fn start_callback_server(port: u16) -> Result<String> {
         axum::serve(listener, app).await.ok();
     });
 
-    // Wait for the callback (timeout 5 minutes)
-    let code = tokio::time::timeout(std::time::Duration::from_secs(300), rx)
-        .await
-        .context("OAuth callback timed out (5 minutes)")?
-        .context("callback channel closed unexpectedly")?;
+    // Wait for the callback (timeout 5 minutes), interruptible by Ctrl+C
+    let code = tokio::select! {
+        result = tokio::time::timeout(std::time::Duration::from_secs(300), rx) => {
+            result
+                .context("OAuth callback timed out (5 minutes)")?
+                .context("callback channel closed unexpectedly")?
+        }
+        _ = tokio::signal::ctrl_c() => {
+            server_handle.abort();
+            anyhow::bail!("interrupted by user (Ctrl+C)");
+        }
+    };
 
-    // Abort server after receiving code
     server_handle.abort();
 
     Ok(code)
@@ -111,7 +117,12 @@ pub async fn poll_device_code(
     let interval = std::time::Duration::from_secs(interval_secs);
 
     loop {
-        tokio::time::sleep(interval).await;
+        tokio::select! {
+            _ = tokio::time::sleep(interval) => {}
+            _ = tokio::signal::ctrl_c() => {
+                anyhow::bail!("interrupted by user (Ctrl+C)");
+            }
+        }
 
         let resp = client
             .post(token_url)
@@ -321,7 +332,7 @@ mod tests {
         let client = reqwest::Client::new();
         let resp = client
             .get(format!(
-                "http://127.0.0.1:{port}/callback?code=test-auth-code-xyz"
+                "http://127.0.0.1:{port}/auth/callback?code=test-auth-code-xyz"
             ))
             .send()
             .await
@@ -346,7 +357,7 @@ mod tests {
         let client = reqwest::Client::new();
         let resp = client
             .get(format!(
-                "http://127.0.0.1:{port}/callback?error=access_denied&error_description=User+denied"
+                "http://127.0.0.1:{port}/auth/callback?error=access_denied&error_description=User+denied"
             ))
             .send()
             .await

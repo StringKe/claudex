@@ -237,7 +237,7 @@ async fn login_chatgpt_browser(profile_name: &str) -> Result<()> {
     println!("Authorization code received, exchanging for token...");
 
     let client = reqwest::Client::new();
-    let redirect_uri = format!("http://localhost:{port}/callback");
+    let redirect_uri = format!("http://localhost:{port}/auth/callback");
     let token =
         super::exchange::exchange_chatgpt_code(&client, &code, &redirect_uri, &pkce.code_verifier)
             .await?;

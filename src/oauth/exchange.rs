@@ -129,7 +129,7 @@ pub fn build_chatgpt_authorize_url(
         "{}/oauth/authorize?response_type=code&client_id={}&redirect_uri={}&scope={}&code_challenge_method=S256&code_challenge={}&state={}&codex_cli_simplified_flow=true&id_token_add_organizations=true",
         CHATGPT_ISSUER,
         CHATGPT_CLIENT_ID,
-        urlencoded(&format!("http://localhost:{redirect_port}/callback")),
+        urlencoded(&format!("http://localhost:{redirect_port}/auth/callback")),
         urlencoded("openid profile email offline_access"),
         pkce.code_challenge,
         urlencoded(state),
@@ -241,7 +241,13 @@ pub async fn chatgpt_device_auth_poll(
     let interval = std::time::Duration::from_secs(5);
 
     loop {
-        tokio::time::sleep(interval).await;
+        // 等待间隔，可被 Ctrl+C 中断
+        tokio::select! {
+            _ = tokio::time::sleep(interval) => {}
+            _ = tokio::signal::ctrl_c() => {
+                anyhow::bail!("interrupted by user (Ctrl+C)");
+            }
+        }
 
         let resp = client
             .post(format!("{CHATGPT_ISSUER}/api/accounts/deviceauth/token"))
