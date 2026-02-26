@@ -39,23 +39,83 @@ export default defineConfig({
       },
       social: [
         { icon: 'github', label: 'GitHub', href: 'https://github.com/StringKe/claudex' },
+        { icon: 'x.com', label: 'X', href: 'https://x.com/StringKe' },
       ],
       head: [
-        {
-          tag: 'meta',
-          attrs: { property: 'og:site_name', content: 'Claudex' },
-        },
-        {
-          tag: 'meta',
-          attrs: { name: 'twitter:site', content: '@anthropic' },
-        },
+        // Keywords
         {
           tag: 'meta',
           attrs: { name: 'keywords', content: 'claudex, claude code, ai proxy, openai, grok, deepseek, kimi, glm, ollama, translation proxy, multi-provider' },
         },
+        // OG Image
+        {
+          tag: 'meta',
+          attrs: { property: 'og:image', content: 'https://claudex.space/og.png' },
+        },
+        {
+          tag: 'meta',
+          attrs: { property: 'og:image:width', content: '1200' },
+        },
+        {
+          tag: 'meta',
+          attrs: { property: 'og:image:height', content: '630' },
+        },
+        {
+          tag: 'meta',
+          attrs: { property: 'og:image:type', content: 'image/png' },
+        },
+        // Twitter
+        {
+          tag: 'meta',
+          attrs: { name: 'twitter:creator', content: '@StringKe' },
+        },
+        {
+          tag: 'meta',
+          attrs: { name: 'twitter:image', content: 'https://claudex.space/og.png' },
+        },
+        // Theme color (Discord embed accent, mobile browser address bar)
+        {
+          tag: 'meta',
+          attrs: { name: 'theme-color', content: '#d97757' },
+        },
+        // Apple Touch Icon
         {
           tag: 'link',
-          attrs: { rel: 'canonical', href: 'https://claudex.space' },
+          attrs: { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' },
+        },
+        // PNG favicons
+        {
+          tag: 'link',
+          attrs: { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/favicon-32x32.png' },
+        },
+        {
+          tag: 'link',
+          attrs: { rel: 'icon', type: 'image/png', sizes: '16x16', href: '/favicon-16x16.png' },
+        },
+        // JSON-LD Structured Data
+        {
+          tag: 'script',
+          attrs: { type: 'application/ld+json' },
+          content: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'SoftwareApplication',
+            name: 'Claudex',
+            description: 'Multi-instance Claude Code manager with intelligent translation proxy',
+            url: 'https://claudex.space',
+            applicationCategory: 'DeveloperApplication',
+            operatingSystem: 'macOS, Linux, Windows',
+            author: {
+              '@type': 'Person',
+              name: 'StringKe',
+              url: 'https://x.com/StringKe',
+            },
+            offers: {
+              '@type': 'Offer',
+              price: '0',
+              priceCurrency: 'USD',
+            },
+            codeRepository: 'https://github.com/StringKe/claudex',
+          }),
         },
       ],
       customCss: ['./src/styles/global.css'],

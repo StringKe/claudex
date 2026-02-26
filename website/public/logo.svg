@@ -1,5 +1,4 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
-  <rect width="128" height="128" rx="24" fill="#1e293b"/>
   <g transform="translate(64,64)" fill="#d97757">
     <!-- X: four diagonal rays (primary, longer, wider) -->
     <path d="M 0,-8 L -5,-18 L 0,-42 L 5,-18 Z" transform="rotate(45)"/>

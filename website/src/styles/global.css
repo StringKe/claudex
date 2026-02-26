@@ -9,8 +9,8 @@
     'Noto Sans', 'Noto Sans SC', sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', ui-monospace,
     monospace;
-  --color-accent-200: #b4c7ff;
-  --color-accent-600: #364bab;
-  --color-accent-900: #172554;
-  --color-accent-950: #0f1729;
+  --color-accent-200: #f5c4a1;
+  --color-accent-600: #d97757;
+  --color-accent-900: #7c3a1a;
+  --color-accent-950: #4a1d0a;
 }
