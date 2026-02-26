@@ -177,9 +177,15 @@ async fn main() -> Result<()> {
         },
 
         Some(Commands::Auth { action }) => match action {
-            AuthAction::Login { provider, profile } => {
+            AuthAction::Login {
+                provider,
+                profile,
+                force,
+                headless,
+            } => {
                 let profile_name = profile.unwrap_or_else(|| provider.clone());
-                oauth::providers::login(&mut config, &provider, &profile_name).await?;
+                oauth::providers::login(&mut config, &provider, &profile_name, force, headless)
+                    .await?;
             }
             AuthAction::Status { profile } => {
                 oauth::providers::status(&config, profile.as_deref()).await?;

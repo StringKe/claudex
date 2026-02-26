@@ -99,13 +99,19 @@ pub enum ProfileAction {
 
 #[derive(Subcommand)]
 pub enum AuthAction {
-    /// Login to an OAuth provider (claude, openai, google, qwen, kimi, github)
+    /// Login to an OAuth provider (claude, chatgpt/openai, google, qwen, kimi, github/copilot)
     Login {
         /// Provider name
         provider: String,
         /// Profile name (defaults to provider name)
         #[arg(short, long)]
         profile: Option<String>,
+        /// Skip existing credential detection, force interactive login
+        #[arg(short, long)]
+        force: bool,
+        /// Use headless device code flow (for SSH/no-browser environments)
+        #[arg(long)]
+        headless: bool,
     },
     /// Show OAuth token status
     Status {

@@ -133,10 +133,12 @@ pub async fn login(
     config: &mut ClaudexConfig,
     provider_str: &str,
     profile_name: &str,
+    force: bool,
+    headless: bool,
 ) -> Result<()> {
     let provider = OAuthProvider::from_str(provider_str).ok_or_else(|| {
         anyhow::anyhow!(
-            "unknown provider '{}'. Supported: claude, openai, google, qwen, kimi, github",
+            "unknown provider '{}'. Supported: claude, chatgpt/openai, google, qwen, kimi, github/copilot",
             provider_str
         )
     })?;
@@ -145,11 +147,13 @@ pub async fn login(
 
     match provider {
         OAuthProvider::Claude => login_claude(profile_name).await,
-        OAuthProvider::Chatgpt | OAuthProvider::Openai => login_chatgpt(profile_name).await,
+        OAuthProvider::Chatgpt | OAuthProvider::Openai => {
+            login_chatgpt(profile_name, force, headless).await
+        }
         OAuthProvider::Google => login_google(profile_name).await,
         OAuthProvider::Qwen => login_device_code(profile_name, &OAuthProvider::Qwen).await,
         OAuthProvider::Kimi => login_kimi(profile_name).await,
-        OAuthProvider::Github => login_github(profile_name).await,
+        OAuthProvider::Github => login_github(profile_name, force).await,
     }
 }
 
@@ -171,37 +175,35 @@ async fn login_claude(profile_name: &str) -> Result<()> {
 
 /// ChatGPT 订阅 login (别名: openai, codex)
 /// 支持三种方式: 读取已有 Codex CLI 凭证、Browser PKCE、Headless Device Code
-async fn login_chatgpt(profile_name: &str) -> Result<()> {
-    // 方式 1: 读取已有 Codex CLI credentials
-    match super::source::read_codex_credentials() {
-        Ok(cred) => {
-            let auth_mode = cred
-                .extra
-                .as_ref()
-                .and_then(|e| e.get("auth_mode"))
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown");
-            println!("Found Codex CLI credentials (auth_mode: {auth_mode})");
-            let token = cred.into_oauth_token();
-            super::source::store_keyring(profile_name, &token)?;
-            println!("ChatGPT OAuth token stored for profile '{profile_name}'.");
-            println!("Token will be refreshed automatically.");
-            return Ok(());
-        }
-        Err(e) => {
-            tracing::debug!("Codex credentials not available: {e}");
+async fn login_chatgpt(profile_name: &str, force: bool, headless: bool) -> Result<()> {
+    // 非 force 模式: 优先读取已有 Codex CLI credentials
+    if !force {
+        match super::source::read_codex_credentials() {
+            Ok(cred) => {
+                let auth_mode = cred
+                    .extra
+                    .as_ref()
+                    .and_then(|e| e.get("auth_mode"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown");
+                println!("Found Codex CLI credentials (auth_mode: {auth_mode})");
+                let token = cred.into_oauth_token();
+                super::source::store_keyring(profile_name, &token)?;
+                println!("ChatGPT OAuth token stored for profile '{profile_name}'.");
+                println!("Token will be refreshed automatically.");
+                return Ok(());
+            }
+            Err(e) => {
+                tracing::debug!("Codex credentials not available: {e}");
+            }
         }
     }
 
-    println!("No Codex CLI credentials found at ~/.codex/auth.json");
-    println!();
-    println!("Choose login method:");
-    println!("  1) Browser (open browser to login via ChatGPT)");
-    println!("  2) Headless (device code, for SSH/headless environments)");
-    println!();
+    if !force {
+        println!("No Codex CLI credentials found at ~/.codex/auth.json");
+    }
 
-    // 检测是否有 tty 来决定默认方式
-    let use_headless = std::env::var("CLAUDEX_HEADLESS").is_ok() || !atty_check();
+    let use_headless = headless || std::env::var("CLAUDEX_HEADLESS").is_ok() || !atty_check();
 
     if use_headless {
         println!("Using headless device code flow...");
@@ -277,40 +279,43 @@ async fn login_chatgpt_headless(profile_name: &str) -> Result<()> {
 }
 
 /// GitHub Copilot login
-async fn login_github(profile_name: &str) -> Result<()> {
-    // 优先从 ~/.config/github-copilot/ 读取已有 token
-    match super::source::read_copilot_config() {
-        Ok(cred) => {
-            println!("Found existing GitHub Copilot credentials, verifying...");
+async fn login_github(profile_name: &str, force: bool) -> Result<()> {
+    // 非 force 模式: 优先从 ~/.config/github-copilot/ 读取已有 token
+    if !force {
+        match super::source::read_copilot_config() {
+            Ok(cred) => {
+                println!("Found existing GitHub Copilot credentials, verifying...");
 
-            // 验证: 尝试交换为 Copilot bearer token
-            let client = reqwest::Client::new();
-            match super::exchange::exchange_github_for_copilot(&client, &cred.access_token).await {
-                Ok(copilot) => {
-                    let token = OAuthToken {
-                        access_token: copilot.token,
-                        refresh_token: None,
-                        expires_at: Some(copilot.expires_at * 1000),
-                        token_type: Some("Bearer".to_string()),
-                        scopes: None,
-                        extra: Some(serde_json::json!({
-                            "provider": "copilot",
-                            "github_token": cred.access_token,
-                        })),
-                    };
-                    super::source::store_keyring(profile_name, &token)?;
-                    println!("GitHub Copilot token stored for profile '{profile_name}'.");
-                    return Ok(());
-                }
-                Err(e) => {
-                    tracing::warn!(
-                        "existing Copilot token invalid: {e}, falling back to device code"
-                    );
+                let client = reqwest::Client::new();
+                match super::exchange::exchange_github_for_copilot(&client, &cred.access_token)
+                    .await
+                {
+                    Ok(copilot) => {
+                        let token = OAuthToken {
+                            access_token: copilot.token,
+                            refresh_token: None,
+                            expires_at: Some(copilot.expires_at * 1000),
+                            token_type: Some("Bearer".to_string()),
+                            scopes: None,
+                            extra: Some(serde_json::json!({
+                                "provider": "copilot",
+                                "github_token": cred.access_token,
+                            })),
+                        };
+                        super::source::store_keyring(profile_name, &token)?;
+                        println!("GitHub Copilot token stored for profile '{profile_name}'.");
+                        return Ok(());
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            "existing Copilot token invalid: {e}, falling back to device code"
+                        );
+                    }
                 }
             }
-        }
-        Err(e) => {
-            tracing::debug!("no existing Copilot config: {e}");
+            Err(e) => {
+                tracing::debug!("no existing Copilot config: {e}");
+            }
         }
     }
 
