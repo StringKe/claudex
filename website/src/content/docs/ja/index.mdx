@@ -1,0 +1,75 @@
+---
+title: Claudex
+description: インテリジェントな翻訳プロキシを内蔵したマルチインスタンス Claude Code マネージャー
+template: splash
+hero:
+  title: Claudex
+  tagline: Grok、ChatGPT、DeepSeek、Kimi、GLM、Ollama など、あらゆる AI プロバイダーで Claude Code を使用できます。
+  actions:
+    - text: はじめる
+      link: /ja/installation/
+      icon: right-arrow
+      variant: primary
+    - text: GitHub で見る
+      link: https://github.com/StringKe/claudex
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## 機能
+
+<CardGrid stagger>
+  <Card title="翻訳プロキシ" icon="translate">
+    Anthropic から OpenAI へのプロトコル自動変換。Grok、ChatGPT、DeepSeek、Kimi、GLM、その他 OpenAI 互換プロバイダーで Claude Code を使用できます。
+  </Card>
+  <Card title="サーキットブレーカー" icon="warning">
+    バックアッププロバイダーへの自動フェイルオーバー機能を備えた組み込みサーキットブレーカー。設定可能なしきい値とリカバリタイムアウトでワークフローを継続させます。
+  </Card>
+  <Card title="スマートルーティング" icon="random">
+    ローカル分類器によるインテントベースの自動ルーティング。コード、分析、クリエイティブ、検索、数学タスクを最適なプロバイダーに自動的にマッピングします。
+  </Card>
+  <Card title="コンテキストエンジン" icon="document">
+    会話の圧縮、クロスプロファイルのコンテキスト共有、エンベディングを使ったローカル RAG。豊富なコンテキストで AI インタラクションを強化します。
+  </Card>
+  <Card title="TUI ダッシュボード" icon="laptop">
+    プロファイルの健全性、リクエストメトリクス、ログ、クイック起動機能をリアルタイムで表示するターミナルダッシュボード。完全なキーボードナビゲーション対応。
+  </Card>
+  <Card title="自己更新" icon="up-caret">
+    GitHub Releases から最新バージョンを確認してインストールするワンコマンド。常に最新状態を保てます。
+  </Card>
+  <Card title="OAuth サブスクリプション認証" icon="approve-check">
+    既存の Claude、OpenAI、Google、Qwen、Kimi、GitHub サブスクリプションを使用できます。API キー不要。`claudex auth login` は各プロバイダーのネイティブ CLI 設定からトークンを読み取ります。
+  </Card>
+  <Card title="非インタラクティブモード" icon="rocket">
+    `claudex run <profile> "prompt" --print` によるワンショット実行。CI/CD パイプラインやスクリプト自動化に最適です。
+  </Card>
+  <Card title="モデルスロットマッピング" icon="setting">
+    `[profiles.models]` 設定で Claude Code の `/model` スイッチャー（haiku、sonnet、opus）を任意のプロバイダーモデルにマッピングできます。
+  </Card>
+  <Card title="ツール名の互換性" icon="puzzle">
+    OpenAI 互換性のため 64 文字を超えるツール名を自動的に短縮し、レスポンス処理時に元の名前を透過的に復元します。
+  </Card>
+</CardGrid>
+
+## クイックインストール
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/StringKe/claudex/main/install.sh | bash
+```
+
+## 仕組み
+
+```
+claudex run grok
+    │
+    ├── プロキシを起動 → 127.0.0.1:13456
+    │
+    └── 以下の設定で claude を実行:
+        ANTHROPIC_BASE_URL=http://127.0.0.1:13456/proxy/grok
+        ANTHROPIC_AUTH_TOKEN=<session-token>
+        ANTHROPIC_MODEL=grok-3-beta
+```
+
+プロキシは Anthropic と OpenAI のプロトコル間を透過的に変換するため、Claude Code はサポートされるあらゆるプロバイダーとシームレスに連携します。OAuth プロファイルを使用する場合、Claude 自身のサブスクリプションログインとの競合を避けるため、`ANTHROPIC_API_KEY` ではなく `ANTHROPIC_AUTH_TOKEN` が設定されます。

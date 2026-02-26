@@ -1,0 +1,69 @@
+---
+title: Kontext-Engine
+description: Konversationskomprimierung, profilübergreifende Freigabe und lokales RAG
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Die Kontext-Engine verbessert KI-Interaktionen durch drei Mechanismen: Konversationskomprimierung, profilübergreifende Kontextfreigabe und lokales RAG (Retrieval-Augmented Generation).
+
+<Aside type="caution">
+  Die Funktionen der Kontext-Engine benötigen einen LLM-Dienst zur Zusammenfassung und Einbettungsgenerierung. Es kann jedes vorhandene Profil verwendet werden (lokales Ollama, Cloud-Anbieter wie OpenRouter usw.).
+</Aside>
+
+## Konversationskomprimierung
+
+Wenn Konversationen einen Token-Schwellenwert überschreiten, verwendet Claudex ein LLM, um ältere Nachrichten zusammenzufassen, während neuere unverändert bleiben.
+
+```toml
+[context.compression]
+enabled = true
+threshold_tokens = 50000    # komprimieren, wenn Gesamttoken diesen Wert überschreiten
+keep_recent = 10            # immer die letzten N Nachrichten behalten
+profile = "openrouter"      # base_url + api_key eines Profils wiederverwenden
+model = "qwen/qwen-2.5-7b-instruct"  # Modell überschreiben (optional)
+```
+
+### Funktionsweise
+
+1. Vor dem Weiterleiten einer Anfrage schätzt Claudex die Gesamttoken-Anzahl
+2. Wenn Token `threshold_tokens` überschreiten, werden ältere Nachrichten (jenseits von `keep_recent`) durch eine Zusammenfassung ersetzt
+3. Die Zusammenfassung wird vom konfigurierten lokalen LLM generiert
+4. Die komprimierte Konversation wird dann an den Anbieter weitergeleitet
+
+## Profilübergreifende Freigabe
+
+Kontext über verschiedene Anbieterprofile innerhalb derselben Sitzung teilen.
+
+```toml
+[context.sharing]
+enabled = true
+max_context_size = 2000    # maximale Token, die aus anderen Profilen injiziert werden
+```
+
+Dies ist nützlich beim Wechseln zwischen Anbietern während einer Aufgabe — relevanter Kontext aus früheren Interaktionen wird automatisch einbezogen.
+
+## Lokales RAG
+
+Lokalen Code und Dokumentation für retrieval-augmented generation indizieren. Relevante Code-Ausschnitte werden automatisch in Anfragen injiziert.
+
+```toml
+[context.rag]
+enabled = true
+index_paths = ["./src", "./docs"]     # zu indizierende Verzeichnisse
+profile = "openrouter"                 # base_url + api_key eines Profils wiederverwenden
+model = "openai/text-embedding-3-small"  # Einbettungsmodell
+chunk_size = 512                       # Textchunk-Größe
+top_k = 5                             # Anzahl der zu injizierenden Ergebnisse
+```
+
+### Funktionsweise
+
+1. Beim Start indiziert Claudex Dateien in `index_paths` mit dem Einbettungsmodell
+2. Für jede Anfrage wird die Nachricht des Benutzers eingebettet und mit dem Index verglichen
+3. Die top-k relevantesten Chunks werden als zusätzlicher Kontext in die Anfrage injiziert
+4. Der Anbieter erhält reichhaltigeren Kontext über die Codebasis
+
+<Aside type="tip">
+  Für beste Ergebnisse mit lokalem RAG ein dediziertes Einbettungsmodell wie `nomic-embed-text` über Ollama verwenden.
+</Aside>

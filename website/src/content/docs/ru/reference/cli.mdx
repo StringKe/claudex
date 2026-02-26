@@ -1,0 +1,215 @@
+---
+title: Справочник CLI
+description: Полный справочник команд Claudex CLI
+---
+
+## Общее использование
+
+```
+claudex [COMMAND]
+```
+
+При запуске без команды Claudex запускает TUI-панель мониторинга, если профили настроены, или показывает приветственное сообщение, если профили отсутствуют.
+
+## Команды
+
+### `run`
+
+Запустить Claude Code с конкретным профилем провайдера.
+
+```bash
+claudex run <PROFILE> [PROMPT] [-m MODEL] [--print] [--dangerously-skip-permissions] [ARGS...]
+```
+
+| Аргумент | Описание |
+|----------|----------|
+| `PROFILE` | Имя профиля или `auto` для умной маршрутизации |
+| `PROMPT` | Опциональный промпт для неинтерактивного (одиночного) выполнения |
+| `-m, --model MODEL` | Переопределить модель по умолчанию для этой сессии |
+| `--print` | Вывести ответ и выйти (неинтерактивный режим) |
+| `--dangerously-skip-permissions` | Пропустить все запросы разрешений (использовать с `--print` для CI/CD) |
+| `ARGS...` | Дополнительные аргументы, передаваемые в `claude` |
+
+```bash
+# Использовать Grok (интерактивно)
+claudex run grok
+
+# Использовать Grok с конкретной моделью
+claudex run grok -m grok-3-mini-beta
+
+# Умная маршрутизация
+claudex run auto
+
+# Неинтерактивное одиночное выполнение
+claudex run grok "Explain this codebase" --print
+
+# Использование в CI/CD-конвейере (без запросов, без разрешений)
+claudex run grok "Fix lint errors" --print --dangerously-skip-permissions
+
+# Передать дополнительные аргументы в claude
+claudex run grok -- --verbose
+```
+
+### `profile`
+
+Управление профилями провайдеров.
+
+#### `profile list`
+
+```bash
+claudex profile list
+```
+
+Список всех настроенных профилей с их статусом.
+
+#### `profile add`
+
+```bash
+claudex profile add
+```
+
+Интерактивный мастер добавления нового профиля. Проводит через выбор провайдера, ввод API-ключа (с опциональным сохранением в связке ключей), выбор модели и тестирование подключения.
+
+#### `profile show`
+
+```bash
+claudex profile show <NAME>
+```
+
+Показать подробности конкретного профиля.
+
+#### `profile remove`
+
+```bash
+claudex profile remove <NAME>
+```
+
+Удалить профиль из конфигурации.
+
+#### `profile test`
+
+```bash
+claudex profile test <NAME|all>
+```
+
+Тестировать подключение для конкретного профиля или всех профилей.
+
+### `auth`
+
+Управление OAuth-аутентификацией по подписке для профилей провайдеров.
+
+#### `auth login`
+
+```bash
+claudex auth login <PROVIDER>
+```
+
+Выполнить вход к провайдеру через OAuth. Поддерживаемые провайдеры: `claude`, `openai`, `google`, `qwen`, `kimi`, `github`.
+
+Для **OpenAI** Claudex читает токены из конфигурации Codex CLI (`~/.codex/auth.json`). Для **Claude** читается из `~/.claude`. Другие провайдеры используют локальный сервер обратного вызова или поток device code.
+
+```bash
+# Войти в OpenAI (читается из Codex CLI)
+claudex auth login openai
+
+# Войти в Claude (читается из ~/.claude)
+claudex auth login claude
+
+# Войти в Google
+claudex auth login google
+```
+
+#### `auth status`
+
+```bash
+claudex auth status [PROVIDER]
+```
+
+Показать текущий статус аутентификации. Без аргумента провайдера показывает статус всех настроенных OAuth-профилей.
+
+```bash
+# Проверить все OAuth-профили
+claudex auth status
+
+# Проверить конкретного провайдера
+claudex auth status openai
+```
+
+#### `auth refresh`
+
+```bash
+claudex auth refresh <PROVIDER>
+```
+
+Вручную обновить OAuth-токен для провайдера. Токены также обновляются автоматически прокси при истечении срока.
+
+#### `auth logout`
+
+```bash
+claudex auth logout <PROVIDER>
+```
+
+Удалить сохранённые OAuth-токены для провайдера.
+
+### `proxy`
+
+Управление сервером прокси-переводчика.
+
+#### `proxy start`
+
+```bash
+claudex proxy start [-p PORT] [-d]
+```
+
+| Флаг | Описание |
+|------|----------|
+| `-p, --port PORT` | Переопределить порт прокси (по умолчанию: из конфигурации) |
+| `-d, --daemon` | Запустить как фоновый демон |
+
+#### `proxy stop`
+
+```bash
+claudex proxy stop
+```
+
+Остановить демон прокси (отправляет SIGTERM).
+
+#### `proxy status`
+
+```bash
+claudex proxy status
+```
+
+Показать, запущен ли прокси и на каком порту.
+
+### `dashboard`
+
+```bash
+claudex dashboard
+```
+
+Запустить TUI-панель мониторинга для наблюдения в реальном времени и быстрого запуска.
+
+### `config`
+
+```bash
+claudex config [--init]
+```
+
+| Флаг | Описание |
+|------|----------|
+| `--init` | Создать новый файл конфигурации в текущей директории |
+
+Без `--init` показывает загруженный путь к файлу конфигурации и порядок поиска.
+
+### `update`
+
+```bash
+claudex update [--check]
+```
+
+| Флаг | Описание |
+|------|----------|
+| `--check` | Только проверить наличие обновлений, не устанавливать |
+
+Без `--check` загружает и устанавливает последнюю версию.

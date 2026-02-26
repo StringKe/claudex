@@ -1,0 +1,42 @@
+---
+title: 自己更新
+description: ワンコマンドで Claudex を最新の状態に保つ
+---
+
+Claudex は GitHub Releases から直接アップデートを確認してインストールできます。
+
+## アップデートの確認
+
+```bash
+claudex update --check
+```
+
+このコマンドは GitHub API に最新リリースを問い合わせ、インストール済みのバージョンと比較します。
+
+## アップデートのインストール
+
+```bash
+claudex update
+```
+
+このコマンドはプラットフォーム向けの最新リリースバイナリをダウンロードし、現在のバイナリを置き換えて、インストールを確認します。
+
+## 仕組み
+
+1. GitHub API に問い合わせ: `https://api.github.com/repos/StringKe/claudex/releases/latest`
+2. 現在のバージョンと最新リリースタグを比較
+3. プラットフォーム固有のアーカイブをダウンロード (例: `claudex-v0.2.0-aarch64-apple-darwin.tar.gz`)
+4. 実行中のバイナリを展開して置き換え
+5. 一時ファイルを削除
+
+## 対応プラットフォーム
+
+アップデートメカニズムはリリースビルドと同じプラットフォームをサポートします:
+
+| プラットフォーム | ターゲット |
+|----------------|-----------|
+| macOS Intel | `x86_64-apple-darwin` |
+| macOS Apple Silicon | `aarch64-apple-darwin` |
+| Linux x86_64 | `x86_64-unknown-linux-gnu` |
+| Linux ARM64 | `aarch64-unknown-linux-gnu` |
+| Windows x86_64 | `x86_64-pc-windows-msvc` |

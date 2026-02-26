@@ -1,0 +1,303 @@
+---
+title: Configuration
+description: Comment configurer les profils et les paramètres de Claudex
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## Découverte du fichier de configuration
+
+Claudex recherche les fichiers de configuration dans cet ordre :
+
+1. Variable d'environnement `$CLAUDEX_CONFIG`
+2. `./claudex.toml` (répertoire courant)
+3. `./.claudex/config.toml` (répertoire courant)
+4. Répertoires parents (jusqu'à 10 niveaux), en vérifiant les deux schémas
+5. `~/.config/claudex/config.toml` (XDG — vérifié **avant** les chemins spécifiques à la plateforme)
+
+<Aside type="note">
+  Le chemin XDG (`~/.config/claudex/config.toml`) est maintenant vérifié avant les chemins spécifiques à la plateforme. Si aucun fichier de configuration n'existe, le chemin XDG est utilisé lors de la création de la configuration par défaut.
+</Aside>
+
+```bash
+# Afficher le chemin de configuration chargé et l'ordre de recherche
+claudex config
+
+# Créer une configuration locale dans le répertoire courant
+claudex config --init
+```
+
+<Aside type="tip">
+  La configuration au niveau du projet (`./claudex.toml`) est prioritaire sur la configuration globale, vous pouvez donc personnaliser les fournisseurs par projet.
+</Aside>
+
+## Paramètres globaux
+
+```toml
+# Chemin vers le binaire claude (par défaut : "claude" depuis PATH)
+# claude_binary = "/usr/local/bin/claude"
+
+# Paramètres du proxy
+proxy_port = 13456
+proxy_host = "127.0.0.1"
+
+# Niveau de journalisation : trace, debug, info, warn, error
+log_level = "info"
+
+# Alias de modèles (raccourci → nom complet du modèle)
+[model_aliases]
+grok3 = "grok-3-beta"
+gpt4o = "gpt-4o"
+ds3 = "deepseek-chat"
+```
+
+## Profils
+
+Chaque profil représente une connexion à un fournisseur d'IA. Il existe trois types de fournisseurs :
+
+### DirectAnthropic
+
+Pour les fournisseurs qui prennent en charge nativement l'API Anthropic Messages. Les requêtes sont transmises avec une modification minimale.
+
+```toml
+[[profiles]]
+name = "anthropic"
+provider_type = "DirectAnthropic"
+base_url = "https://api.anthropic.com"
+api_key = "sk-ant-..."
+default_model = "claude-sonnet-4-20250514"
+priority = 100
+enabled = true
+```
+
+Fournisseurs compatibles : **Anthropic**, **MiniMax**
+
+### OpenAICompatible
+
+Pour les fournisseurs utilisant l'API OpenAI Chat Completions. Claudex traduit automatiquement entre les protocoles Anthropic et OpenAI.
+
+```toml
+[[profiles]]
+name = "grok"
+provider_type = "OpenAICompatible"
+base_url = "https://api.x.ai/v1"
+api_key = "xai-..."
+default_model = "grok-3-beta"
+backup_providers = ["deepseek"]
+priority = 100
+enabled = true
+```
+
+Fournisseurs compatibles : **Grok (xAI)**, **OpenAI**, **DeepSeek**, **Kimi/Moonshot**, **GLM (Zhipu)**, **OpenRouter**, **Ollama**, **vLLM**, **LM Studio**
+
+### OpenAIResponses
+
+Pour les fournisseurs utilisant l'API OpenAI Responses (ex. abonnements ChatGPT/Codex). Claudex traduit entre l'API Anthropic Messages et l'API OpenAI Responses.
+
+```toml
+[[profiles]]
+name = "codex-sub"
+provider_type = "OpenAIResponses"
+base_url = "https://chatgpt.com/backend-api/codex"
+default_model = "gpt-4o"
+auth_type = "oauth"
+oauth_provider = "openai"
+```
+
+Fournisseurs compatibles : **abonnements ChatGPT/Codex** (via Codex CLI)
+
+<Aside type="tip">
+  Ce type de fournisseur est principalement utilisé avec les abonnements OAuth. Consultez le [Guide de configuration des fournisseurs](/fr/guides/provider-setup/) pour des instructions détaillées sur la configuration de Codex CLI.
+</Aside>
+
+### Champs de profil
+
+| Champ | Défaut | Description |
+|-------|--------|-------------|
+| `name` | *requis* | Identifiant unique du profil |
+| `provider_type` | `DirectAnthropic` | `DirectAnthropic`, `OpenAICompatible`, ou `OpenAIResponses` |
+| `base_url` | *requis* | Point de terminaison de l'API du fournisseur |
+| `api_key` | `""` | Clé API (en clair) |
+| `api_key_keyring` | — | Lire la clé API depuis le trousseau OS à la place |
+| `default_model` | *requis* | Modèle par défaut à utiliser |
+| `auth_type` | `"api-key"` | `"api-key"` ou `"oauth"` |
+| `oauth_provider` | — | Fournisseur OAuth (`claude`, `openai`, `google`, `qwen`, `kimi`, `github`). Requis quand `auth_type = "oauth"` |
+| `backup_providers` | `[]` | Noms de profils de basculement |
+| `custom_headers` | `{}` | En-têtes HTTP supplémentaires |
+| `extra_env` | `{}` | Variables d'environnement supplémentaires pour Claude |
+| `priority` | `100` | Priorité pour le routage intelligent |
+| `enabled` | `true` | Si ce profil est actif |
+| `[profiles.models]` | — | Table de correspondance des slots de modèle (champs `haiku`, `sonnet`, `opus`) |
+
+### Configuration interactive
+
+La façon la plus simple d'ajouter un profil est l'assistant interactif :
+
+```bash
+claudex profile add
+```
+
+Il vous guide à travers la sélection du fournisseur, la saisie de la clé API (avec stockage optionnel dans le trousseau), la sélection du modèle, et le test de connectivité.
+
+## Intégration du trousseau
+
+Stockez les clés API en toute sécurité dans le trousseau OS au lieu d'une configuration en clair :
+
+```toml
+[[profiles]]
+name = "grok"
+api_key_keyring = "grok-api-key"   # lit depuis le trousseau OS
+```
+
+Backends pris en charge :
+- **macOS** : Keychain
+- **Linux** : Secret Service (GNOME Keyring / KDE Wallet)
+
+## Authentification OAuth par abonnement
+
+Au lieu de clés API, vous pouvez vous authentifier avec votre abonnement fournisseur existant via OAuth. C'est utile si vous avez un abonnement Claude Pro/Team, ChatGPT Plus, ou autre.
+
+### Configuration
+
+1. Définissez `auth_type` du profil sur `"oauth"` et spécifiez `oauth_provider` :
+
+```toml
+[[profiles]]
+name = "chatgpt-oauth"
+provider_type = "OpenAICompatible"
+base_url = "https://api.openai.com/v1"
+default_model = "gpt-4o"
+auth_type = "oauth"
+oauth_provider = "openai"
+```
+
+2. Connectez-vous avec la commande `auth` :
+
+```bash
+claudex auth login openai
+```
+
+3. Vérifiez votre statut d'authentification :
+
+```bash
+claudex auth status
+```
+
+### Fournisseurs pris en charge
+
+| Fournisseur | `oauth_provider` | Source du token |
+|-------------|-----------------|----------------|
+| Claude | `claude` | Lit depuis `~/.claude` (configuration native de Claude Code) |
+| OpenAI | `openai` | Lit depuis `~/.codex/auth.json` (Codex CLI) |
+| Google | `google` | Flux OAuth device code |
+| Qwen | `qwen` | Flux OAuth device code |
+| Kimi | `kimi` | Flux OAuth device code |
+| GitHub | `github` | Flux OAuth device code |
+
+<Aside type="tip">
+  Pour **OpenAI**, assurez-vous d'avoir le [Codex CLI](https://github.com/openai/codex) installé et connecté (`codex auth`). Claudex lit le token depuis `~/.codex/auth.json` automatiquement. Le profil doit utiliser `provider_type = "OpenAIResponses"` pour communiquer via l'API Responses.
+</Aside>
+
+<Aside type="tip">
+  Pour **Claude**, Claudex lit la session OAuth Claude Code existante depuis `~/.claude`. Aucune étape de connexion séparée n'est nécessaire si vous êtes déjà connecté à Claude Code.
+</Aside>
+
+### Mode d'authentification passerelle
+
+Lors de l'utilisation de profils OAuth, Claudex définit `ANTHROPIC_AUTH_TOKEN` (et non `ANTHROPIC_API_KEY`) lors du lancement de Claude Code. Cela évite les conflits avec le mécanisme de connexion par abonnement propre de Claude Code, qui utilise `ANTHROPIC_API_KEY` en interne.
+
+Le proxy actualise automatiquement les tokens OAuth avant leur expiration. Vous pouvez aussi actualiser manuellement avec :
+
+```bash
+claudex auth refresh openai
+```
+
+## Correspondance de slots de modèle
+
+Claude Code dispose d'un sélecteur `/model` intégré avec trois slots : **haiku**, **sonnet**, et **opus**. Par défaut, ceux-ci correspondent aux modèles Anthropic, mais avec Claudex vous pouvez les mapper vers n'importe quel modèle de fournisseur.
+
+### Configuration
+
+Ajoutez une table `[profiles.models]` à n'importe quel profil :
+
+```toml
+[[profiles]]
+name = "grok"
+provider_type = "OpenAICompatible"
+base_url = "https://api.x.ai/v1"
+api_key = "xai-..."
+default_model = "grok-3-beta"
+
+[profiles.models]
+haiku = "grok-3-mini-beta"
+sonnet = "grok-3-beta"
+opus = "grok-3-beta"
+```
+
+Lorsque vous tapez `/model sonnet` dans Claude Code, Claudex traduit la requête pour utiliser `grok-3-beta`. La commande `/model opus` correspond à `grok-3-beta`, et ainsi de suite.
+
+### Exemples pour les fournisseurs courants
+
+```toml
+# Correspondance de modèles OpenAI
+[profiles.models]
+haiku = "gpt-4o-mini"
+sonnet = "gpt-4o"
+opus = "o1"
+
+# Correspondance de modèles DeepSeek
+[profiles.models]
+haiku = "deepseek-chat"
+sonnet = "deepseek-chat"
+opus = "deepseek-reasoner"
+
+# Correspondance de modèles Google Gemini
+[profiles.models]
+haiku = "gemini-2.0-flash"
+sonnet = "gemini-2.5-pro"
+opus = "gemini-2.5-pro"
+```
+
+<Aside type="note">
+  Si un slot de modèle n'est pas configuré, le `default_model` du profil est utilisé comme solution de repli.
+</Aside>
+
+## Compatibilité des noms d'outils
+
+Certains fournisseurs (notamment OpenAI) imposent une limite de 64 caractères sur les noms d'outils (fonctions). Claude Code peut générer des noms d'outils dépassant cette limite.
+
+Claudex tronque automatiquement les noms d'outils dépassant 64 caractères lors de l'envoi de requêtes aux fournisseurs compatibles OpenAI, et restaure de manière transparente les noms originaux lors du traitement des réponses. Ce traitement aller-retour est entièrement transparent — aucune configuration nécessaire.
+
+## Mode non-interactif
+
+Claudex prend en charge l'exécution en une seule passe (non-interactive) pour une utilisation dans les pipelines CI/CD, les scripts et l'automatisation :
+
+```bash
+# Afficher la réponse et quitter
+claudex run grok "Explain this codebase" --print
+
+# Ignorer toutes les confirmations de permission (pour les pipelines entièrement automatisés)
+claudex run grok "Fix lint errors" --print --dangerously-skip-permissions
+```
+
+<Aside type="caution">
+  `--dangerously-skip-permissions` désactive toutes les invites de sécurité. Utilisez ceci uniquement dans des environnements automatisés de confiance.
+</Aside>
+
+En mode non-interactif, les journaux sont écrits dans des fichiers de journalisation par instance à `~/Library/Caches/claudex/proxy-{timestamp}-{pid}.log` au lieu de stderr, gardant la sortie stdout propre pour le piping et l'automatisation.
+
+## Fichiers de journalisation par instance
+
+Chaque instance de proxy Claudex écrit les journaux dans son propre fichier :
+
+```
+~/Library/Caches/claudex/proxy-{timestamp}-{pid}.log
+```
+
+Cela évite l'entrelacement des journaux lors de l'exécution de plusieurs instances et garde stderr propre pendant `claudex run` (surtout en mode non-interactif). Les journaux incluent le démarrage du proxy, la traduction des requêtes, les événements d'actualisation des tokens OAuth, et les changements d'état du disjoncteur.
+
+## Exemple complet
+
+Consultez [`config.example.toml`](https://github.com/StringKe/claudex/blob/main/config.example.toml) pour un fichier de configuration complet avec tous les fournisseurs et options.
+
+Pour des instructions de configuration étape par étape pour chaque fournisseur (y compris les liens de clés API et les flux OAuth), consultez le [Guide de configuration des fournisseurs](/fr/guides/provider-setup/).

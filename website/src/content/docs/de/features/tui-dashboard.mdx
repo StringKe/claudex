@@ -1,0 +1,52 @@
+---
+title: TUI-Dashboard
+description: Echtzeit-Terminal-Dashboard zur Überwachung und Verwaltung von Profilen
+---
+
+Das TUI-Dashboard bietet eine Echtzeit-Terminal-Oberfläche zur Überwachung des Profilzustands, Anzeige von Metriken und schnellen Start von Claude Code-Sitzungen.
+
+## Starten
+
+```bash
+# Explizit starten
+claudex dashboard
+
+# Automatisch starten (wenn Profile vorhanden und kein Unterbefehl angegeben)
+claudex
+```
+
+## Tastaturkürzel
+
+| Taste | Aktion |
+|-----|--------|
+| `j` / `↓` | Auswahl nach unten bewegen |
+| `k` / `↑` | Auswahl nach oben bewegen |
+| `Enter` | Claude Code mit ausgewähltem Profil starten |
+| `t` | Verbindung für ausgewähltes Profil testen |
+| `a` | Neues Profil hinzufügen (zeigt Hinweis) |
+| `d` | Ausgewähltes Profil löschen (zeigt Hinweis) |
+| `p` | Proxy starten/stoppen umschalten |
+| `/` | Suchmodus aktivieren |
+| `Esc` | Suchmodus beenden / Hilfe schließen |
+| `?` | Hilfe-Popup anzeigen |
+| `q` / `Ctrl+C` | Dashboard beenden |
+
+## Dashboard-Layout
+
+Das Dashboard zeigt:
+
+- **Profilliste** — Alle konfigurierten Profile mit Name, Modell, Anbietertyp und Gesundheitsstatus
+- **Gesundheitsindikatoren** — Farbcodierter Status (grün = gesund, gelb = beeinträchtigt, rot = Circuit Breaker offen)
+- **Metrik-Panel** — Anfragenanzahl, Erfolgsrate und durchschnittliche Latenz pro Profil
+- **Protokoll-Panel** — Echtzeit-scrollendes Protokollausgabe
+
+## Gesundheitsstatus
+
+Das Dashboard führt einen Hintergrund-Gesundheitsprüfer aus, der alle aktivierten Profile alle ~30 Sekunden anpingt. Der Gesundheitsstatus wird in Echtzeit aktualisiert:
+
+| Farbe | Bedeutung |
+|-------|---------|
+| Grün | Anbieter antwortet normal |
+| Gelb | Kürzliche Fehler erkannt |
+| Rot | Circuit Breaker ist offen |
+| Grau | Profil ist deaktiviert |

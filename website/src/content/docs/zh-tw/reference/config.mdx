@@ -1,0 +1,396 @@
+---
+title: 設定參考
+description: Claudex 所有設定選項的完整參考
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## 設定檔位置
+
+Claudex 按以下順序搜尋設定檔：
+
+1. `$CLAUDEX_CONFIG` 環境變數
+2. `./claudex.toml`（目前目錄）
+3. `./.claudex/config.toml`（目前目錄）
+4. 父目錄（最多向上 10 層），檢查上述兩種模式
+5. `~/.config/claudex/config.toml`（XDG — 在平台特定路徑**之前**檢查）
+
+詳見[設定](/zh-tw/configuration/)。
+
+## 全域設定
+
+```toml
+# Claude 二進位檔案路徑（預設：從 PATH 中查找 "claude"）
+claude_binary = "claude"
+
+# 代理伺服器繫結埠
+proxy_port = 13456
+
+# 代理伺服器繫結位址
+proxy_host = "127.0.0.1"
+
+# 日誌層級：trace, debug, info, warn, error
+log_level = "info"
+```
+
+| 欄位 | 類型 | 預設值 | 說明 |
+|------|------|--------|------|
+| `claude_binary` | string | `"claude"` | Claude Code CLI 二進位檔案路徑 |
+| `proxy_port` | integer | `13456` | 翻譯代理監聽的埠 |
+| `proxy_host` | string | `"127.0.0.1"` | 代理繫結的位址 |
+| `log_level` | string | `"info"` | 最低日誌層級 |
+
+## 模型別名
+
+定義模型識別符的簡稱：
+
+```toml
+[model_aliases]
+grok3 = "grok-3-beta"
+gpt4o = "gpt-4o"
+ds3 = "deepseek-chat"
+claude = "claude-sonnet-4-20250514"
+```
+
+使用別名搭配 `-m`：
+
+```bash
+claudex run grok -m grok3
+```
+
+## Profile 設定
+
+```toml
+[[profiles]]
+name = "grok"
+provider_type = "OpenAICompatible"
+base_url = "https://api.x.ai/v1"
+api_key = "xai-..."
+# api_key_keyring = "grok-api-key"
+default_model = "grok-3-beta"
+auth_type = "api-key"              # "api-key"（預設）或 "oauth"
+# oauth_provider = "openai"        # auth_type = "oauth" 時必填
+backup_providers = ["deepseek"]
+custom_headers = {}
+extra_env = {}
+priority = 100
+enabled = true
+
+# 模型 slot 映射（選用）
+[profiles.models]
+haiku = "grok-3-mini-beta"
+sonnet = "grok-3-beta"
+opus = "grok-3-beta"
+```
+
+| 欄位 | 類型 | 預設值 | 說明 |
+|------|------|--------|------|
+| `name` | string | *必填* | 唯一 profile 識別名稱 |
+| `provider_type` | string | `"DirectAnthropic"` | `"DirectAnthropic"`、`"OpenAICompatible"` 或 `"OpenAIResponses"` |
+| `base_url` | string | *必填* | 提供商 API 端點 URL |
+| `api_key` | string | `""` | 明文 API 金鑰 |
+| `api_key_keyring` | string | — | OS 鑰匙圈項目名稱（覆寫 `api_key`） |
+| `default_model` | string | *必填* | 預設使用的模型識別符 |
+| `auth_type` | string | `"api-key"` | 認證方式：`"api-key"` 或 `"oauth"` |
+| `oauth_provider` | string | — | OAuth 提供商名稱（`auth_type = "oauth"` 時必填）。可選：`claude`、`openai`、`google`、`qwen`、`kimi`、`github` |
+| `backup_providers` | string[] | `[]` | 故障轉移的 profile 名稱，按順序嘗試 |
+| `custom_headers` | map | `{}` | 每次請求附帶的額外 HTTP 標頭 |
+| `extra_env` | map | `{}` | 啟動 Claude 時設定的環境變數 |
+| `priority` | integer | `100` | 智慧路由的優先權權重（越高越優先） |
+| `enabled` | boolean | `true` | 此 profile 是否啟用 |
+
+### 模型 Slot 映射
+
+選用的 `[profiles.models]` 表將 Claude Code 的 `/model` 切換器 slot 映射到提供商特定的模型名稱。在 Claude Code 中切換模型時（如 `/model opus`），Claudex 會將請求翻譯為映射的模型。
+
+```toml
+[profiles.models]
+haiku = "grok-3-mini-beta"    # 映射 /model haiku
+sonnet = "grok-3-beta"        # 映射 /model sonnet
+opus = "grok-3-beta"          # 映射 /model opus
+```
+
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| `haiku` | string | Claude Code 選取 `haiku` 時使用的模型 |
+| `sonnet` | string | Claude Code 選取 `sonnet` 時使用的模型 |
+| `opus` | string | Claude Code 選取 `opus` 時使用的模型 |
+
+<Aside type="tip">
+  若 slot 未定義，則使用 profile 的 `default_model` 作為回退。
+</Aside>
+
+### 提供商範例
+
+```toml
+# Anthropic（DirectAnthropic — 不需翻譯）
+[[profiles]]
+name = "anthropic"
+provider_type = "DirectAnthropic"
+base_url = "https://api.anthropic.com"
+api_key = "sk-ant-..."
+default_model = "claude-sonnet-4-20250514"
+
+# MiniMax（DirectAnthropic — 不需翻譯）
+[[profiles]]
+name = "minimax"
+provider_type = "DirectAnthropic"
+base_url = "https://api.minimax.io/anthropic"
+api_key = "..."
+default_model = "claude-sonnet-4-20250514"
+backup_providers = ["anthropic"]
+
+# OpenRouter（OpenAICompatible — 需要翻譯）
+[[profiles]]
+name = "openrouter"
+provider_type = "OpenAICompatible"
+base_url = "https://openrouter.ai/api/v1"
+api_key = "..."
+default_model = "anthropic/claude-sonnet-4"
+
+# Grok（OpenAICompatible — 需要翻譯）
+[[profiles]]
+name = "grok"
+provider_type = "OpenAICompatible"
+base_url = "https://api.x.ai/v1"
+api_key = "xai-..."
+default_model = "grok-3-beta"
+backup_providers = ["deepseek"]
+
+# OpenAI（OpenAICompatible — 需要翻譯）
+[[profiles]]
+name = "chatgpt"
+provider_type = "OpenAICompatible"
+base_url = "https://api.openai.com/v1"
+api_key = "sk-..."
+default_model = "gpt-4o"
+
+# DeepSeek（OpenAICompatible — 需要翻譯）
+[[profiles]]
+name = "deepseek"
+provider_type = "OpenAICompatible"
+base_url = "https://api.deepseek.com"
+api_key = "..."
+default_model = "deepseek-chat"
+backup_providers = ["grok"]
+
+# Kimi / Moonshot（OpenAICompatible — 需要翻譯）
+[[profiles]]
+name = "kimi"
+provider_type = "OpenAICompatible"
+base_url = "https://api.moonshot.cn/v1"
+api_key = "..."
+default_model = "moonshot-v1-128k"
+
+# GLM / 智譜（OpenAICompatible — 需要翻譯）
+[[profiles]]
+name = "glm"
+provider_type = "OpenAICompatible"
+base_url = "https://open.bigmodel.cn/api/paas/v4"
+api_key = "..."
+default_model = "glm-4-plus"
+
+# Ollama（本地，不需 API 金鑰）
+[[profiles]]
+name = "local-qwen"
+provider_type = "OpenAICompatible"
+base_url = "http://localhost:11434/v1"
+api_key = ""
+default_model = "qwen2.5:72b"
+enabled = false
+
+# vLLM / LM Studio（本地）
+[[profiles]]
+name = "local-llama"
+provider_type = "OpenAICompatible"
+base_url = "http://localhost:8000/v1"
+api_key = ""
+default_model = "llama-3.3-70b"
+enabled = false
+
+# ChatGPT/Codex 訂閱（OpenAIResponses — Responses API 翻譯）
+[[profiles]]
+name = "codex-sub"
+provider_type = "OpenAIResponses"
+base_url = "https://chatgpt.com/backend-api/codex"
+default_model = "gpt-4o"
+auth_type = "oauth"
+oauth_provider = "openai"
+```
+
+### OAuth Profile 範例
+
+```toml
+# 透過 OAuth 使用 OpenAI（從 Codex CLI ~/.codex/auth.json 讀取 token）
+[[profiles]]
+name = "chatgpt-oauth"
+provider_type = "OpenAICompatible"
+base_url = "https://api.openai.com/v1"
+default_model = "gpt-4o"
+auth_type = "oauth"
+oauth_provider = "openai"
+
+[profiles.models]
+haiku = "gpt-4o-mini"
+sonnet = "gpt-4o"
+opus = "o1"
+
+# Claude 訂閱（跳過代理，使用 Claude 從 ~/.claude 讀取的原生 OAuth）
+[[profiles]]
+name = "claude-sub"
+provider_type = "DirectAnthropic"
+base_url = "https://api.anthropic.com"
+default_model = "claude-sonnet-4-20250514"
+auth_type = "oauth"
+oauth_provider = "claude"
+
+[profiles.models]
+haiku = "claude-haiku-4-20250514"
+sonnet = "claude-sonnet-4-20250514"
+opus = "claude-opus-4-20250514"
+
+# 透過 OAuth 使用 Google Gemini
+[[profiles]]
+name = "gemini"
+provider_type = "OpenAICompatible"
+base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+default_model = "gemini-2.5-pro"
+auth_type = "oauth"
+oauth_provider = "google"
+
+# 透過 OAuth 使用 Kimi
+[[profiles]]
+name = "kimi-oauth"
+provider_type = "OpenAICompatible"
+base_url = "https://api.moonshot.cn/v1"
+default_model = "moonshot-v1-128k"
+auth_type = "oauth"
+oauth_provider = "kimi"
+
+# 透過 OAuth 使用 Qwen
+[[profiles]]
+name = "qwen-oauth"
+provider_type = "OpenAICompatible"
+base_url = "https://chat.qwenlm.ai/api/chat/v1"
+default_model = "qwen-max"
+auth_type = "oauth"
+oauth_provider = "qwen"
+
+# 透過 OAuth 使用 GitHub Copilot
+[[profiles]]
+name = "github-copilot"
+provider_type = "OpenAICompatible"
+base_url = "https://api.githubcopilot.com"
+default_model = "gpt-4o"
+auth_type = "oauth"
+oauth_provider = "github"
+
+# 透過 OAuth 使用 ChatGPT/Codex 訂閱（OpenAIResponses）
+[[profiles]]
+name = "codex-sub"
+provider_type = "OpenAIResponses"
+base_url = "https://chatgpt.com/backend-api/codex"
+default_model = "gpt-4o"
+auth_type = "oauth"
+oauth_provider = "openai"
+
+[profiles.models]
+haiku = "gpt-4o-mini"
+sonnet = "gpt-4o"
+opus = "o1-pro"
+```
+
+<Aside type="caution">
+  對於 `claude` OAuth 提供商，Claudex 使用特殊的 gateway 認證模式：設定 `ANTHROPIC_AUTH_TOKEN`（而非 `ANTHROPIC_API_KEY`），以避免與 Claude Code 自身訂閱登入流程衝突。
+</Aside>
+
+## 智慧路由器
+
+```toml
+[router]
+enabled = false
+profile = "local-qwen"    # 重用某個 profile 的 base_url + api_key
+model = "qwen2.5:3b"      # 覆寫模型（選用）
+```
+
+| 欄位 | 類型 | 預設值 | 說明 |
+|------|------|--------|------|
+| `enabled` | boolean | `false` | 啟用智慧路由 |
+| `profile` | string | `""` | 用於分類的 profile 名稱（使用其 `base_url` + `api_key`） |
+| `model` | string | `""` | 分類用的模型覆寫（預設使用 profile 的 `default_model`） |
+
+### 路由規則
+
+```toml
+[router.rules]
+code = "deepseek"
+analysis = "grok"
+creative = "chatgpt"
+search = "kimi"
+math = "deepseek"
+default = "grok"
+```
+
+| 鍵 | 說明 |
+|----|------|
+| `code` | 程式設計任務的 profile |
+| `analysis` | 分析和推理任務的 profile |
+| `creative` | 創意寫作的 profile |
+| `search` | 搜尋和研究的 profile |
+| `math` | 數學和邏輯的 profile |
+| `default` | 意圖未分類時的回退 |
+
+## 上下文引擎
+
+### 壓縮
+
+```toml
+[context.compression]
+enabled = false
+threshold_tokens = 50000
+keep_recent = 10
+profile = "local-qwen"    # 重用某個 profile 的 base_url + api_key
+model = "qwen2.5:3b"      # 覆寫模型（選用）
+```
+
+| 欄位 | 類型 | 預設值 | 說明 |
+|------|------|--------|------|
+| `enabled` | boolean | `false` | 啟用對話壓縮 |
+| `threshold_tokens` | integer | `50000` | token 數超過此值時壓縮 |
+| `keep_recent` | integer | `10` | 始終保留最後 N 條訊息不壓縮 |
+| `profile` | string | `""` | 用於摘要的 profile 名稱（使用其 `base_url` + `api_key`） |
+| `model` | string | `""` | 摘要用的模型覆寫（預設使用 profile 的 `default_model`） |
+
+### 跨 Profile 共享
+
+```toml
+[context.sharing]
+enabled = false
+max_context_size = 2000
+```
+
+| 欄位 | 類型 | 預設值 | 說明 |
+|------|------|--------|------|
+| `enabled` | boolean | `false` | 啟用跨 profile 上下文共享 |
+| `max_context_size` | integer | `2000` | 從其他 profile 注入的最大 token 數 |
+
+### 本地 RAG
+
+```toml
+[context.rag]
+enabled = false
+index_paths = ["./src", "./docs"]
+profile = "local-qwen"              # 重用某個 profile 的 base_url + api_key
+model = "nomic-embed-text"           # 嵌入模型
+chunk_size = 512
+top_k = 5
+```
+
+| 欄位 | 類型 | 預設值 | 說明 |
+|------|------|--------|------|
+| `enabled` | boolean | `false` | 啟用本地 RAG |
+| `index_paths` | string[] | `[]` | 要索引的目錄 |
+| `profile` | string | `""` | 用於嵌入的 profile 名稱（使用其 `base_url` + `api_key`） |
+| `model` | string | `""` | 嵌入模型名稱（預設使用 profile 的 `default_model`） |
+| `chunk_size` | integer | `512` | 以 token 計的文字區塊大小 |
+| `top_k` | integer | `5` | 要注入的結果數量 |

@@ -1,0 +1,69 @@
+---
+title: 컨텍스트 엔진
+description: 대화 압축, 프로파일 간 공유, 로컬 RAG
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+컨텍스트 엔진은 세 가지 메커니즘을 통해 AI 상호작용을 향상시킵니다: 대화 압축, 프로파일 간 컨텍스트 공유, 로컬 RAG(Retrieval-Augmented Generation).
+
+<Aside type="caution">
+  컨텍스트 엔진 기능은 요약 및 임베딩 생성을 위한 LLM 서비스가 필요합니다. 기존 프로파일(로컬 Ollama, OpenRouter 같은 클라우드 제공자 등)을 사용할 수 있습니다.
+</Aside>
+
+## 대화 압축
+
+대화가 토큰 임계값을 초과하면, Claudex는 LLM을 사용하여 오래된 메시지를 요약하고 최근 메시지는 그대로 유지합니다.
+
+```toml
+[context.compression]
+enabled = true
+threshold_tokens = 50000    # 총 토큰이 이 값을 초과하면 압축
+keep_recent = 10            # 항상 마지막 N개의 메시지 유지
+profile = "openrouter"      # 프로파일의 base_url + api_key 재사용
+model = "qwen/qwen-2.5-7b-instruct"  # 모델 오버라이드 (선택 사항)
+```
+
+### 작동 방식
+
+1. 요청 전달 전, Claudex가 총 토큰 수를 추정
+2. 토큰이 `threshold_tokens`를 초과하면, `keep_recent` 이전의 오래된 메시지가 요약으로 대체됨
+3. 설정된 로컬 LLM이 요약 생성
+4. 압축된 대화가 제공자에게 전달됨
+
+## 프로파일 간 공유
+
+동일 세션 내에서 서로 다른 제공자 프로파일 간에 컨텍스트를 공유합니다.
+
+```toml
+[context.sharing]
+enabled = true
+max_context_size = 2000    # 다른 프로파일에서 주입할 최대 토큰 수
+```
+
+작업 중간에 제공자를 전환할 때 유용합니다 — 이전 상호작용의 관련 컨텍스트가 자동으로 포함됩니다.
+
+## 로컬 RAG
+
+검색 증강 생성을 위해 로컬 코드와 문서를 인덱싱합니다. 관련 코드 스니펫이 요청에 자동으로 주입됩니다.
+
+```toml
+[context.rag]
+enabled = true
+index_paths = ["./src", "./docs"]     # 인덱싱할 디렉토리
+profile = "openrouter"                 # 프로파일의 base_url + api_key 재사용
+model = "openai/text-embedding-3-small"  # 임베딩 모델
+chunk_size = 512                       # 텍스트 청크 크기
+top_k = 5                             # 주입할 결과 수
+```
+
+### 작동 방식
+
+1. 시작 시 Claudex가 임베딩 모델을 사용하여 `index_paths`의 파일을 인덱싱
+2. 각 요청에 대해 사용자 메시지가 임베딩되고 인덱스와 비교됨
+3. 가장 관련성이 높은 상위 k개의 청크가 요청에 추가 컨텍스트로 주입됨
+4. 제공자가 코드베이스에 대한 더 풍부한 컨텍스트를 받음
+
+<Aside type="tip">
+  로컬 RAG에서 최상의 결과를 얻으려면 Ollama를 통해 `nomic-embed-text`와 같은 전용 임베딩 모델을 사용하세요.
+</Aside>

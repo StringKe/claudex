@@ -1,0 +1,63 @@
+---
+title: Disjoncteur et basculement
+description: Détection automatique des pannes et basculement entre fournisseurs
+---
+
+Claudex inclut un disjoncteur intégré pour chaque profil de fournisseur, avec basculement automatique vers des fournisseurs de secours lorsque des pannes sont détectées.
+
+## États du disjoncteur
+
+```
+         succès
+    ┌──────────────┐
+    │              │
+    ▼    échec     │
+ Fermé ──────────► Ouvert
+    ▲              │
+    │   délai      │
+    │   expiré     ▼
+    └─────────── DemiOuvert
+                   │
+                échec → retour à Ouvert
+```
+
+| État | Comportement |
+|------|-------------|
+| **Fermé** | Fonctionnement normal. Les requêtes passent. Les échecs sont comptés. |
+| **Ouvert** | Les requêtes sont bloquées. Déclenche le basculement vers les fournisseurs de secours. |
+| **DemiOuvert** | Après le délai de récupération, une requête sonde est autorisée. Succès → Fermé ; Échec → retour à Ouvert. |
+
+## Paramètres par défaut
+
+| Paramètre | Valeur |
+|-----------|--------|
+| Seuil d'échec | 3 échecs consécutifs |
+| Délai de récupération | 30 secondes |
+
+## Configuration du basculement
+
+Définissez des fournisseurs de secours dans votre profil pour activer le basculement automatique :
+
+```toml
+[[profiles]]
+name = "grok"
+provider_type = "OpenAICompatible"
+base_url = "https://api.x.ai/v1"
+api_key = "xai-..."
+default_model = "grok-3-beta"
+backup_providers = ["deepseek", "chatgpt"]   # chaîne de basculement
+```
+
+Lorsque `grok` échoue 3 fois consécutivement :
+1. Le disjoncteur s'ouvre pour `grok`
+2. La requête est réessayée avec `deepseek`
+3. Si `deepseek` échoue également, essayer `chatgpt`
+4. Chaque fournisseur de secours dispose de son propre disjoncteur indépendant
+
+## Vérification de l'état de santé
+
+Un vérificateur de santé en arrière-plan s'exécute toutes les ~30 secondes, envoyant des requêtes sonde légères à tous les profils activés. L'état de santé est affiché dans le tableau de bord TUI avec un code couleur :
+
+- Vert : sain
+- Jaune : dégradé (échecs récents)
+- Rouge : disjoncteur ouvert

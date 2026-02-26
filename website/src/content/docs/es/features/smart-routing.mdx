@@ -1,0 +1,58 @@
+---
+title: Enrutamiento Inteligente
+description: Enrutamiento automatico de proveedores basado en intencion
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+El enrutamiento inteligente selecciona automaticamente el mejor proveedor para cada solicitud basandose en la clasificacion de la intencion. Usa `claudex run auto` para activarlo.
+
+## Como Funciona
+
+1. El usuario ejecuta `claudex run auto`
+2. Claude Code envia una solicitud al proxy
+3. El proxy extrae el mensaje del usuario y lo envia a un clasificador local (por ejemplo, Ollama)
+4. El clasificador devuelve una categoria de intencion (code, analysis, creative, search, math)
+5. Las reglas de enrutamiento asignan la intencion al perfil de proveedor optimo
+6. La solicitud se reenvfa al proveedor seleccionado
+
+## Configuracion
+
+```toml
+[router]
+enabled = true
+profile = "local-qwen"      # reutiliza la base_url + api_key de un perfil para clasificacion
+model = "qwen2.5:3b"        # sobreescribir modelo (opcional, por defecto es el default_model del perfil)
+
+[router.rules]
+code = "deepseek"       # tareas de codigo → DeepSeek
+analysis = "grok"       # tareas analiticas → Grok
+creative = "chatgpt"    # escritura creativa → ChatGPT
+search = "kimi"         # busqueda/investigacion → Kimi
+math = "deepseek"       # matematicas/logica → DeepSeek
+default = "grok"        # respaldo para lo no clasificado
+```
+
+## Categorias de Intencion
+
+| Intencion | Descripcion | Tareas de Ejemplo |
+|-----------|-------------|-------------------|
+| `code` | Programacion y generacion de codigo | Escribir una funcion, corregir un error, refactorizar codigo |
+| `analysis` | Analisis de datos y razonamiento | Analizar registros, comparar enfoques, explicar conceptos |
+| `creative` | Escritura creativa e ideacion | Escribir documentacion, hacer lluvia de ideas, redactar correos |
+| `search` | Recuperacion de informacion | Buscar documentacion de API, consultar codigos de error |
+| `math` | Tareas matematicas y logicas | Calcular complejidad, demostrar corrección |
+
+<Aside type="note">
+  El enrutamiento inteligente requiere un servicio LLM para la clasificacion de intenciones. Reutiliza la `base_url` y `api_key` de un perfil existente. El modelo clasificador debe ser pequeno y rapido: `qwen2.5:3b` funciona bien.
+</Aside>
+
+## Uso
+
+```bash
+# Ejecutar con enrutamiento inteligente
+claudex run auto
+
+# Sobreescribir modelo incluso con enrutamiento automatico
+claudex run auto -m grok-3-mini-beta
+```

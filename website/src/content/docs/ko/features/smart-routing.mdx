@@ -1,0 +1,58 @@
+---
+title: 스마트 라우팅
+description: 의도 기반 자동 제공자 라우팅
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+스마트 라우팅은 의도 분류에 따라 각 요청에 가장 적합한 제공자를 자동으로 선택합니다. `claudex run auto`로 활성화하세요.
+
+## 작동 방식
+
+1. 사용자가 `claudex run auto` 실행
+2. Claude Code가 프록시에 요청 전송
+3. 프록시가 사용자 메시지를 추출하여 로컬 분류기(예: Ollama)에 전송
+4. 분류기가 의도 카테고리 반환 (code, analysis, creative, search, math)
+5. 라우팅 규칙이 의도를 최적의 제공자 프로파일에 매핑
+6. 선택된 제공자에게 요청 전달
+
+## 설정
+
+```toml
+[router]
+enabled = true
+profile = "local-qwen"      # 분류에 사용할 프로파일의 base_url + api_key 재사용
+model = "qwen2.5:3b"        # 모델 오버라이드 (선택 사항, 기본값은 프로파일의 default_model)
+
+[router.rules]
+code = "deepseek"       # 코딩 작업 → DeepSeek
+analysis = "grok"       # 분석 작업 → Grok
+creative = "chatgpt"    # 창작 작업 → ChatGPT
+search = "kimi"         # 검색/조사 → Kimi
+math = "deepseek"       # 수학/논리 → DeepSeek
+default = "grok"        # 미분류 폴백
+```
+
+## 의도 카테고리
+
+| 의도 | 설명 | 예시 작업 |
+|--------|-------------|---------------|
+| `code` | 프로그래밍 및 코드 생성 | 함수 작성, 버그 수정, 코드 리팩토링 |
+| `analysis` | 데이터 분석 및 추론 | 로그 분석, 접근 방식 비교, 개념 설명 |
+| `creative` | 창작 및 아이디어 발상 | 문서 작성, 이름 브레인스토밍, 이메일 초안 |
+| `search` | 정보 검색 | API 문서 찾기, 오류 코드 조회 |
+| `math` | 수학 및 논리 작업 | 복잡도 계산, 정확성 증명 |
+
+<Aside type="note">
+  스마트 라우팅은 의도 분류를 위한 LLM 서비스가 필요합니다. 기존 프로파일의 `base_url`과 `api_key`를 재사용합니다. 분류기 모델은 작고 빨라야 합니다 — `qwen2.5:3b`가 잘 작동합니다.
+</Aside>
+
+## 사용법
+
+```bash
+# 스마트 라우팅으로 실행
+claudex run auto
+
+# 자동 라우팅 중에도 모델 오버라이드
+claudex run auto -m grok-3-mini-beta
+```

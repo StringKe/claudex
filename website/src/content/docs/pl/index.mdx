@@ -1,0 +1,75 @@
+---
+title: Claudex
+description: Menedżer wielu instancji Claude Code z inteligentnym proxy tłumaczącym
+template: splash
+hero:
+  title: Claudex
+  tagline: Używaj Claude Code z dowolnym dostawcą AI — Grok, ChatGPT, DeepSeek, Kimi, GLM, Ollama i innymi.
+  actions:
+    - text: Zacznij
+      link: /pl/installation/
+      icon: right-arrow
+      variant: primary
+    - text: Zobacz na GitHub
+      link: https://github.com/StringKe/claudex
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## Funkcje
+
+<CardGrid stagger>
+  <Card title="Proxy tłumaczące" icon="translate">
+    Automatyczne tłumaczenie protokołu Anthropic na OpenAI. Używaj Claude Code z Grok, ChatGPT, DeepSeek, Kimi, GLM i dowolnym dostawcą kompatybilnym z OpenAI.
+  </Card>
+  <Card title="Wyłącznik automatyczny" icon="warning">
+    Wbudowany wyłącznik automatyczny z automatycznym przełączaniem awaryjnym na dostawców zapasowych. Konfigurowalne progi i limity czasu odzyskiwania utrzymują ciągłość pracy.
+  </Card>
+  <Card title="Inteligentne trasowanie" icon="random">
+    Automatyczne trasowanie oparte na intencjach za pomocą lokalnego klasyfikatora. Automatycznie przypisuje zadania z zakresu kodu, analizy, kreatywności, wyszukiwania i matematyki do optymalnego dostawcy.
+  </Card>
+  <Card title="Silnik kontekstu" icon="document">
+    Kompresja konwersacji, udostępnianie kontekstu między profilami i lokalny RAG z osadzeniami. Wzbogacaj interakcje z AI o bogatszy kontekst.
+  </Card>
+  <Card title="Pulpit TUI" icon="laptop">
+    Terminalowy pulpit czasu rzeczywistego pokazujący kondycję profili, metryki żądań, logi i możliwości szybkiego uruchamiania. Pełna nawigacja klawiaturowa.
+  </Card>
+  <Card title="Automatyczna aktualizacja" icon="up-caret">
+    Jedno polecenie do sprawdzenia i instalacji najnowszej wersji bezpośrednio z GitHub Releases. Bądź na bieżąco bez wysiłku.
+  </Card>
+  <Card title="Uwierzytelnianie OAuth przez subskrypcję" icon="approve-check">
+    Używaj istniejącej subskrypcji Claude, OpenAI, Google, Qwen, Kimi lub GitHub — bez kluczy API. `claudex auth login` odczytuje tokeny z natywnej konfiguracji CLI każdego dostawcy.
+  </Card>
+  <Card title="Tryb nieinteraktywny" icon="rocket">
+    Jednorazowe wykonanie za pomocą `claudex run <profile> "prompt" --print`. Idealny do potoków CI/CD i skryptowej automatyzacji.
+  </Card>
+  <Card title="Mapowanie slotów modeli" icon="setting">
+    Mapuj przełącznik `/model` Claude Code (haiku, sonnet, opus) na dowolny model dostawcy za pomocą konfiguracji `[profiles.models]`.
+  </Card>
+  <Card title="Kompatybilność nazw narzędzi" icon="puzzle">
+    Automatyczne skracanie nazw narzędzi dłuższych niż 64 znaki dla zgodności z OpenAI, z transparentnym przywracaniem oryginalnych nazw w odpowiedziach.
+  </Card>
+</CardGrid>
+
+## Szybka instalacja
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/StringKe/claudex/main/install.sh | bash
+```
+
+## Jak to działa
+
+```
+claudex run grok
+    │
+    ├── Start proxy → 127.0.0.1:13456
+    │
+    └── exec claude with:
+        ANTHROPIC_BASE_URL=http://127.0.0.1:13456/proxy/grok
+        ANTHROPIC_AUTH_TOKEN=<session-token>
+        ANTHROPIC_MODEL=grok-3-beta
+```
+
+Proxy transparentnie tłumaczy między protokołami Anthropic i OpenAI, dzięki czemu Claude Code działa bezproblemowo z dowolnym obsługiwanym dostawcą. Przy profilach OAuth ustawiany jest `ANTHROPIC_AUTH_TOKEN` (nie `ANTHROPIC_API_KEY`), aby uniknąć konfliktów z własnym logowaniem subskrypcyjnym Claude.

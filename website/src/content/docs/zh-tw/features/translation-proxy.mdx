@@ -1,0 +1,102 @@
+---
+title: 翻譯代理
+description: 自動 Anthropic-to-OpenAI 協定翻譯
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+翻譯代理是 Claudex 的核心。它位於 Claude Code 和您的 AI 提供商之間，透明地在 Anthropic Messages API 和 OpenAI Chat Completions API 之間進行轉換。
+
+## 運作原理
+
+```
+Claude Code → Anthropic Messages API 請求
+    │
+    └── Claudex 代理（127.0.0.1:13456）
+        │
+        ├── DirectAnthropic 提供商 → 轉發並附加標頭
+        │
+        ├── OpenAICompatible 提供商
+        │   ├── 翻譯請求：Anthropic → OpenAI Chat Completions
+        │   ├── 轉發至提供商
+        │   └── 翻譯回應：OpenAI → Anthropic
+        │
+        └── OpenAIResponses 提供商
+            ├── 翻譯請求：Anthropic → OpenAI Responses API
+            ├── 轉發至提供商
+            └── 翻譯回應：Responses → Anthropic
+```
+
+## 翻譯內容
+
+### 請求翻譯（Anthropic → OpenAI）
+
+| Anthropic | OpenAI |
+|-----------|--------|
+| `system` 欄位 | `messages` 陣列中的系統訊息 |
+| `messages[].content` 區塊（text、image、tool_use） | `messages[].content` + `tool_calls` |
+| `tools` 陣列（JSON Schema） | `tools` 陣列（function 格式） |
+| `tool_choice` | `tool_choice` |
+| `max_tokens` | `max_tokens` |
+| `temperature`、`top_p` | 直接映射 |
+
+### 回應翻譯（OpenAI → Anthropic）
+
+| OpenAI | Anthropic |
+|--------|-----------|
+| `choices[0].message.content` | `content` 區塊 |
+| `choices[0].message.tool_calls` | `tool_use` 內容區塊 |
+| `finish_reason: stop` | `stop_reason: end_turn` |
+| `finish_reason: tool_calls` | `stop_reason: tool_use` |
+| `usage.prompt_tokens` / `completion_tokens` | `usage.input_tokens` / `output_tokens` |
+
+## 串流翻譯
+
+Claudex 完整支援 SSE（Server-Sent Events）串流，即時將 OpenAI 串流區塊翻譯為 Anthropic 串流事件：
+
+| OpenAI SSE | Anthropic SSE |
+|------------|---------------|
+| 第一個區塊 | `message_start` + `content_block_start` |
+| `choices[0].delta.content` | `content_block_delta`（text_delta） |
+| `choices[0].delta.tool_calls` | `content_block_delta`（input_json_delta） |
+| 出現 `finish_reason` | `content_block_stop` + `message_delta` + `message_stop` |
+
+串流翻譯器維護一個狀態機，以正確處理工具呼叫累積和內容區塊邊界。
+
+## 支援的提供商
+
+| 提供商 | 類型 | Base URL |
+|--------|------|----------|
+| Anthropic | DirectAnthropic | `https://api.anthropic.com` |
+| MiniMax | DirectAnthropic | `https://api.minimax.io/anthropic` |
+| OpenRouter | OpenAICompatible | `https://openrouter.ai/api/v1` |
+| Grok (xAI) | OpenAICompatible | `https://api.x.ai/v1` |
+| OpenAI | OpenAICompatible | `https://api.openai.com/v1` |
+| DeepSeek | OpenAICompatible | `https://api.deepseek.com` |
+| Kimi/Moonshot | OpenAICompatible | `https://api.moonshot.cn/v1` |
+| GLM (Zhipu) | OpenAICompatible | `https://open.bigmodel.cn/api/paas/v4` |
+| Ollama | OpenAICompatible | `http://localhost:11434/v1` |
+| vLLM | OpenAICompatible | `http://localhost:8000/v1` |
+| ChatGPT/Codex 訂閱 | OpenAIResponses | `https://chatgpt.com/backend-api/codex` |
+
+<Aside type="tip">
+  DirectAnthropic 提供商不需要翻譯。OpenAIResponses 提供商使用 Responses API（`/responses` 端點）而非 Chat Completions（`/chat/completions`）。
+</Aside>
+
+## 代理管理
+
+```bash
+# 以背景程式啟動代理
+claudex proxy start -d
+
+# 檢查代理狀態
+claudex proxy status
+
+# 停止代理背景程式
+claudex proxy stop
+
+# 在自訂埠啟動
+claudex proxy start -p 8080
+```
+
+執行 `claudex run <profile>` 時，若代理尚未運作，會自動在背景啟動。

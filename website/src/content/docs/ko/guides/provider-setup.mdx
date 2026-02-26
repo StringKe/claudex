@@ -1,0 +1,407 @@
+---
+title: 제공자 설정 가이드
+description: Claudex와 함께 각 AI 제공자를 구성하기 위한 단계별 안내
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+이 가이드는 API 키 제공자, OAuth 구독, 로컬 모델을 포함하여 Claudex가 지원하는 모든 제공자의 자세한 설정 안내를 다룹니다.
+
+## API 키 제공자
+
+### Anthropic
+
+1. [console.anthropic.com](https://console.anthropic.com/)에서 가입
+2. **API Keys**로 이동하여 새 키 생성 (형식: `sk-ant-*`)
+
+```toml
+[[profiles]]
+name = "anthropic"
+provider_type = "DirectAnthropic"
+base_url = "https://api.anthropic.com"
+api_key = "sk-ant-..."
+default_model = "claude-sonnet-4-20250514"
+```
+
+```bash
+claudex profile test anthropic
+```
+
+### MiniMax
+
+1. [platform.minimaxi.com](https://platform.minimaxi.com/)에서 가입
+2. 콘솔에서 **API Keys**로 이동
+
+```toml
+[[profiles]]
+name = "minimax"
+provider_type = "DirectAnthropic"
+base_url = "https://api.minimax.io/anthropic"
+api_key = "..."
+default_model = "claude-sonnet-4-20250514"
+```
+
+```bash
+claudex profile test minimax
+```
+
+### OpenRouter
+
+1. [openrouter.ai](https://openrouter.ai/)에서 가입
+2. [openrouter.ai/keys](https://openrouter.ai/keys)에서 API 키 발급
+
+```toml
+[[profiles]]
+name = "openrouter"
+provider_type = "OpenAICompatible"
+base_url = "https://openrouter.ai/api/v1"
+api_key = "sk-or-..."
+default_model = "anthropic/claude-sonnet-4"
+```
+
+```bash
+claudex profile test openrouter
+```
+
+<Aside type="tip">
+  OpenRouter는 다양한 제공자의 수백 가지 모델을 지원합니다. Claude 모델에는 `anthropic/` 접두사를 사용하세요.
+</Aside>
+
+### Grok (xAI)
+
+1. [console.x.ai](https://console.x.ai/)에서 가입
+2. 콘솔에서 API 키 생성
+
+```toml
+[[profiles]]
+name = "grok"
+provider_type = "OpenAICompatible"
+base_url = "https://api.x.ai/v1"
+api_key = "xai-..."
+default_model = "grok-3-beta"
+```
+
+```bash
+claudex profile test grok
+```
+
+### OpenAI
+
+1. [platform.openai.com](https://platform.openai.com/)에서 가입
+2. [platform.openai.com/api-keys](https://platform.openai.com/api-keys)에서 API 키 생성
+
+```toml
+[[profiles]]
+name = "chatgpt"
+provider_type = "OpenAICompatible"
+base_url = "https://api.openai.com/v1"
+api_key = "sk-..."
+default_model = "gpt-4o"
+```
+
+```bash
+claudex profile test chatgpt
+```
+
+### DeepSeek
+
+1. [platform.deepseek.com](https://platform.deepseek.com/)에서 가입
+2. 콘솔에서 API 키 생성
+
+```toml
+[[profiles]]
+name = "deepseek"
+provider_type = "OpenAICompatible"
+base_url = "https://api.deepseek.com"
+api_key = "sk-..."
+default_model = "deepseek-chat"
+```
+
+```bash
+claudex profile test deepseek
+```
+
+### Kimi / Moonshot
+
+1. [platform.moonshot.cn](https://platform.moonshot.cn/)에서 가입
+2. 콘솔에서 API 키 생성
+
+```toml
+[[profiles]]
+name = "kimi"
+provider_type = "OpenAICompatible"
+base_url = "https://api.moonshot.cn/v1"
+api_key = "sk-..."
+default_model = "moonshot-v1-128k"
+```
+
+```bash
+claudex profile test kimi
+```
+
+### GLM / Zhipu
+
+1. [open.bigmodel.cn](https://open.bigmodel.cn/)에서 가입
+2. 콘솔에서 API 키 생성
+
+```toml
+[[profiles]]
+name = "glm"
+provider_type = "OpenAICompatible"
+base_url = "https://open.bigmodel.cn/api/paas/v4"
+api_key = "..."
+default_model = "glm-4-plus"
+```
+
+```bash
+claudex profile test glm
+```
+
+## OAuth 구독
+
+OAuth 인증을 통해 별도의 API 키 없이 기존 제공자 구독(ChatGPT Plus, Claude Max 등)을 사용할 수 있습니다.
+
+### Claude Max / Pro
+
+Claude Code의 네이티브 OAuth 세션을 통해 기존 Claude 구독을 사용합니다.
+
+**전제 조건**: Claude Code가 설치되어 로그인된 상태 (`claude` 명령이 정상 작동)
+
+```toml
+[[profiles]]
+name = "claude-sub"
+provider_type = "DirectAnthropic"
+base_url = "https://api.anthropic.com"
+default_model = "claude-sonnet-4-20250514"
+auth_type = "oauth"
+oauth_provider = "claude"
+
+[profiles.models]
+haiku = "claude-haiku-4-20250514"
+sonnet = "claude-sonnet-4-20250514"
+opus = "claude-opus-4-20250514"
+```
+
+<Aside type="note">
+  Claude OAuth 프로파일은 특수 게이트웨이 인증 모드를 사용합니다. Claudex는 Claude Code 자체 구독 로그인과의 충돌을 피하기 위해 `ANTHROPIC_API_KEY` 대신 `ANTHROPIC_AUTH_TOKEN`을 설정합니다. Claude 구독 프로파일의 경우 프록시가 건너뜁니다.
+</Aside>
+
+별도의 `claudex auth login` 단계가 필요 없습니다. Claudex가 `~/.claude`에서 기존 세션을 읽습니다.
+
+### ChatGPT Plus / Codex CLI
+
+Codex CLI 토큰을 통해 ChatGPT Plus 또는 Pro 구독을 사용합니다.
+
+**전제 조건**: [Codex CLI](https://github.com/openai/codex)를 설치하고 인증:
+
+```bash
+# Codex CLI 설치
+npm install -g @openai/codex
+
+# 인증 (브라우저 열림)
+codex auth
+```
+
+그런 다음 Claudex 설정:
+
+```toml
+[[profiles]]
+name = "codex-sub"
+provider_type = "OpenAIResponses"
+base_url = "https://chatgpt.com/backend-api/codex"
+default_model = "gpt-4o"
+auth_type = "oauth"
+oauth_provider = "openai"
+
+[profiles.models]
+haiku = "gpt-4o-mini"
+sonnet = "gpt-4o"
+opus = "o1-pro"
+```
+
+```bash
+# Codex CLI에서 토큰 읽기
+claudex auth login openai --profile codex-sub
+
+# 확인
+claudex auth status
+
+# 실행
+claudex run codex-sub
+```
+
+<Aside type="tip">
+  `openai` OAuth 제공자는 `OpenAIResponses`를 제공자 유형으로 사용합니다. 이는 Chat Completions API(`/chat/completions`)가 아닌 OpenAI Responses API(`/responses` 엔드포인트)를 통해 통신합니다.
+</Aside>
+
+### Google Gemini
+
+OAuth Device Code 플로우를 통해 Google 계정을 사용합니다.
+
+```toml
+[[profiles]]
+name = "gemini"
+provider_type = "OpenAICompatible"
+base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+default_model = "gemini-2.5-pro"
+auth_type = "oauth"
+oauth_provider = "google"
+
+[profiles.models]
+haiku = "gemini-2.0-flash"
+sonnet = "gemini-2.5-pro"
+opus = "gemini-2.5-pro"
+```
+
+```bash
+# device code 플로우 시작 (Google 로그인을 위해 브라우저 열림)
+claudex auth login google --profile gemini
+
+# 확인
+claudex auth status
+```
+
+### Qwen / Tongyi Qianwen
+
+OAuth Device Code 플로우를 통해 Qwen 계정을 사용합니다.
+
+```toml
+[[profiles]]
+name = "qwen-oauth"
+provider_type = "OpenAICompatible"
+base_url = "https://chat.qwenlm.ai/api/chat/v1"
+default_model = "qwen-max"
+auth_type = "oauth"
+oauth_provider = "qwen"
+```
+
+```bash
+# device code 플로우 시작
+claudex auth login qwen --profile qwen-oauth
+
+# 확인
+claudex auth status
+```
+
+### Kimi / Moonshot (OAuth)
+
+OAuth Device Code 플로우를 통해 Kimi 계정을 사용합니다.
+
+```toml
+[[profiles]]
+name = "kimi-oauth"
+provider_type = "OpenAICompatible"
+base_url = "https://api.moonshot.cn/v1"
+default_model = "moonshot-v1-128k"
+auth_type = "oauth"
+oauth_provider = "kimi"
+```
+
+```bash
+# device code 플로우 시작
+claudex auth login kimi --profile kimi-oauth
+
+# 확인
+claudex auth status
+```
+
+### GitHub Copilot
+
+OAuth Device Code 플로우를 통해 GitHub Copilot 구독을 사용합니다.
+
+```toml
+[[profiles]]
+name = "github-copilot"
+provider_type = "OpenAICompatible"
+base_url = "https://api.githubcopilot.com"
+default_model = "gpt-4o"
+auth_type = "oauth"
+oauth_provider = "github"
+```
+
+```bash
+# device code 플로우 시작 (GitHub 로그인을 위해 브라우저 열림)
+claudex auth login github --profile github-copilot
+
+# 확인
+claudex auth status
+```
+
+## 로컬 모델
+
+### Ollama
+
+1. Ollama 설치: [ollama.com](https://ollama.com/)
+2. 모델 다운로드:
+
+```bash
+ollama pull qwen2.5:72b
+```
+
+3. Claudex 설정:
+
+```toml
+[[profiles]]
+name = "local-qwen"
+provider_type = "OpenAICompatible"
+base_url = "http://localhost:11434/v1"
+api_key = ""
+default_model = "qwen2.5:72b"
+```
+
+```bash
+claudex profile test local-qwen
+```
+
+<Aside type="note">
+  Ollama는 API 키가 필요 없습니다. `api_key`를 비워두거나 생략하세요.
+</Aside>
+
+### vLLM
+
+1. vLLM 설치 및 시작:
+
+```bash
+pip install vllm
+vllm serve meta-llama/Llama-3.3-70B-Instruct --port 8000
+```
+
+2. Claudex 설정:
+
+```toml
+[[profiles]]
+name = "local-llama"
+provider_type = "OpenAICompatible"
+base_url = "http://localhost:8000/v1"
+api_key = ""
+default_model = "meta-llama/Llama-3.3-70B-Instruct"
+```
+
+### LM Studio
+
+1. [lmstudio.ai](https://lmstudio.ai/)에서 LM Studio 다운로드
+2. 모델을 로드하고 로컬 서버 시작 (기본 포트: 1234)
+
+```toml
+[[profiles]]
+name = "lm-studio"
+provider_type = "OpenAICompatible"
+base_url = "http://localhost:1234/v1"
+api_key = ""
+default_model = "loaded-model-name"
+```
+
+## 설정 확인
+
+제공자를 설정한 후 연결을 확인하세요:
+
+```bash
+# 특정 프로파일 테스트
+claudex profile test <profile-name>
+
+# 모든 프로파일 테스트
+claudex profile test all
+
+# 설정된 모든 프로파일 목록
+claudex profile list
+```

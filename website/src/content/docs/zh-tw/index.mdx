@@ -1,0 +1,75 @@
+---
+title: Claudex
+description: 多實例 Claude Code 管理器，內建智慧翻譯代理
+template: splash
+hero:
+  title: Claudex
+  tagline: 讓 Claude Code 無縫使用任何 AI 提供商 — Grok、ChatGPT、DeepSeek、Kimi、GLM、Ollama 等。
+  actions:
+    - text: 快速開始
+      link: /zh-tw/installation/
+      icon: right-arrow
+      variant: primary
+    - text: GitHub 儲存庫
+      link: https://github.com/StringKe/claudex
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## 功能特色
+
+<CardGrid stagger>
+  <Card title="翻譯代理" icon="translate">
+    自動 Anthropic-to-OpenAI 協定翻譯。讓 Claude Code 無縫使用 Grok、ChatGPT、DeepSeek、Kimi、GLM 等任何 OpenAI 相容提供商。
+  </Card>
+  <Card title="斷路器" icon="warning">
+    內建斷路器，自動故障轉移到備用提供商。可設定閾值和復原逾時，確保工作流程不中斷。
+  </Card>
+  <Card title="智慧路由" icon="random">
+    基於意圖的自動路由，透過本地分類器將 code、analysis、creative、search、math 任務自動分配到最佳提供商。
+  </Card>
+  <Card title="上下文引擎" icon="document">
+    對話壓縮、跨 profile 上下文共享、本地 RAG 向量檢索。用更豐富的上下文增強 AI 互動體驗。
+  </Card>
+  <Card title="TUI 儀表板" icon="laptop">
+    即時終端儀表板，顯示 profile 健康狀態、請求指標、日誌和快速啟動。完整鍵盤導覽支援。
+  </Card>
+  <Card title="自動更新" icon="up-caret">
+    一條指令檢查並安裝最新版本，直接從 GitHub Releases 下載。輕鬆保持最新。
+  </Card>
+  <Card title="OAuth 訂閱認證" icon="approve-check">
+    直接使用現有的 Claude、OpenAI、Google、Qwen、Kimi 或 GitHub 訂閱，無需 API 金鑰。`claudex auth login` 從各提供商原生 CLI 設定中讀取 token。
+  </Card>
+  <Card title="非互動模式" icon="rocket">
+    透過 `claudex run <profile> "prompt" --print` 一次性執行。適用於 CI/CD 流水線和腳本自動化。
+  </Card>
+  <Card title="模型 Slot 映射" icon="setting">
+    透過 `[profiles.models]` 設定，將 Claude Code 的 `/model` 切換器（haiku、sonnet、opus）映射到任意提供商模型。
+  </Card>
+  <Card title="工具名稱相容" icon="puzzle">
+    自動截斷超過 64 字元的工具名稱以相容 OpenAI，回應時透明還原原始名稱。
+  </Card>
+</CardGrid>
+
+## 快速安裝
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/StringKe/claudex/main/install.sh | bash
+```
+
+## 運作原理
+
+```
+claudex run grok
+    │
+    ├── 啟動代理 → 127.0.0.1:13456
+    │
+    └── 執行 claude，設定：
+        ANTHROPIC_BASE_URL=http://127.0.0.1:13456/proxy/grok
+        ANTHROPIC_AUTH_TOKEN=<session-token>
+        ANTHROPIC_MODEL=grok-3-beta
+```
+
+代理透明地在 Anthropic 和 OpenAI 協定之間進行翻譯，讓 Claude Code 與任何支援的提供商無縫協作。使用 OAuth profile 時，設定 `ANTHROPIC_AUTH_TOKEN`（而非 `ANTHROPIC_API_KEY`）以避免與 Claude 自身訂閱登入衝突。

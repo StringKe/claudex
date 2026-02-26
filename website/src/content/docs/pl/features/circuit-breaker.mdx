@@ -1,0 +1,63 @@
+---
+title: Wyłącznik automatyczny i przełączanie awaryjne
+description: Automatyczne wykrywanie awarii i przełączanie do zapasowego dostawcy
+---
+
+Claudex zawiera wbudowany wyłącznik automatyczny dla każdego profilu dostawcy, z automatycznym przełączaniem awaryjnym do dostawców zapasowych po wykryciu awarii.
+
+## Stany wyłącznika automatycznego
+
+```
+         sukces
+    ┌──────────────┐
+    │              │
+    ▼    awaria    │
+ Zamknięty ──────► Otwarty
+    ▲              │
+    │   limit      │
+    │   czasu      ▼
+    └─────────── PółOtwarty
+                   │
+                awaria → powrót do Otwarty
+```
+
+| Stan | Zachowanie |
+|------|-----------|
+| **Zamknięty** | Normalne działanie. Żądania przechodzą. Awarie są liczone. |
+| **Otwarty** | Żądania są blokowane. Wyzwala przełączanie awaryjne do dostawców zapasowych. |
+| **PółOtwarty** | Po upłynięciu limitu czasu odzyskiwania jedno żądanie próbne jest przepuszczane. Sukces → Zamknięty; Awaria → powrót do Otwarty. |
+
+## Domyślne parametry
+
+| Parametr | Wartość |
+|----------|---------|
+| Próg awarii | 3 kolejne awarie |
+| Limit czasu odzyskiwania | 30 sekund |
+
+## Konfiguracja przełączania awaryjnego
+
+Zdefiniuj dostawców zapasowych w profilu, aby włączyć automatyczne przełączanie awaryjne:
+
+```toml
+[[profiles]]
+name = "grok"
+provider_type = "OpenAICompatible"
+base_url = "https://api.x.ai/v1"
+api_key = "xai-..."
+default_model = "grok-3-beta"
+backup_providers = ["deepseek", "chatgpt"]   # łańcuch przełączania awaryjnego
+```
+
+Gdy `grok` zawiedzie 3 razy z rzędu:
+1. Wyłącznik automatyczny otwiera się dla `grok`
+2. Żądanie jest ponawiane z `deepseek`
+3. Jeśli `deepseek` też zawiedzie, próbuje `chatgpt`
+4. Każdy dostawca zapasowy ma własny niezależny wyłącznik automatyczny
+
+## Sprawdzanie kondycji
+
+Proces sprawdzania kondycji w tle działa co ~30 sekund, wysyłając lekkie żądania próbne do wszystkich aktywnych profili. Status kondycji jest wyświetlany w pulpicie TUI z kodowaniem kolorami:
+
+- Zielony: zdrowy
+- Żółty: zdegradowany (ostatnie awarie)
+- Czerwony: wyłącznik automatyczny otwarty

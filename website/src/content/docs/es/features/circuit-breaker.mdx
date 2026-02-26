@@ -1,0 +1,63 @@
+---
+title: Interruptor de Circuito y Conmutacion por Error
+description: Deteccion automatica de fallos y conmutacion por error al proveedor de respaldo
+---
+
+Claudex incluye un interruptor de circuito integrado para cada perfil de proveedor, con conmutacion automatica a proveedores de respaldo cuando se detectan fallos.
+
+## Estados del Interruptor de Circuito
+
+```
+         success
+    ┌──────────────┐
+    │              │
+    ▼    failure   │
+ Closed ────────► Open
+    ▲              │
+    │   timeout    │
+    │   expired    ▼
+    └─────────── HalfOpen
+                   │
+                failure → back to Open
+```
+
+| Estado | Comportamiento |
+|--------|----------------|
+| **Closed** | Operacion normal. Las solicitudes pasan. Los fallos se cuentan. |
+| **Open** | Las solicitudes se bloquean. Se activa la conmutacion a proveedores de respaldo. |
+| **HalfOpen** | Tras el tiempo de recuperacion, se permite pasar una solicitud de sonda. Exito: pasa a Closed; Fallo: vuelve a Open. |
+
+## Parametros Predeterminados
+
+| Parametro | Valor |
+|-----------|-------|
+| Umbral de fallos | 3 fallos consecutivos |
+| Tiempo de recuperacion | 30 segundos |
+
+## Configuracion de la Conmutacion por Error
+
+Define proveedores de respaldo en tu perfil para habilitar la conmutacion automatica por error:
+
+```toml
+[[profiles]]
+name = "grok"
+provider_type = "OpenAICompatible"
+base_url = "https://api.x.ai/v1"
+api_key = "xai-..."
+default_model = "grok-3-beta"
+backup_providers = ["deepseek", "chatgpt"]   # cadena de conmutacion por error
+```
+
+Cuando `grok` falla 3 veces consecutivas:
+1. El interruptor de circuito se abre para `grok`
+2. La solicitud se reintenta con `deepseek`
+3. Si `deepseek` tambien falla, se prueba `chatgpt`
+4. Cada proveedor de respaldo tiene su propio interruptor de circuito independiente
+
+## Comprobacion de Estado
+
+Un verificador de estado en segundo plano se ejecuta cada ~30 segundos, enviando solicitudes de sonda ligeras a todos los perfiles habilitados. El estado de salud se muestra en el panel TUI con codificacion por colores:
+
+- Verde: saludable
+- Amarillo: degradado (fallos recientes)
+- Rojo: interruptor de circuito abierto

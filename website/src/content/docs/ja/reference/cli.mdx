@@ -1,0 +1,215 @@
+---
+title: CLI リファレンス
+description: Claudex CLI の完全なコマンドリファレンス
+---
+
+## 基本的な使い方
+
+```
+claudex [COMMAND]
+```
+
+コマンドなしで実行すると、プロファイルが設定されている場合は TUI ダッシュボードを起動し、プロファイルが存在しない場合はウェルカムメッセージを表示します。
+
+## コマンド
+
+### `run`
+
+特定のプロバイダープロファイルで Claude Code を実行します。
+
+```bash
+claudex run <PROFILE> [PROMPT] [-m MODEL] [--print] [--dangerously-skip-permissions] [ARGS...]
+```
+
+| 引数 | 説明 |
+|------|------|
+| `PROFILE` | プロファイル名、またはスマートルーティングの場合は `auto` |
+| `PROMPT` | 非インタラクティブ (ワンショット) 実行のための任意のプロンプト |
+| `-m, --model MODEL` | このセッションのデフォルトモデルを上書き |
+| `--print` | レスポンスを出力して終了 (非インタラクティブモード) |
+| `--dangerously-skip-permissions` | すべての許可プロンプトをスキップ (`--print` と組み合わせて CI/CD に使用) |
+| `ARGS...` | `claude` に渡す追加引数 |
+
+```bash
+# Grok を使用 (インタラクティブ)
+claudex run grok
+
+# 特定のモデルで Grok を使用
+claudex run grok -m grok-3-mini-beta
+
+# スマートルーティング
+claudex run auto
+
+# 非インタラクティブなワンショット実行
+claudex run grok "Explain this codebase" --print
+
+# CI/CD パイプラインでの使用 (プロンプトなし、許可なし)
+claudex run grok "Fix lint errors" --print --dangerously-skip-permissions
+
+# claude に追加引数を渡す
+claudex run grok -- --verbose
+```
+
+### `profile`
+
+プロバイダープロファイルを管理します。
+
+#### `profile list`
+
+```bash
+claudex profile list
+```
+
+ステータスを含む設定済みのすべてのプロファイルを一覧表示します。
+
+#### `profile add`
+
+```bash
+claudex profile add
+```
+
+新しいプロファイルを追加するインタラクティブウィザード。プロバイダーの選択、API キーの入力 (キーリングへの保存オプション付き)、モデルの選択、接続テストをガイドします。
+
+#### `profile show`
+
+```bash
+claudex profile show <NAME>
+```
+
+特定のプロファイルの詳細を表示します。
+
+#### `profile remove`
+
+```bash
+claudex profile remove <NAME>
+```
+
+設定からプロファイルを削除します。
+
+#### `profile test`
+
+```bash
+claudex profile test <NAME|all>
+```
+
+特定のプロファイルまたはすべてのプロファイルの接続テストを行います。
+
+### `auth`
+
+プロバイダープロファイルの OAuth サブスクリプション認証を管理します。
+
+#### `auth login`
+
+```bash
+claudex auth login <PROVIDER>
+```
+
+OAuth を使用してプロバイダーにログインします。対応プロバイダー: `claude`、`openai`、`google`、`qwen`、`kimi`、`github`。
+
+**OpenAI** の場合、Claudex は Codex CLI 設定 (`~/.codex/auth.json`) からトークンを読み取ります。**Claude** の場合は `~/.claude` から読み取ります。その他のプロバイダーはローカルコールバックサーバーまたはデバイスコードフローを使用します。
+
+```bash
+# OpenAI にログイン (Codex CLI から読み取り)
+claudex auth login openai
+
+# Claude にログイン (~/.claude から読み取り)
+claudex auth login claude
+
+# Google にログイン
+claudex auth login google
+```
+
+#### `auth status`
+
+```bash
+claudex auth status [PROVIDER]
+```
+
+現在の認証状態を表示します。プロバイダー引数がない場合は、設定済みのすべての OAuth プロファイルのステータスを表示します。
+
+```bash
+# すべての OAuth プロファイルを確認
+claudex auth status
+
+# 特定のプロバイダーを確認
+claudex auth status openai
+```
+
+#### `auth refresh`
+
+```bash
+claudex auth refresh <PROVIDER>
+```
+
+プロバイダーの OAuth トークンを手動で更新します。トークンは期限が切れる際にプロキシによっても自動的に更新されます。
+
+#### `auth logout`
+
+```bash
+claudex auth logout <PROVIDER>
+```
+
+プロバイダーの保存済み OAuth トークンを削除します。
+
+### `proxy`
+
+翻訳プロキシサーバーを管理します。
+
+#### `proxy start`
+
+```bash
+claudex proxy start [-p PORT] [-d]
+```
+
+| フラグ | 説明 |
+|--------|------|
+| `-p, --port PORT` | プロキシポートを上書き (デフォルト: 設定から) |
+| `-d, --daemon` | バックグラウンドデーモンとして実行 |
+
+#### `proxy stop`
+
+```bash
+claudex proxy stop
+```
+
+プロキシデーモンを停止します (SIGTERM を送信)。
+
+#### `proxy status`
+
+```bash
+claudex proxy status
+```
+
+プロキシが実行中かどうかとポートを表示します。
+
+### `dashboard`
+
+```bash
+claudex dashboard
+```
+
+リアルタイム監視とクイック起動のための TUI ダッシュボードを起動します。
+
+### `config`
+
+```bash
+claudex config [--init]
+```
+
+| フラグ | 説明 |
+|--------|------|
+| `--init` | カレントディレクトリに新しい設定ファイルを作成 |
+
+`--init` なしの場合は、読み込まれた設定ファイルのパスと検索順序を表示します。
+
+### `update`
+
+```bash
+claudex update [--check]
+```
+
+| フラグ | 説明 |
+|--------|------|
+| `--check` | アップデートの確認のみ行い、インストールしない |
+
+`--check` なしの場合は、最新バージョンをダウンロードしてインストールします。

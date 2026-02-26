@@ -1,0 +1,69 @@
+---
+title: Motor de Contexto
+description: Compressao de conversa, compartilhamento entre perfis e RAG local
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+O motor de contexto aprimora suas interacoes com IA atraves de tres mecanismos: compressao de conversa, compartilhamento de contexto entre perfis e RAG local (Retrieval-Augmented Generation).
+
+<Aside type="caution">
+  As funcionalidades do motor de contexto requerem um servico LLM para geracao de resumos e embeddings. Voce pode usar qualquer perfil existente (Ollama local, provedores na nuvem como OpenRouter, etc.).
+</Aside>
+
+## Compressao de Conversa
+
+Quando as conversas crescem alem de um limite de tokens, o Claudex usa um LLM para resumir mensagens mais antigas, mantendo as recentes intactas.
+
+```toml
+[context.compression]
+enabled = true
+threshold_tokens = 50000    # comprimir quando o total de tokens exceder este valor
+keep_recent = 10            # sempre manter as ultimas N mensagens
+profile = "openrouter"      # reutilizar base_url + api_key de um perfil
+model = "qwen/qwen-2.5-7b-instruct"  # substituir modelo (opcional)
+```
+
+### Como Funciona
+
+1. Antes de encaminhar uma requisicao, o Claudex estima a contagem total de tokens
+2. Se os tokens excederem `threshold_tokens`, mensagens mais antigas (alem de `keep_recent`) sao substituidas por um resumo
+3. O resumo e gerado pelo LLM local configurado
+4. A conversa comprimida e encaminhada para o provedor
+
+## Compartilhamento Entre Perfis
+
+Compartilhe contexto entre diferentes perfis de provedores dentro da mesma sessao.
+
+```toml
+[context.sharing]
+enabled = true
+max_context_size = 2000    # maximo de tokens a injetar de outros perfis
+```
+
+Isso e util ao alternar entre provedores no meio de uma tarefa — o contexto relevante de interacoes anteriores e incluido automaticamente.
+
+## RAG Local
+
+Indexe codigo e documentacao locais para geracao aumentada por recuperacao. Trechos de codigo relevantes sao injetados automaticamente nas requisicoes.
+
+```toml
+[context.rag]
+enabled = true
+index_paths = ["./src", "./docs"]     # diretorios para indexar
+profile = "openrouter"                 # reutilizar base_url + api_key de um perfil
+model = "openai/text-embedding-3-small"  # modelo de embedding
+chunk_size = 512                       # tamanho do chunk de texto
+top_k = 5                             # numero de resultados a injetar
+```
+
+### Como Funciona
+
+1. Na inicializacao, o Claudex indexa arquivos em `index_paths` usando o modelo de embedding
+2. Para cada requisicao, a mensagem do usuario e convertida em embedding e comparada com o indice
+3. Os top-k chunks mais relevantes sao injetados como contexto adicional na requisicao
+4. O provedor recebe contexto mais rico sobre seu codebase
+
+<Aside type="tip">
+  Para melhores resultados com RAG local, use um modelo de embedding dedicado como `nomic-embed-text` via Ollama.
+</Aside>

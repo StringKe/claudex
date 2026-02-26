@@ -1,0 +1,52 @@
+---
+title: Panel TUI
+description: Panel de terminal en tiempo real para monitorear y gestionar perfiles
+---
+
+El panel TUI proporciona una interfaz de terminal en tiempo real para monitorear el estado de los perfiles, ver metricas y lanzar rapidamente sesiones de Claude Code.
+
+## Iniciar
+
+```bash
+# Inicio explicito
+claudex dashboard
+
+# Inicio automatico (cuando existen perfiles y no se da ningun subcomando)
+claudex
+```
+
+## Atajos de Teclado
+
+| Tecla | Accion |
+|-------|--------|
+| `j` / `↓` | Mover la seleccion hacia abajo |
+| `k` / `↑` | Mover la seleccion hacia arriba |
+| `Enter` | Lanzar Claude Code con el perfil seleccionado |
+| `t` | Probar la conectividad del perfil seleccionado |
+| `a` | Agregar nuevo perfil (muestra indicacion) |
+| `d` | Eliminar el perfil seleccionado (muestra indicacion) |
+| `p` | Alternar inicio/parada del proxy |
+| `/` | Entrar al modo de busqueda |
+| `Esc` | Salir del modo de busqueda / cerrar ayuda |
+| `?` | Mostrar ventana emergente de ayuda |
+| `q` / `Ctrl+C` | Salir del panel |
+
+## Diseno del Panel
+
+El panel muestra:
+
+- **Lista de perfiles** — Todos los perfiles configurados con nombre, modelo, tipo de proveedor y estado de salud
+- **Indicadores de estado** — Estado codificado por colores (verde = saludable, amarillo = degradado, rojo = interruptor de circuito abierto)
+- **Panel de metricas** — Recuento de solicitudes por perfil, tasa de exito, latencia media
+- **Panel de registros** — Salida de registros en tiempo real con desplazamiento
+
+## Estado de Salud
+
+El panel ejecuta un verificador de estado en segundo plano que hace ping a todos los perfiles habilitados cada ~30 segundos. El estado de salud se refleja en tiempo real:
+
+| Color | Significado |
+|-------|-------------|
+| Verde | El proveedor responde normalmente |
+| Amarillo | Se han detectado fallos recientes |
+| Rojo | El interruptor de circuito esta abierto |
+| Gris | El perfil esta deshabilitado |

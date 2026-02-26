@@ -1,0 +1,58 @@
+---
+title: Roteamento Inteligente
+description: Roteamento automatico de provedores baseado em intencao
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+O roteamento inteligente seleciona automaticamente o melhor provedor para cada requisicao com base na classificacao de intencao. Use `claudex run auto` para ativa-lo.
+
+## Como Funciona
+
+1. O usuario executa `claudex run auto`
+2. O Claude Code envia uma requisicao ao proxy
+3. O proxy extrai a mensagem do usuario e a envia a um classificador local (ex.: Ollama)
+4. O classificador retorna uma categoria de intencao (code, analysis, creative, search, math)
+5. As regras de roteamento mapeiam a intencao para o perfil de provedor ideal
+6. A requisicao e encaminhada para o provedor selecionado
+
+## Configuracao
+
+```toml
+[router]
+enabled = true
+profile = "local-qwen"      # reutilizar base_url + api_key de um perfil para classificacao
+model = "qwen2.5:3b"        # substituir modelo (opcional, padrao: default_model do perfil)
+
+[router.rules]
+code = "deepseek"       # tarefas de codigo → DeepSeek
+analysis = "grok"       # tarefas analiticas → Grok
+creative = "chatgpt"    # escrita criativa → ChatGPT
+search = "kimi"         # busca/pesquisa → Kimi
+math = "deepseek"       # matematica/logica → DeepSeek
+default = "grok"        # fallback para intencoes nao classificadas
+```
+
+## Categorias de Intencao
+
+| Intencao | Descricao | Exemplos de Tarefas |
+|----------|-----------|---------------------|
+| `code` | Programacao e geracao de codigo | Escrever funcao, corrigir bug, refatorar codigo |
+| `analysis` | Analise de dados e raciocinio | Analisar logs, comparar abordagens, explicar conceitos |
+| `creative` | Escrita criativa e ideacao | Escrever documentacao, brainstorm de nomes, redigir emails |
+| `search` | Recuperacao de informacoes | Encontrar documentacao de API, pesquisar codigos de erro |
+| `math` | Tarefas matematicas e logicas | Calcular complexidade, provar corretude |
+
+<Aside type="note">
+  O roteamento inteligente requer um servico LLM para classificacao de intencao. Ele reutiliza a `base_url` e a `api_key` de um perfil existente. O modelo classificador deve ser pequeno e rapido — `qwen2.5:3b` funciona bem.
+</Aside>
+
+## Uso
+
+```bash
+# Executar com roteamento inteligente
+claudex run auto
+
+# Substituir modelo mesmo com roteamento automatico
+claudex run auto -m grok-3-mini-beta
+```

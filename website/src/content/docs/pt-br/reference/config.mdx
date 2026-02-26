@@ -1,0 +1,396 @@
+---
+title: Referencia de Configuracao
+description: Referencia completa de todas as opcoes de configuracao do Claudex
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## Localizacao do Arquivo de Configuracao
+
+O Claudex procura arquivos de configuracao nesta ordem:
+
+1. Variavel de ambiente `$CLAUDEX_CONFIG`
+2. `./claudex.toml` (diretorio atual)
+3. `./.claudex/config.toml` (diretorio atual)
+4. Diretorios pai (ate 10 niveis), verificando ambos os padroes
+5. `~/.config/claudex/config.toml` (XDG — verificado **antes** dos caminhos especificos da plataforma)
+
+Consulte [Configuracao](/pt-br/configuration/) para detalhes completos.
+
+## Configuracoes Globais
+
+```toml
+# Caminho para o binario claude (padrao: "claude" do PATH)
+claude_binary = "claude"
+
+# Porta de escuta do servidor proxy
+proxy_port = 13456
+
+# Endereco de escuta do servidor proxy
+proxy_host = "127.0.0.1"
+
+# Nivel de log: trace, debug, info, warn, error
+log_level = "info"
+```
+
+| Campo | Tipo | Padrao | Descricao |
+|-------|------|--------|-----------|
+| `claude_binary` | string | `"claude"` | Caminho para o binario da CLI do Claude Code |
+| `proxy_port` | integer | `13456` | Porta em que o proxy de traducao escuta |
+| `proxy_host` | string | `"127.0.0.1"` | Endereco ao qual o proxy se vincula |
+| `log_level` | string | `"info"` | Nivel minimo de log |
+
+## Aliases de Modelo
+
+Defina nomes abreviados para identificadores de modelos:
+
+```toml
+[model_aliases]
+grok3 = "grok-3-beta"
+gpt4o = "gpt-4o"
+ds3 = "deepseek-chat"
+claude = "claude-sonnet-4-20250514"
+```
+
+Use aliases com `-m`:
+
+```bash
+claudex run grok -m grok3
+```
+
+## Configuracao de Perfil
+
+```toml
+[[profiles]]
+name = "grok"
+provider_type = "OpenAICompatible"
+base_url = "https://api.x.ai/v1"
+api_key = "xai-..."
+# api_key_keyring = "grok-api-key"
+default_model = "grok-3-beta"
+auth_type = "api-key"              # "api-key" (padrao) ou "oauth"
+# oauth_provider = "openai"        # obrigatorio quando auth_type = "oauth"
+backup_providers = ["deepseek"]
+custom_headers = {}
+extra_env = {}
+priority = 100
+enabled = true
+
+# Mapeamento de slots de modelo (opcional)
+[profiles.models]
+haiku = "grok-3-mini-beta"
+sonnet = "grok-3-beta"
+opus = "grok-3-beta"
+```
+
+| Campo | Tipo | Padrao | Descricao |
+|-------|------|--------|-----------|
+| `name` | string | *obrigatorio* | Identificador unico do perfil |
+| `provider_type` | string | `"DirectAnthropic"` | `"DirectAnthropic"`, `"OpenAICompatible"` ou `"OpenAIResponses"` |
+| `base_url` | string | *obrigatorio* | URL do endpoint da API do provedor |
+| `api_key` | string | `""` | Chave de API em texto simples |
+| `api_key_keyring` | string | — | Nome da entrada no chaveiro do SO (substitui `api_key`) |
+| `default_model` | string | *obrigatorio* | Identificador do modelo usado por padrao |
+| `auth_type` | string | `"api-key"` | Metodo de autenticacao: `"api-key"` ou `"oauth"` |
+| `oauth_provider` | string | — | Nome do provedor OAuth (obrigatorio quando `auth_type = "oauth"`). Um de: `claude`, `openai`, `google`, `qwen`, `kimi`, `github` |
+| `backup_providers` | string[] | `[]` | Nomes de perfis para failover, tentados em ordem |
+| `custom_headers` | map | `{}` | Cabecalhos HTTP adicionais enviados com cada requisicao |
+| `extra_env` | map | `{}` | Variaveis de ambiente definidas ao iniciar o Claude |
+| `priority` | integer | `100` | Peso de prioridade para roteamento inteligente (maior = preferido) |
+| `enabled` | boolean | `true` | Se este perfil esta ativo |
+
+### Mapeamento de Slots de Modelo
+
+A tabela opcional `[profiles.models]` mapeia os slots do seletor `/model` do Claude Code para nomes de modelos especificos do provedor. Quando voce muda modelos dentro do Claude Code (ex.: `/model opus`), o Claudex traduz a requisicao para o modelo mapeado.
+
+```toml
+[profiles.models]
+haiku = "grok-3-mini-beta"    # mapeia /model haiku
+sonnet = "grok-3-beta"        # mapeia /model sonnet
+opus = "grok-3-beta"          # mapeia /model opus
+```
+
+| Campo | Tipo | Descricao |
+|-------|------|-----------|
+| `haiku` | string | Modelo a usar quando o Claude Code seleciona `haiku` |
+| `sonnet` | string | Modelo a usar quando o Claude Code seleciona `sonnet` |
+| `opus` | string | Modelo a usar quando o Claude Code seleciona `opus` |
+
+<Aside type="tip">
+  Se um slot nao estiver definido, o `default_model` do perfil e usado como fallback.
+</Aside>
+
+### Exemplos de Provedores
+
+```toml
+# Anthropic (DirectAnthropic — sem traducao)
+[[profiles]]
+name = "anthropic"
+provider_type = "DirectAnthropic"
+base_url = "https://api.anthropic.com"
+api_key = "sk-ant-..."
+default_model = "claude-sonnet-4-20250514"
+
+# MiniMax (DirectAnthropic — sem traducao)
+[[profiles]]
+name = "minimax"
+provider_type = "DirectAnthropic"
+base_url = "https://api.minimax.io/anthropic"
+api_key = "..."
+default_model = "claude-sonnet-4-20250514"
+backup_providers = ["anthropic"]
+
+# OpenRouter (OpenAICompatible — precisa de traducao)
+[[profiles]]
+name = "openrouter"
+provider_type = "OpenAICompatible"
+base_url = "https://openrouter.ai/api/v1"
+api_key = "..."
+default_model = "anthropic/claude-sonnet-4"
+
+# Grok (OpenAICompatible — precisa de traducao)
+[[profiles]]
+name = "grok"
+provider_type = "OpenAICompatible"
+base_url = "https://api.x.ai/v1"
+api_key = "xai-..."
+default_model = "grok-3-beta"
+backup_providers = ["deepseek"]
+
+# OpenAI (OpenAICompatible — precisa de traducao)
+[[profiles]]
+name = "chatgpt"
+provider_type = "OpenAICompatible"
+base_url = "https://api.openai.com/v1"
+api_key = "sk-..."
+default_model = "gpt-4o"
+
+# DeepSeek (OpenAICompatible — precisa de traducao)
+[[profiles]]
+name = "deepseek"
+provider_type = "OpenAICompatible"
+base_url = "https://api.deepseek.com"
+api_key = "..."
+default_model = "deepseek-chat"
+backup_providers = ["grok"]
+
+# Kimi / Moonshot (OpenAICompatible — precisa de traducao)
+[[profiles]]
+name = "kimi"
+provider_type = "OpenAICompatible"
+base_url = "https://api.moonshot.cn/v1"
+api_key = "..."
+default_model = "moonshot-v1-128k"
+
+# GLM / 智谱 (OpenAICompatible — precisa de traducao)
+[[profiles]]
+name = "glm"
+provider_type = "OpenAICompatible"
+base_url = "https://open.bigmodel.cn/api/paas/v4"
+api_key = "..."
+default_model = "glm-4-plus"
+
+# Ollama (local, sem chave de API)
+[[profiles]]
+name = "local-qwen"
+provider_type = "OpenAICompatible"
+base_url = "http://localhost:11434/v1"
+api_key = ""
+default_model = "qwen2.5:72b"
+enabled = false
+
+# vLLM / LM Studio (local)
+[[profiles]]
+name = "local-llama"
+provider_type = "OpenAICompatible"
+base_url = "http://localhost:8000/v1"
+api_key = ""
+default_model = "llama-3.3-70b"
+enabled = false
+
+# Assinatura ChatGPT/Codex (OpenAIResponses — traducao via API Responses)
+[[profiles]]
+name = "codex-sub"
+provider_type = "OpenAIResponses"
+base_url = "https://chatgpt.com/backend-api/codex"
+default_model = "gpt-4o"
+auth_type = "oauth"
+oauth_provider = "openai"
+```
+
+### Exemplos de Perfis OAuth
+
+```toml
+# OpenAI via OAuth (le token do Codex CLI ~/.codex/auth.json)
+[[profiles]]
+name = "chatgpt-oauth"
+provider_type = "OpenAICompatible"
+base_url = "https://api.openai.com/v1"
+default_model = "gpt-4o"
+auth_type = "oauth"
+oauth_provider = "openai"
+
+[profiles.models]
+haiku = "gpt-4o-mini"
+sonnet = "gpt-4o"
+opus = "o1"
+
+# Assinatura Claude (ignora proxy, usa OAuth nativo do Claude de ~/.claude)
+[[profiles]]
+name = "claude-sub"
+provider_type = "DirectAnthropic"
+base_url = "https://api.anthropic.com"
+default_model = "claude-sonnet-4-20250514"
+auth_type = "oauth"
+oauth_provider = "claude"
+
+[profiles.models]
+haiku = "claude-haiku-4-20250514"
+sonnet = "claude-sonnet-4-20250514"
+opus = "claude-opus-4-20250514"
+
+# Google Gemini via OAuth
+[[profiles]]
+name = "gemini"
+provider_type = "OpenAICompatible"
+base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+default_model = "gemini-2.5-pro"
+auth_type = "oauth"
+oauth_provider = "google"
+
+# Kimi via OAuth
+[[profiles]]
+name = "kimi-oauth"
+provider_type = "OpenAICompatible"
+base_url = "https://api.moonshot.cn/v1"
+default_model = "moonshot-v1-128k"
+auth_type = "oauth"
+oauth_provider = "kimi"
+
+# Qwen via OAuth
+[[profiles]]
+name = "qwen-oauth"
+provider_type = "OpenAICompatible"
+base_url = "https://chat.qwenlm.ai/api/chat/v1"
+default_model = "qwen-max"
+auth_type = "oauth"
+oauth_provider = "qwen"
+
+# GitHub Copilot via OAuth
+[[profiles]]
+name = "github-copilot"
+provider_type = "OpenAICompatible"
+base_url = "https://api.githubcopilot.com"
+default_model = "gpt-4o"
+auth_type = "oauth"
+oauth_provider = "github"
+
+# Assinatura ChatGPT/Codex via OAuth (OpenAIResponses)
+[[profiles]]
+name = "codex-sub"
+provider_type = "OpenAIResponses"
+base_url = "https://chatgpt.com/backend-api/codex"
+default_model = "gpt-4o"
+auth_type = "oauth"
+oauth_provider = "openai"
+
+[profiles.models]
+haiku = "gpt-4o-mini"
+sonnet = "gpt-4o"
+opus = "o1-pro"
+```
+
+<Aside type="caution">
+  Para o provedor OAuth `claude`, o Claudex usa um modo especial de autenticacao gateway: define `ANTHROPIC_AUTH_TOKEN` (nao `ANTHROPIC_API_KEY`) para evitar conflitos com o proprio fluxo de login de assinatura do Claude Code.
+</Aside>
+
+## Roteador Inteligente
+
+```toml
+[router]
+enabled = false
+profile = "local-qwen"    # reutilizar base_url + api_key de um perfil
+model = "qwen2.5:3b"      # substituir modelo (opcional)
+```
+
+| Campo | Tipo | Padrao | Descricao |
+|-------|------|--------|-----------|
+| `enabled` | boolean | `false` | Habilitar roteamento inteligente |
+| `profile` | string | `""` | Nome do perfil a reutilizar para classificacao (usa sua `base_url` + `api_key`) |
+| `model` | string | `""` | Substituicao de modelo para classificacao (padrao: `default_model` do perfil) |
+
+### Regras de Roteamento
+
+```toml
+[router.rules]
+code = "deepseek"
+analysis = "grok"
+creative = "chatgpt"
+search = "kimi"
+math = "deepseek"
+default = "grok"
+```
+
+| Chave | Descricao |
+|-------|-----------|
+| `code` | Perfil para tarefas de programacao |
+| `analysis` | Perfil para analise e raciocinio |
+| `creative` | Perfil para escrita criativa |
+| `search` | Perfil para busca e pesquisa |
+| `math` | Perfil para matematica e logica |
+| `default` | Fallback quando a intencao nao e classificada |
+
+## Motor de Contexto
+
+### Compressao
+
+```toml
+[context.compression]
+enabled = false
+threshold_tokens = 50000
+keep_recent = 10
+profile = "local-qwen"    # reutilizar base_url + api_key de um perfil
+model = "qwen2.5:3b"      # substituir modelo (opcional)
+```
+
+| Campo | Tipo | Padrao | Descricao |
+|-------|------|--------|-----------|
+| `enabled` | boolean | `false` | Habilitar compressao de conversa |
+| `threshold_tokens` | integer | `50000` | Comprimir quando a contagem de tokens exceder este valor |
+| `keep_recent` | integer | `10` | Sempre manter as ultimas N mensagens sem comprimir |
+| `profile` | string | `""` | Nome do perfil a reutilizar para resumo (usa sua `base_url` + `api_key`) |
+| `model` | string | `""` | Substituicao de modelo para resumo (padrao: `default_model` do perfil) |
+
+### Compartilhamento Entre Perfis
+
+```toml
+[context.sharing]
+enabled = false
+max_context_size = 2000
+```
+
+| Campo | Tipo | Padrao | Descricao |
+|-------|------|--------|-----------|
+| `enabled` | boolean | `false` | Habilitar compartilhamento de contexto entre perfis |
+| `max_context_size` | integer | `2000` | Maximo de tokens a injetar de outros perfis |
+
+### RAG Local
+
+```toml
+[context.rag]
+enabled = false
+index_paths = ["./src", "./docs"]
+profile = "local-qwen"              # reutilizar base_url + api_key de um perfil
+model = "nomic-embed-text"           # modelo de embedding
+chunk_size = 512
+top_k = 5
+```
+
+| Campo | Tipo | Padrao | Descricao |
+|-------|------|--------|-----------|
+| `enabled` | boolean | `false` | Habilitar RAG local |
+| `index_paths` | string[] | `[]` | Diretorios para indexar |
+| `profile` | string | `""` | Nome do perfil a reutilizar para embeddings (usa sua `base_url` + `api_key`) |
+| `model` | string | `""` | Nome do modelo de embedding (padrao: `default_model` do perfil) |
+| `chunk_size` | integer | `512` | Tamanho do chunk de texto em tokens |
+| `top_k` | integer | `5` | Numero de resultados a injetar |

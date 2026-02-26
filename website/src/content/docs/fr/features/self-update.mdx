@@ -1,0 +1,42 @@
+---
+title: Mise à jour automatique
+description: Gardez Claudex à jour avec une seule commande
+---
+
+Claudex peut vérifier et installer des mises à jour directement depuis GitHub Releases.
+
+## Vérifier les mises à jour
+
+```bash
+claudex update --check
+```
+
+Cette commande interroge l'API GitHub pour la dernière version et la compare avec votre version installée.
+
+## Installer une mise à jour
+
+```bash
+claudex update
+```
+
+Cette commande télécharge le dernier binaire de la version pour votre plateforme, remplace le binaire actuel, et vérifie l'installation.
+
+## Comment ça fonctionne
+
+1. Interroger l'API GitHub : `https://api.github.com/repos/StringKe/claudex/releases/latest`
+2. Comparer la version actuelle avec le tag de la dernière version
+3. Télécharger l'archive spécifique à la plateforme (ex. `claudex-v0.2.0-aarch64-apple-darwin.tar.gz`)
+4. Extraire et remplacer le binaire en cours d'exécution
+5. Nettoyer les fichiers temporaires
+
+## Plateformes prises en charge
+
+Le mécanisme de mise à jour prend en charge les mêmes plateformes que les builds de version :
+
+| Plateforme | Cible |
+|------------|-------|
+| macOS Intel | `x86_64-apple-darwin` |
+| macOS Apple Silicon | `aarch64-apple-darwin` |
+| Linux x86_64 | `x86_64-unknown-linux-gnu` |
+| Linux ARM64 | `aarch64-unknown-linux-gnu` |
+| Windows x86_64 | `x86_64-pc-windows-msvc` |

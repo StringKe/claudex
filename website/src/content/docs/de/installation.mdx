@@ -1,0 +1,65 @@
+---
+title: Installation
+description: Claudex auf dem System installieren
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+## Installationsmethoden
+
+<Tabs>
+  <TabItem label="Einzeiler" icon="terminal">
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/StringKe/claudex/main/install.sh | bash
+    ```
+    Das Installationsskript erkennt automatisch das Betriebssystem und die Architektur, lädt die neueste Version von GitHub herunter und installiert sie nach `~/.local/bin/claudex`.
+
+    Installationsverzeichnis überschreiben:
+    ```bash
+    CLAUDEX_INSTALL_DIR=/usr/local/bin curl -fsSL https://raw.githubusercontent.com/StringKe/claudex/main/install.sh | bash
+    ```
+  </TabItem>
+  <TabItem label="Cargo" icon="seti:rust">
+    ```bash
+    cargo install --git https://github.com/StringKe/claudex
+    ```
+    Erfordert die Rust-Toolchain. Die Binärdatei wird nach `~/.cargo/bin/claudex` installiert.
+  </TabItem>
+  <TabItem label="GitHub Releases" icon="github">
+    Die vorgefertigte Binärdatei für die jeweilige Plattform von [GitHub Releases](https://github.com/StringKe/claudex/releases) herunterladen.
+
+    Verfügbare Ziele:
+    - `x86_64-unknown-linux-gnu`
+    - `x86_64-unknown-linux-musl`
+    - `aarch64-unknown-linux-gnu`
+    - `aarch64-unknown-linux-musl`
+    - `x86_64-apple-darwin`
+    - `aarch64-apple-darwin`
+    - `x86_64-pc-windows-msvc`
+
+    Archiv entpacken und Binärdatei in den `PATH` legen:
+    ```bash
+    tar xzf claudex-v*.tar.gz
+    chmod +x claudex
+    mv claudex ~/.local/bin/
+    ```
+  </TabItem>
+</Tabs>
+
+## Systemanforderungen
+
+| Anforderung | Details |
+|-------------|---------|
+| **Betriebssystem** | macOS (Intel / Apple Silicon), Linux (x86_64 / ARM64), Windows (x86_64) |
+| **Claude Code** | Muss installiert und als `claude` im PATH erreichbar sein |
+| **Optional** | [Ollama](https://ollama.com) für Funktionen des intelligenten Routings und der Kontext-Engine |
+
+## Installation überprüfen
+
+```bash
+claudex --version
+```
+
+## Nächste Schritte
+
+Nach der Installation das [erste Anbieterprofil konfigurieren](/de/configuration/).

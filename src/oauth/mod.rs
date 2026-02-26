@@ -1,6 +1,9 @@
+pub mod exchange;
 pub mod handler;
+pub mod manager;
 pub mod providers;
 pub mod server;
+pub mod source;
 pub mod token;
 
 use serde::{Deserialize, Serialize};
@@ -20,6 +23,10 @@ pub enum AuthType {
 #[serde(rename_all = "kebab-case")]
 pub enum OAuthProvider {
     Claude,
+    /// ChatGPT 订阅认证 (chatgpt.com, OAuth PKCE / Device Code)
+    Chatgpt,
+    /// OpenAI API Key 平台 (api.openai.com, 无 OAuth)
+    /// 向后兼容: config 中 `oauth_provider = "openai"` 反序列化为 Chatgpt
     Openai,
     Google,
     Qwen,
@@ -31,7 +38,8 @@ impl OAuthProvider {
     pub fn from_str(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "claude" => Some(Self::Claude),
-            "openai" => Some(Self::Openai),
+            // "openai" 在 OAuth 上下文中映射到 Chatgpt (ChatGPT 订阅)
+            "openai" | "chatgpt" | "codex" => Some(Self::Chatgpt),
             "google" | "gemini" => Some(Self::Google),
             "qwen" => Some(Self::Qwen),
             "kimi" | "moonshot" => Some(Self::Kimi),
@@ -43,11 +51,20 @@ impl OAuthProvider {
     pub fn display_name(&self) -> &'static str {
         match self {
             Self::Claude => "Claude",
+            Self::Chatgpt => "ChatGPT",
             Self::Openai => "OpenAI",
             Self::Google => "Google",
             Self::Qwen => "Qwen",
             Self::Kimi => "Kimi",
             Self::Github => "GitHub",
+        }
+    }
+
+    /// 规范化: 将 Openai 统一映射到 Chatgpt (在 OAuth 上下文中两者等价)
+    pub fn normalize(&self) -> Self {
+        match self {
+            Self::Openai => Self::Chatgpt,
+            other => other.clone(),
         }
     }
 }
@@ -209,9 +226,18 @@ mod tests {
             OAuthProvider::from_str("claude"),
             Some(OAuthProvider::Claude)
         );
+        // "openai" 在 OAuth 上下文映射到 Chatgpt
         assert_eq!(
             OAuthProvider::from_str("openai"),
-            Some(OAuthProvider::Openai)
+            Some(OAuthProvider::Chatgpt)
+        );
+        assert_eq!(
+            OAuthProvider::from_str("chatgpt"),
+            Some(OAuthProvider::Chatgpt)
+        );
+        assert_eq!(
+            OAuthProvider::from_str("codex"),
+            Some(OAuthProvider::Chatgpt)
         );
         assert_eq!(
             OAuthProvider::from_str("google"),
@@ -353,6 +379,7 @@ mod tests {
     fn test_oauth_provider_serde_roundtrip() {
         let cases = vec![
             (OAuthProvider::Claude, "\"claude\""),
+            (OAuthProvider::Chatgpt, "\"chatgpt\""),
             (OAuthProvider::Openai, "\"openai\""),
             (OAuthProvider::Google, "\"google\""),
             (OAuthProvider::Qwen, "\"qwen\""),
@@ -367,11 +394,21 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_openai_deserializes_for_backward_compat() {
+        // config 中已有的 `oauth_provider = "openai"` 反序列化为 Openai 变体
+        // 再通过 normalize() 映射到 Chatgpt
+        let parsed: OAuthProvider = serde_json::from_str("\"openai\"").unwrap();
+        assert_eq!(parsed, OAuthProvider::Openai);
+        assert_eq!(parsed.normalize(), OAuthProvider::Chatgpt);
+    }
+
     // ── OAuthProvider::display_name ───────────────────────────
 
     #[test]
     fn test_oauth_provider_display_names() {
         assert_eq!(OAuthProvider::Claude.display_name(), "Claude");
+        assert_eq!(OAuthProvider::Chatgpt.display_name(), "ChatGPT");
         assert_eq!(OAuthProvider::Openai.display_name(), "OpenAI");
         assert_eq!(OAuthProvider::Google.display_name(), "Google");
         assert_eq!(OAuthProvider::Qwen.display_name(), "Qwen");
@@ -389,7 +426,7 @@ mod tests {
         );
         assert_eq!(
             OAuthProvider::from_str("OPENAI"),
-            Some(OAuthProvider::Openai)
+            Some(OAuthProvider::Chatgpt)
         );
         assert_eq!(
             OAuthProvider::from_str("GitHub"),

@@ -1,0 +1,58 @@
+---
+title: 智慧路由
+description: 基於意圖的自動提供商路由
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+智慧路由根據意圖分類自動為每個請求選擇最佳提供商。使用 `claudex run auto` 啟用。
+
+## 運作原理
+
+1. 使用者執行 `claudex run auto`
+2. Claude Code 向代理發送請求
+3. 代理擷取使用者訊息並傳送至本地分類器（如 Ollama）
+4. 分類器回傳意圖類別（code、analysis、creative、search、math）
+5. 路由規則將意圖映射到最佳提供商 profile
+6. 請求轉發至選定的提供商
+
+## 設定
+
+```toml
+[router]
+enabled = true
+profile = "local-qwen"      # 重用某個 profile 的 base_url + api_key 進行分類
+model = "qwen2.5:3b"        # 覆寫模型（選用，預設使用 profile 的 default_model）
+
+[router.rules]
+code = "deepseek"       # 程式設計任務 → DeepSeek
+analysis = "grok"       # 分析任務 → Grok
+creative = "chatgpt"    # 創意寫作 → ChatGPT
+search = "kimi"         # 搜尋/研究 → Kimi
+math = "deepseek"       # 數學/邏輯 → DeepSeek
+default = "grok"        # 未分類時的回退
+```
+
+## 意圖類別
+
+| 意圖 | 說明 | 範例任務 |
+|------|------|---------|
+| `code` | 程式設計和程式碼生成 | 撰寫函式、修復錯誤、重構程式碼 |
+| `analysis` | 資料分析和推理 | 分析日誌、比較方案、解釋概念 |
+| `creative` | 創意寫作和構思 | 撰寫文件、腦力激盪名稱、起草電子郵件 |
+| `search` | 資訊檢索 | 查找 API 文件、查詢錯誤碼 |
+| `math` | 數學和邏輯任務 | 計算複雜度、驗證正確性 |
+
+<Aside type="note">
+  智慧路由需要 LLM 服務進行意圖分類。它重用現有 profile 的 `base_url` 和 `api_key`。分類器模型應輕量且快速，`qwen2.5:3b` 效果不錯。
+</Aside>
+
+## 使用方式
+
+```bash
+# 使用智慧路由執行
+claudex run auto
+
+# 即使使用自動路由，也可覆寫模型
+claudex run auto -m grok-3-mini-beta
+```

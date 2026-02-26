@@ -1,0 +1,63 @@
+---
+title: Disjuntor e Failover
+description: Deteccao automatica de falhas e failover de provedores
+---
+
+O Claudex inclui um disjuntor integrado para cada perfil de provedor, com failover automatico para provedores de backup quando falhas sao detectadas.
+
+## Estados do Disjuntor
+
+```
+         sucesso
+    ┌──────────────┐
+    │              │
+    ▼    falha     │
+ Fechado ───────► Aberto
+    ▲              │
+    │   timeout    │
+    │   expirado   ▼
+    └─────────── Meio-Aberto
+                   │
+                falha → volta para Aberto
+```
+
+| Estado | Comportamento |
+|--------|---------------|
+| **Fechado** | Operacao normal. Requisicoes passam. Falhas sao contadas. |
+| **Aberto** | Requisicoes sao bloqueadas. Aciona failover para provedores de backup. |
+| **Meio-Aberto** | Apos o timeout de recuperacao, uma requisicao de sonda e permitida. Sucesso → Fechado; Falha → volta para Aberto. |
+
+## Parametros Padrao
+
+| Parametro | Valor |
+|-----------|-------|
+| Limite de falhas | 3 falhas consecutivas |
+| Timeout de recuperacao | 30 segundos |
+
+## Configuracao de Failover
+
+Defina provedores de backup no seu perfil para habilitar failover automatico:
+
+```toml
+[[profiles]]
+name = "grok"
+provider_type = "OpenAICompatible"
+base_url = "https://api.x.ai/v1"
+api_key = "xai-..."
+default_model = "grok-3-beta"
+backup_providers = ["deepseek", "chatgpt"]   # cadeia de failover
+```
+
+Quando `grok` falha 3 vezes consecutivas:
+1. O disjuntor abre para `grok`
+2. A requisicao e repetida com `deepseek`
+3. Se `deepseek` tambem falhar, tenta `chatgpt`
+4. Cada provedor de backup tem seu proprio disjuntor independente
+
+## Verificacao de Saude
+
+Um verificador de saude em segundo plano e executado a cada ~30 segundos, enviando requisicoes leves de sonda para todos os perfis habilitados. O status de saude e exibido no painel TUI com codificacao por cores:
+
+- Verde: saudavel
+- Amarelo: degradado (falhas recentes)
+- Vermelho: disjuntor aberto

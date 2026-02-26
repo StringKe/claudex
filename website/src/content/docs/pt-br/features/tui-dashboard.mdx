@@ -1,0 +1,52 @@
+---
+title: Painel TUI
+description: Painel terminal em tempo real para monitoramento e gerenciamento de perfis
+---
+
+O painel TUI fornece uma interface terminal em tempo real para monitorar a saude dos perfis, visualizar metricas e iniciar sessoes do Claude Code rapidamente.
+
+## Iniciar
+
+```bash
+# Inicializacao explicita
+claudex dashboard
+
+# Inicializacao automatica (quando perfis existem e nenhum subcomando e fornecido)
+claudex
+```
+
+## Atalhos de Teclado
+
+| Tecla | Acao |
+|-------|------|
+| `j` / `↓` | Mover selecao para baixo |
+| `k` / `↑` | Mover selecao para cima |
+| `Enter` | Iniciar Claude Code com o perfil selecionado |
+| `t` | Testar conectividade do perfil selecionado |
+| `a` | Adicionar novo perfil (exibe dica) |
+| `d` | Excluir perfil selecionado (exibe dica) |
+| `p` | Alternar iniciar/parar proxy |
+| `/` | Entrar no modo de busca |
+| `Esc` | Sair do modo de busca / fechar ajuda |
+| `?` | Exibir popup de ajuda |
+| `q` / `Ctrl+C` | Sair do painel |
+
+## Layout do Painel
+
+O painel exibe:
+
+- **Lista de perfis** — Todos os perfis configurados com nome, modelo, tipo de provedor e status de saude
+- **Indicadores de saude** — Status codificado por cores (verde = saudavel, amarelo = degradado, vermelho = disjuntor aberto)
+- **Painel de metricas** — Contagem de requisicoes por perfil, taxa de sucesso, latencia media
+- **Painel de logs** — Saida de log em rolagem em tempo real
+
+## Status de Saude
+
+O painel executa um verificador de saude em segundo plano que envia pings para todos os perfis habilitados a cada ~30 segundos. O status de saude e refletido em tempo real:
+
+| Cor | Significado |
+|-----|-------------|
+| Verde | Provedor esta respondendo normalmente |
+| Amarelo | Falhas recentes detectadas |
+| Vermelho | Disjuntor esta aberto |
+| Cinza | Perfil esta desabilitado |

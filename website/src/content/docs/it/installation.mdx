@@ -1,0 +1,65 @@
+---
+title: Installazione
+description: Come installare Claudex sul tuo sistema
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+## Metodi di Installazione
+
+<Tabs>
+  <TabItem label="One-liner" icon="terminal">
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/StringKe/claudex/main/install.sh | bash
+    ```
+    Lo script di installazione rileva automaticamente il sistema operativo e l'architettura, scarica l'ultima versione da GitHub e installa il binario in `~/.local/bin/claudex`.
+
+    Sovrascrivere la directory di installazione:
+    ```bash
+    CLAUDEX_INSTALL_DIR=/usr/local/bin curl -fsSL https://raw.githubusercontent.com/StringKe/claudex/main/install.sh | bash
+    ```
+  </TabItem>
+  <TabItem label="Cargo" icon="seti:rust">
+    ```bash
+    cargo install --git https://github.com/StringKe/claudex
+    ```
+    Richiede il toolchain Rust. Il binario verrà installato in `~/.cargo/bin/claudex`.
+  </TabItem>
+  <TabItem label="GitHub Releases" icon="github">
+    Scarica il binario precompilato per la tua piattaforma da [GitHub Releases](https://github.com/StringKe/claudex/releases).
+
+    Target disponibili:
+    - `x86_64-unknown-linux-gnu`
+    - `x86_64-unknown-linux-musl`
+    - `aarch64-unknown-linux-gnu`
+    - `aarch64-unknown-linux-musl`
+    - `x86_64-apple-darwin`
+    - `aarch64-apple-darwin`
+    - `x86_64-pc-windows-msvc`
+
+    Estrai e posiziona il binario nel tuo `PATH`:
+    ```bash
+    tar xzf claudex-v*.tar.gz
+    chmod +x claudex
+    mv claudex ~/.local/bin/
+    ```
+  </TabItem>
+</Tabs>
+
+## Requisiti di Sistema
+
+| Requisito | Dettagli |
+|-----------|---------|
+| **SO** | macOS (Intel / Apple Silicon), Linux (x86_64 / ARM64), Windows (x86_64) |
+| **Claude Code** | Deve essere installato e accessibile come `claude` nel PATH |
+| **Opzionale** | [Ollama](https://ollama.com) per le funzionalità di routing intelligente e context engine |
+
+## Verificare l'Installazione
+
+```bash
+claudex --version
+```
+
+## Passi Successivi
+
+Dopo l'installazione, [configura il tuo primo profilo provider](/it/configuration/).

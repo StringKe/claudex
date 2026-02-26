@@ -1,0 +1,52 @@
+---
+title: Tableau de bord TUI
+description: Tableau de bord terminal en temps réel pour la surveillance et la gestion des profils
+---
+
+Le tableau de bord TUI fournit une interface terminal en temps réel pour surveiller l'état des profils, visualiser les métriques, et lancer rapidement des sessions Claude Code.
+
+## Lancement
+
+```bash
+# Lancement explicite
+claudex dashboard
+
+# Lancement automatique (quand des profils existent et qu'aucune sous-commande n'est donnée)
+claudex
+```
+
+## Raccourcis clavier
+
+| Touche | Action |
+|--------|--------|
+| `j` / `↓` | Déplacer la sélection vers le bas |
+| `k` / `↑` | Déplacer la sélection vers le haut |
+| `Enter` | Lancer Claude Code avec le profil sélectionné |
+| `t` | Tester la connectivité du profil sélectionné |
+| `a` | Ajouter un nouveau profil (affiche une indication) |
+| `d` | Supprimer le profil sélectionné (affiche une indication) |
+| `p` | Basculer démarrage/arrêt du proxy |
+| `/` | Entrer en mode recherche |
+| `Esc` | Quitter le mode recherche / fermer l'aide |
+| `?` | Afficher la fenêtre d'aide |
+| `q` / `Ctrl+C` | Quitter le tableau de bord |
+
+## Disposition du tableau de bord
+
+Le tableau de bord affiche :
+
+- **Liste des profils** — Tous les profils configurés avec leur nom, modèle, type de fournisseur, et état de santé
+- **Indicateurs d'état** — Statut codé par couleur (vert = sain, jaune = dégradé, rouge = disjoncteur ouvert)
+- **Panneau de métriques** — Nombre de requêtes par profil, taux de succès, latence moyenne
+- **Panneau de journalisation** — Sortie de journalisation en défilement en temps réel
+
+## État de santé
+
+Le tableau de bord exécute un vérificateur de santé en arrière-plan qui interroge tous les profils activés toutes les ~30 secondes. L'état de santé est reflété en temps réel :
+
+| Couleur | Signification |
+|---------|--------------|
+| Vert | Le fournisseur répond normalement |
+| Jaune | Des échecs récents ont été détectés |
+| Rouge | Le disjoncteur est ouvert |
+| Gris | Le profil est désactivé |

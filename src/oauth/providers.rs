@@ -25,7 +25,7 @@ fn provider_defaults(provider: &OAuthProvider) -> ProviderDefaults {
             },
             max_tokens: None,
         },
-        OAuthProvider::Openai => ProviderDefaults {
+        OAuthProvider::Chatgpt | OAuthProvider::Openai => ProviderDefaults {
             provider_type: ProviderType::OpenAIResponses,
             base_url: "https://chatgpt.com/backend-api/codex",
             default_model: "gpt-5.3-codex",
@@ -121,12 +121,10 @@ fn ensure_oauth_profile(
     Ok(())
 }
 
-// ── OAuth client IDs (public, non-secret) ──────────────────────────────
-// These are public client IDs used for OAuth PKCE flows (no client secret needed)
+// ── OAuth client IDs ─────────────────────────────────────────────────────
+// ChatGPT + GitHub Copilot IDs 已移至 exchange.rs
+// Qwen 保留在此，因为仅在 providers.rs 的 device code flow 中使用
 
-const OPENAI_CLIENT_ID: &str = "app_EMoamEEZ73f0CkXaXp7hrann";
-const OPENAI_TOKEN_URL: &str = "https://auth.openai.com/oauth/token";
-const GITHUB_CLIENT_ID: &str = "Iv1.claudex_github";
 const QWEN_CLIENT_ID: &str = "claudex-qwen";
 
 // ── Login ───────────────────────────────────────────────────────────────
@@ -147,11 +145,11 @@ pub async fn login(
 
     match provider {
         OAuthProvider::Claude => login_claude(profile_name).await,
-        OAuthProvider::Openai => login_openai(profile_name).await,
+        OAuthProvider::Chatgpt | OAuthProvider::Openai => login_chatgpt(profile_name).await,
         OAuthProvider::Google => login_google(profile_name).await,
         OAuthProvider::Qwen => login_device_code(profile_name, &OAuthProvider::Qwen).await,
         OAuthProvider::Kimi => login_kimi(profile_name).await,
-        OAuthProvider::Github => login_device_code(profile_name, &OAuthProvider::Github).await,
+        OAuthProvider::Github => login_github(profile_name).await,
     }
 }
 
@@ -159,10 +157,11 @@ pub async fn login(
 async fn login_claude(profile_name: &str) -> Result<()> {
     println!("Reading Claude credentials from ~/.claude/.credentials.json...");
 
-    let token = super::token::read_claude_credentials()
+    let cred = super::source::read_claude_credentials()
         .context("Failed to read Claude credentials. Make sure Claude Code is installed and you have logged in with `claude` first.")?;
+    let token = cred.into_oauth_token();
 
-    super::token::store_token(profile_name, &token)?;
+    super::source::store_keyring(profile_name, &token)?;
     println!("Claude OAuth token stored for profile '{profile_name}'.");
     println!(
         "Note: Claude subscription profiles bypass the proxy (Claude Code uses its own OAuth)."
@@ -170,21 +169,23 @@ async fn login_claude(profile_name: &str) -> Result<()> {
     Ok(())
 }
 
-/// OpenAI: 优先读取 Codex CLI 已有 credentials，否则提示手动设置
-async fn login_openai(profile_name: &str) -> Result<()> {
-    // 优先读取 Codex CLI 的 auth.json（已通过 `codex` 登录的 ChatGPT 订阅）
-    match super::token::read_codex_credentials() {
-        Ok(token) => {
-            let auth_mode = token
+/// ChatGPT 订阅 login (别名: openai, codex)
+/// 支持三种方式: 读取已有 Codex CLI 凭证、Browser PKCE、Headless Device Code
+async fn login_chatgpt(profile_name: &str) -> Result<()> {
+    // 方式 1: 读取已有 Codex CLI credentials
+    match super::source::read_codex_credentials() {
+        Ok(cred) => {
+            let auth_mode = cred
                 .extra
                 .as_ref()
                 .and_then(|e| e.get("auth_mode"))
                 .and_then(|v| v.as_str())
                 .unwrap_or("unknown");
             println!("Found Codex CLI credentials (auth_mode: {auth_mode})");
-            super::token::store_token(profile_name, &token)?;
-            println!("OpenAI OAuth token stored for profile '{profile_name}'.");
-            println!("Token will be refreshed automatically from ~/.codex/auth.json");
+            let token = cred.into_oauth_token();
+            super::source::store_keyring(profile_name, &token)?;
+            println!("ChatGPT OAuth token stored for profile '{profile_name}'.");
+            println!("Token will be refreshed automatically.");
             return Ok(());
         }
         Err(e) => {
@@ -192,17 +193,203 @@ async fn login_openai(profile_name: &str) -> Result<()> {
         }
     }
 
-    // 没有 Codex credentials，提示用户
     println!("No Codex CLI credentials found at ~/.codex/auth.json");
     println!();
-    println!("To use your ChatGPT subscription with Claudex:");
-    println!("  1. Install Codex CLI: npm install -g @openai/codex");
-    println!("  2. Login: codex --login");
-    println!("  3. Re-run: claudex auth login openai --profile {profile_name}");
+    println!("Choose login method:");
+    println!("  1) Browser (open browser to login via ChatGPT)");
+    println!("  2) Headless (device code, for SSH/headless environments)");
     println!();
-    println!("Or set OPENAI_API_KEY in your profile's extra_env for API key mode.");
 
-    anyhow::bail!("no OpenAI credentials available")
+    // 检测是否有 tty 来决定默认方式
+    let use_headless = std::env::var("CLAUDEX_HEADLESS").is_ok() || !atty_check();
+
+    if use_headless {
+        println!("Using headless device code flow...");
+        login_chatgpt_headless(profile_name).await
+    } else {
+        println!("Using browser PKCE flow...");
+        login_chatgpt_browser(profile_name).await
+    }
+}
+
+/// ChatGPT Browser PKCE login
+async fn login_chatgpt_browser(profile_name: &str) -> Result<()> {
+    let pkce = super::server::PkceChallenge::generate();
+    let port = super::server::find_available_port()?;
+    let state = uuid::Uuid::new_v4().to_string();
+
+    let authorize_url =
+        super::exchange::build_chatgpt_authorize_url(port, &pkce, &state);
+
+    println!("Opening browser for ChatGPT login...");
+    println!("If the browser doesn't open, visit:");
+    println!("  {authorize_url}");
+    println!();
+
+    let _ = open_browser(&authorize_url);
+
+    // 启动回调服务器等待 authorization code
+    let code = super::server::start_callback_server(port)
+        .await
+        .context("failed to receive authorization callback")?;
+
+    println!("Authorization code received, exchanging for token...");
+
+    let client = reqwest::Client::new();
+    let redirect_uri = format!("http://localhost:{port}/callback");
+    let token =
+        super::exchange::exchange_chatgpt_code(&client, &code, &redirect_uri, &pkce.code_verifier)
+            .await?;
+
+    // 存储到 keyring 并回写 ~/.codex/auth.json
+    super::source::store_keyring(profile_name, &token)?;
+    super::source::write_codex_credentials_atomic(&token)?;
+
+    println!("ChatGPT OAuth token stored for profile '{profile_name}'.");
+    Ok(())
+}
+
+/// ChatGPT Headless Device Code login
+async fn login_chatgpt_headless(profile_name: &str) -> Result<()> {
+    let client = reqwest::Client::new();
+
+    let device_resp = super::exchange::chatgpt_device_auth_request(&client).await?;
+
+    println!();
+    println!("  Open: https://auth.openai.com/codex/device");
+    println!("  Enter code: {}", device_resp.user_code);
+    println!();
+    println!("Waiting for authorization...");
+
+    let _ = open_browser("https://auth.openai.com/codex/device");
+
+    let token = super::exchange::chatgpt_device_auth_poll(
+        &client,
+        &device_resp.device_auth_id,
+        &device_resp.user_code,
+    )
+    .await?;
+
+    super::source::store_keyring(profile_name, &token)?;
+    super::source::write_codex_credentials_atomic(&token)?;
+
+    println!("ChatGPT OAuth token stored for profile '{profile_name}'.");
+    Ok(())
+}
+
+/// GitHub Copilot login
+async fn login_github(profile_name: &str) -> Result<()> {
+    // 优先从 ~/.config/github-copilot/ 读取已有 token
+    match super::source::read_copilot_config() {
+        Ok(cred) => {
+            println!("Found existing GitHub Copilot credentials, verifying...");
+
+            // 验证: 尝试交换为 Copilot bearer token
+            let client = reqwest::Client::new();
+            match super::exchange::exchange_github_for_copilot(&client, &cred.access_token).await {
+                Ok(copilot) => {
+                    let token = OAuthToken {
+                        access_token: copilot.token,
+                        refresh_token: None,
+                        expires_at: Some(copilot.expires_at * 1000),
+                        token_type: Some("Bearer".to_string()),
+                        scopes: None,
+                        extra: Some(serde_json::json!({
+                            "provider": "copilot",
+                            "github_token": cred.access_token,
+                        })),
+                    };
+                    super::source::store_keyring(profile_name, &token)?;
+                    println!("GitHub Copilot token stored for profile '{profile_name}'.");
+                    return Ok(());
+                }
+                Err(e) => {
+                    tracing::warn!("existing Copilot token invalid: {e}, falling back to device code");
+                }
+            }
+        }
+        Err(e) => {
+            tracing::debug!("no existing Copilot config: {e}");
+        }
+    }
+
+    // Device code flow
+    println!("Starting GitHub device code flow...");
+
+    let client = reqwest::Client::new();
+    let resp = client
+        .post("https://github.com/login/device/code")
+        .header("Accept", "application/json")
+        .form(&[
+            ("client_id", super::exchange::GITHUB_COPILOT_CLIENT_ID),
+            ("scope", "read:user"),
+        ])
+        .send()
+        .await
+        .context("failed to request GitHub device code")?;
+
+    let body: serde_json::Value = resp.json().await.context("invalid device code response")?;
+
+    let user_code = body
+        .get("user_code")
+        .and_then(|v| v.as_str())
+        .context("missing user_code")?;
+    let verification_uri = body
+        .get("verification_uri")
+        .and_then(|v| v.as_str())
+        .context("missing verification_uri")?;
+    let device_code = body
+        .get("device_code")
+        .and_then(|v| v.as_str())
+        .context("missing device_code")?;
+    let interval = body.get("interval").and_then(|v| v.as_u64()).unwrap_or(5);
+
+    println!();
+    println!("  Open: {verification_uri}");
+    println!("  Enter code: {user_code}");
+    println!();
+    println!("Waiting for authorization...");
+
+    let _ = open_browser(verification_uri);
+
+    let token_resp = super::server::poll_device_code(
+        &client,
+        "https://github.com/login/oauth/access_token",
+        device_code,
+        super::exchange::GITHUB_COPILOT_CLIENT_ID,
+        interval,
+        "urn:ietf:params:oauth:grant-type:device_code",
+    )
+    .await?;
+
+    let github_token = token_resp
+        .get("access_token")
+        .and_then(|v| v.as_str())
+        .context("missing access_token in GitHub response")?;
+
+    // 交换为 Copilot bearer token
+    let copilot = super::exchange::exchange_github_for_copilot(&client, github_token).await?;
+
+    let token = OAuthToken {
+        access_token: copilot.token,
+        refresh_token: None,
+        expires_at: Some(copilot.expires_at * 1000),
+        token_type: Some("Bearer".to_string()),
+        scopes: None,
+        extra: Some(serde_json::json!({
+            "provider": "copilot",
+            "github_token": github_token,
+        })),
+    };
+
+    super::source::store_keyring(profile_name, &token)?;
+    println!("GitHub Copilot token stored for profile '{profile_name}'.");
+    Ok(())
+}
+
+/// 检测是否有 tty
+fn atty_check() -> bool {
+    std::io::IsTerminal::is_terminal(&std::io::stdin())
 }
 
 /// Google: 读取 Gemini CLI 外部 credentials
@@ -212,10 +399,11 @@ async fn login_google(profile_name: &str) -> Result<()> {
         "Note: Google OAuth requires a registered Client ID. Using external CLI token instead."
     );
 
-    let token = super::token::read_external_token(&OAuthProvider::Google)
+    let cred = super::source::read_gemini_credentials()
         .context("Failed to read Gemini CLI credentials. Make sure Gemini CLI is installed and authenticated.")?;
+    let token = cred.into_oauth_token();
 
-    super::token::store_token(profile_name, &token)?;
+    super::source::store_keyring(profile_name, &token)?;
     println!("Google OAuth token stored for profile '{profile_name}'.");
     Ok(())
 }
@@ -224,25 +412,19 @@ async fn login_google(profile_name: &str) -> Result<()> {
 async fn login_kimi(profile_name: &str) -> Result<()> {
     println!("Reading Kimi credentials from external CLI...");
 
-    let token = super::token::read_external_token(&OAuthProvider::Kimi).context(
+    let cred = super::source::read_kimi_credentials().context(
         "Failed to read Kimi CLI credentials. Make sure Kimi CLI is installed and authenticated.",
     )?;
+    let token = cred.into_oauth_token();
 
-    super::token::store_token(profile_name, &token)?;
+    super::source::store_keyring(profile_name, &token)?;
     println!("Kimi OAuth token stored for profile '{profile_name}'.");
     Ok(())
 }
 
-/// Device Code Flow (GitHub, Qwen)
+/// Device Code Flow (Qwen only; GitHub uses login_github)
 async fn login_device_code(profile_name: &str, provider: &OAuthProvider) -> Result<()> {
     let (device_url, token_url, client_id, scope, grant_type) = match provider {
-        OAuthProvider::Github => (
-            "https://github.com/login/device/code",
-            "https://github.com/login/oauth/access_token",
-            GITHUB_CLIENT_ID,
-            "copilot",
-            "urn:ietf:params:oauth:grant-type:device_code",
-        ),
         OAuthProvider::Qwen => (
             "https://chat.qwen.ai/api/oauth/device/code",
             "https://chat.qwen.ai/api/oauth/token",
@@ -308,7 +490,7 @@ async fn login_device_code(profile_name: &str, provider: &OAuthProvider) -> Resu
     let token =
         OAuthToken::from_token_response(&token_resp).context("failed to parse token response")?;
 
-    super::token::store_token(profile_name, &token)?;
+    super::source::store_keyring(profile_name, &token)?;
     println!(
         "{} OAuth token stored for profile '{profile_name}'.",
         provider.display_name()
@@ -350,7 +532,7 @@ pub async fn status(config: &ClaudexConfig, profile_name: Option<&str>) -> Resul
             .map(|p| p.display_name())
             .unwrap_or("?");
 
-        let (status_str, expires_str) = match super::token::load_token(&profile.name) {
+        let (status_str, expires_str) = match super::source::load_keyring(&profile.name) {
             Ok(token) => {
                 if token.is_expired(0) {
                     ("expired".to_string(), format_expires(token.expires_at))
@@ -388,7 +570,7 @@ fn format_expires(expires_at: Option<i64>) -> String {
 // ── Logout ──────────────────────────────────────────────────────────────
 
 pub async fn logout(_config: &ClaudexConfig, profile_name: &str) -> Result<()> {
-    match super::token::delete_token(profile_name) {
+    match super::source::delete_keyring(profile_name) {
         Ok(()) => println!("OAuth token removed for profile '{profile_name}'."),
         Err(e) => println!("No token to remove for '{profile_name}': {e}"),
     }
@@ -409,65 +591,82 @@ pub async fn refresh(config: &ClaudexConfig, profile_name: &str) -> Result<()> {
 
     match provider {
         OAuthProvider::Claude => {
-            // Re-read external credentials
-            let token = super::token::read_claude_credentials()?;
-            super::token::store_token(profile_name, &token)?;
+            let cred = super::source::read_claude_credentials()?;
+            let token = cred.into_oauth_token();
+            super::source::store_keyring(profile_name, &token)?;
             println!("Refreshed Claude token from ~/.claude/.credentials.json");
         }
         OAuthProvider::Google | OAuthProvider::Kimi => {
-            // Re-read external credentials
-            let token = super::token::read_external_token(provider)?;
-            super::token::store_token(profile_name, &token)?;
+            let cred = super::source::load_credential_chain(provider)?;
+            let token = cred.into_oauth_token();
+            super::source::store_keyring(profile_name, &token)?;
             println!(
                 "Refreshed {} token from external CLI",
                 provider.display_name()
             );
         }
-        OAuthProvider::Openai => {
-            // OpenAI: 用 refresh_token 刷新，回写 auth.json
-            let token = super::token::read_external_token(provider)
+        OAuthProvider::Chatgpt | OAuthProvider::Openai => {
+            let cred = super::source::read_codex_credentials()
                 .context("cannot read Codex credentials")?;
+            let token = cred.into_oauth_token();
             let refresh_tok = token.refresh_token.as_ref().ok_or_else(|| {
                 anyhow::anyhow!(
-                    "no refresh_token in Codex credentials, please re-login with `codex --login`"
+                    "no refresh_token in Codex credentials, please re-login"
                 )
             })?;
 
-            let new_token = refresh_openai_token(refresh_tok, token.refresh_token.clone()).await?;
-            super::token::store_token(profile_name, &new_token)?;
+            let client = reqwest::Client::new();
+            let new_token =
+                super::exchange::refresh_chatgpt_token(&client, refresh_tok).await?;
+            super::source::store_keyring(profile_name, &new_token)?;
             println!("Token refreshed for profile '{profile_name}'.");
         }
-        OAuthProvider::Qwen | OAuthProvider::Github => {
+        OAuthProvider::Github => {
+            // GitHub: 重新交换 Copilot bearer token
+            let cred = super::source::load_credential_chain(&OAuthProvider::Github)
+                .context("no GitHub credentials available")?;
+            let client = reqwest::Client::new();
+            let copilot =
+                super::exchange::exchange_github_for_copilot(&client, &cred.access_token).await?;
+            let token = OAuthToken {
+                access_token: copilot.token,
+                refresh_token: None,
+                expires_at: Some(copilot.expires_at * 1000),
+                token_type: Some("Bearer".to_string()),
+                scopes: None,
+                extra: Some(serde_json::json!({
+                    "provider": "copilot",
+                    "github_token": cred.access_token,
+                })),
+            };
+            super::source::store_keyring(profile_name, &token)?;
+            println!("GitHub Copilot token refreshed for profile '{profile_name}'.");
+        }
+        OAuthProvider::Qwen => {
             let token =
-                super::token::load_token(profile_name).context("no existing token to refresh")?;
+                super::source::load_keyring(profile_name).context("no existing token to refresh")?;
             let refresh_token = token
                 .refresh_token
                 .as_ref()
                 .ok_or_else(|| anyhow::anyhow!("no refresh_token available, please re-login"))?;
 
-            let (token_url, client_id) = match provider {
-                OAuthProvider::Github => (
-                    "https://github.com/login/oauth/access_token",
-                    GITHUB_CLIENT_ID,
-                ),
-                OAuthProvider::Qwen => ("https://chat.qwen.ai/api/oauth/token", QWEN_CLIENT_ID),
-                _ => unreachable!(),
-            };
-
             let client = reqwest::Client::new();
-            let resp =
-                super::server::refresh_access_token(&client, token_url, refresh_token, client_id)
-                    .await?;
+            let resp = super::server::refresh_access_token(
+                &client,
+                "https://chat.qwen.ai/api/oauth/token",
+                refresh_token,
+                QWEN_CLIENT_ID,
+            )
+            .await?;
 
             let mut new_token = OAuthToken::from_token_response(&resp)
                 .context("failed to parse refreshed token")?;
 
-            // Preserve refresh_token if the response didn't include a new one
             if new_token.refresh_token.is_none() {
                 new_token.refresh_token = token.refresh_token;
             }
 
-            super::token::store_token(profile_name, &new_token)?;
+            super::source::store_keyring(profile_name, &new_token)?;
             println!("Token refreshed for profile '{profile_name}'.");
         }
     }
@@ -477,25 +676,23 @@ pub async fn refresh(config: &ClaudexConfig, profile_name: &str) -> Result<()> {
 
 // ── Token refresh for proxy (called from handler) ───────────────────────
 
-/// 确保 profile 的 OAuth token 有效，必要时从外部 CLI 文件重读或自动刷新。
-/// 不自动访问 keyring（避免 macOS Keychain 弹窗），只读文件。
+/// 确保 profile 的 OAuth token 有效（旧接口，保留向后兼容）
+/// 新代码应使用 TokenManager::get_token()
 pub async fn ensure_valid_token(profile: &mut ProfileConfig) -> Result<()> {
     if profile.auth_type != AuthType::OAuth {
         return Ok(());
     }
 
-    // api_key 已有值（可能是上次 `claudex auth login` 后写入 config 的）
     if !profile.api_key.is_empty() {
         return Ok(());
     }
 
-    // 从外部 CLI 文件读取（无 keyring 弹窗）
     let provider = match profile.oauth_provider.as_ref() {
-        Some(p) => p.clone(),
+        Some(p) => p.normalize(),
         None => anyhow::bail!("no oauth_provider for profile '{}'", profile.name),
     };
 
-    let token = super::token::read_external_token(&provider).with_context(|| {
+    let cred = super::source::load_credential_chain(&provider).with_context(|| {
         format!(
             "OAuth token not available for '{}'. Run `claudex auth login {} --profile {}`",
             profile.name,
@@ -503,22 +700,22 @@ pub async fn ensure_valid_token(profile: &mut ProfileConfig) -> Result<()> {
             profile.name
         )
     })?;
+    let token = cred.into_oauth_token();
 
-    // 检查 token 是否过期（提前 60 秒刷新）
     if token.is_expired(60) {
-        if provider == OAuthProvider::Openai {
+        if matches!(provider, OAuthProvider::Chatgpt | OAuthProvider::Openai) {
             if let Some(ref refresh_tok) = token.refresh_token {
                 tracing::info!(
-                    "OpenAI token expired for profile '{}', refreshing...",
+                    "ChatGPT token expired for profile '{}', refreshing...",
                     profile.name
                 );
+                let client = reqwest::Client::new();
                 let new_token =
-                    refresh_openai_token(refresh_tok, token.refresh_token.clone()).await?;
-                apply_token_to_profile(profile, &new_token);
+                    super::exchange::refresh_chatgpt_token(&client, refresh_tok).await?;
+                super::manager::apply_token_to_profile(profile, &new_token);
                 return Ok(());
             }
         }
-        // 其他 provider 或无 refresh_token：报错
         anyhow::bail!(
             "OAuth token expired for '{}' and cannot auto-refresh. Run `claudex auth refresh {}`",
             profile.name,
@@ -526,201 +723,16 @@ pub async fn ensure_valid_token(profile: &mut ProfileConfig) -> Result<()> {
         );
     }
 
-    apply_token_to_profile(profile, &token);
+    super::manager::apply_token_to_profile(profile, &token);
     Ok(())
 }
 
-/// 将 token 信息注入到 profile 的 api_key 和 extra_env 中
-fn apply_token_to_profile(profile: &mut ProfileConfig, token: &OAuthToken) {
-    profile.api_key = token.access_token.clone();
+// ── Public APIs (kept for backward compat with handler.rs) ───────────────
 
-    // 从 token extra 中注入 CHATGPT_ACCOUNT_ID（Codex 订阅需要此 header）
-    if let Some(account_id) = token
-        .extra
-        .as_ref()
-        .and_then(|e| e.get("account_id"))
-        .and_then(|v| v.as_str())
-    {
-        profile
-            .extra_env
-            .entry("CHATGPT_ACCOUNT_ID".to_string())
-            .or_insert_with(|| account_id.to_string());
-    }
-}
-
-/// 使用 refresh_token 刷新 OpenAI access_token，并回写 ~/.codex/auth.json
-async fn refresh_openai_token(
-    refresh_token: &str,
-    original_refresh_token: Option<String>,
-) -> Result<OAuthToken> {
+/// Refresh ChatGPT token (public entry point)
+pub async fn refresh_chatgpt_token_pub(refresh_token: &str) -> Result<OAuthToken> {
     let client = reqwest::Client::new();
-    let resp = super::server::refresh_access_token(
-        &client,
-        OPENAI_TOKEN_URL,
-        refresh_token,
-        OPENAI_CLIENT_ID,
-    )
-    .await
-    .context("OpenAI token refresh failed")?;
-
-    let mut new_token =
-        OAuthToken::from_token_response(&resp).context("failed to parse refreshed token")?;
-
-    // 保留原 refresh_token（如果响应没有返回新的）
-    if new_token.refresh_token.is_none() {
-        new_token.refresh_token = original_refresh_token;
-    }
-
-    // 从新 access_token 的 JWT 提取 expires_at
-    if new_token.expires_at.is_none() {
-        new_token.expires_at = super::token::extract_jwt_exp_pub(&new_token.access_token);
-    }
-
-    // 从 id_token 提取 account_id
-    let account_id = resp
-        .get("id_token")
-        .and_then(|v| v.as_str())
-        .and_then(|id_tok| {
-            super::token::extract_jwt_claim_pub(
-                id_tok,
-                "https://api.openai.com/auth",
-                "chatgpt_account_id",
-            )
-        });
-
-    let mut extra = serde_json::json!({"auth_mode": "chatgpt"});
-    if let Some(ref aid) = account_id {
-        extra["account_id"] = serde_json::json!(aid);
-    }
-    new_token.extra = Some(extra);
-
-    // 回写 ~/.codex/auth.json
-    super::token::write_codex_credentials(&new_token)?;
-
-    tracing::info!("OpenAI token refreshed successfully");
-    Ok(new_token)
-}
-
-// ── Public APIs for handler.rs ───────────────────────────────────────────
-
-/// Device code login flow (public entry point for handler.rs)
-pub async fn login_device_code_pub(provider: &OAuthProvider) -> Result<OAuthToken> {
-    let (device_url, token_url, client_id, scope, grant_type) = match provider {
-        OAuthProvider::Github => (
-            "https://github.com/login/device/code",
-            "https://github.com/login/oauth/access_token",
-            GITHUB_CLIENT_ID,
-            "copilot",
-            "urn:ietf:params:oauth:grant-type:device_code",
-        ),
-        OAuthProvider::Qwen => (
-            "https://chat.qwen.ai/api/oauth/device/code",
-            "https://chat.qwen.ai/api/oauth/token",
-            QWEN_CLIENT_ID,
-            "",
-            "urn:ietf:params:oauth:grant-type:device_code",
-        ),
-        _ => anyhow::bail!("device code flow not supported for {:?}", provider),
-    };
-
-    println!("Starting {} device code flow...", provider.display_name());
-
-    let client = reqwest::Client::new();
-
-    let mut form = vec![("client_id", client_id)];
-    if !scope.is_empty() {
-        form.push(("scope", scope));
-    }
-
-    let resp = client
-        .post(device_url)
-        .header("Accept", "application/json")
-        .form(&form)
-        .send()
-        .await
-        .context("failed to request device code")?;
-
-    let body: serde_json::Value = resp.json().await.context("invalid device code response")?;
-
-    let user_code = body
-        .get("user_code")
-        .and_then(|v| v.as_str())
-        .context("missing user_code in response")?;
-    let verification_uri = body
-        .get("verification_uri")
-        .or_else(|| body.get("verification_url"))
-        .and_then(|v| v.as_str())
-        .context("missing verification_uri in response")?;
-    let device_code = body
-        .get("device_code")
-        .and_then(|v| v.as_str())
-        .context("missing device_code in response")?;
-    let interval = body.get("interval").and_then(|v| v.as_u64()).unwrap_or(5);
-
-    println!();
-    println!("  Open: {verification_uri}");
-    println!("  Enter code: {user_code}");
-    println!();
-    println!("Waiting for authorization...");
-
-    let _ = open_browser(verification_uri);
-
-    let token_resp = super::server::poll_device_code(
-        &client,
-        token_url,
-        device_code,
-        client_id,
-        interval,
-        grant_type,
-    )
-    .await?;
-
-    let token =
-        OAuthToken::from_token_response(&token_resp).context("failed to parse token response")?;
-
-    Ok(token)
-}
-
-/// Refresh device code token (public entry point for handler.rs)
-pub async fn refresh_device_code_pub(
-    provider: &OAuthProvider,
-    profile_name: &str,
-) -> Result<OAuthToken> {
-    let token = super::token::load_token(profile_name).context("no existing token to refresh")?;
-    let refresh_token = token
-        .refresh_token
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("no refresh_token available, please re-login"))?;
-
-    let (token_url, client_id) = match provider {
-        OAuthProvider::Github => (
-            "https://github.com/login/oauth/access_token",
-            GITHUB_CLIENT_ID,
-        ),
-        OAuthProvider::Qwen => ("https://chat.qwen.ai/api/oauth/token", QWEN_CLIENT_ID),
-        _ => anyhow::bail!("device code refresh not supported for {:?}", provider),
-    };
-
-    let client = reqwest::Client::new();
-    let resp =
-        super::server::refresh_access_token(&client, token_url, refresh_token, client_id).await?;
-
-    let mut new_token =
-        OAuthToken::from_token_response(&resp).context("failed to parse refreshed token")?;
-
-    if new_token.refresh_token.is_none() {
-        new_token.refresh_token = token.refresh_token;
-    }
-
-    Ok(new_token)
-}
-
-/// Refresh OpenAI token (public entry point for handler.rs)
-pub async fn refresh_openai_token_pub(
-    refresh_token: &str,
-    original_refresh_token: Option<String>,
-) -> Result<OAuthToken> {
-    refresh_openai_token(refresh_token, original_refresh_token).await
+    super::exchange::refresh_chatgpt_token(&client, refresh_token).await
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────

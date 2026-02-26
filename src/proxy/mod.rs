@@ -29,6 +29,7 @@ pub struct ProxyState {
     pub circuit_breakers: fallback::CircuitBreakerMap,
     pub shared_context: SharedContext,
     pub rag_index: Option<RagIndex>,
+    pub token_manager: crate::oauth::manager::TokenManager,
 }
 
 /// 获取 proxy 日志文件路径（~/.cache/claudex/proxy-{timestamp}-{pid}.log）

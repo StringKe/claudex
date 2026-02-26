@@ -1,0 +1,102 @@
+---
+title: 翻訳プロキシ
+description: Anthropic から OpenAI へのプロトコル自動変換
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+翻訳プロキシは Claudex の中核です。Claude Code と AI プロバイダーの間に位置し、Anthropic Messages API と OpenAI Chat Completions API 間を透過的に変換します。
+
+## 仕組み
+
+```
+Claude Code → Anthropic Messages API リクエスト
+    │
+    └── Claudex プロキシ (127.0.0.1:13456)
+        │
+        ├── DirectAnthropic プロバイダー → ヘッダー付きで転送
+        │
+        ├── OpenAICompatible プロバイダー
+        │   ├── リクエスト変換: Anthropic → OpenAI Chat Completions
+        │   ├── プロバイダーへ転送
+        │   └── レスポンス変換: OpenAI → Anthropic
+        │
+        └── OpenAIResponses プロバイダー
+            ├── リクエスト変換: Anthropic → OpenAI Responses API
+            ├── プロバイダーへ転送
+            └── レスポンス変換: Responses → Anthropic
+```
+
+## 変換される内容
+
+### リクエスト変換 (Anthropic → OpenAI)
+
+| Anthropic | OpenAI |
+|-----------|--------|
+| `system` フィールド | `messages` 配列内のシステムメッセージ |
+| `messages[].content` ブロック (text、image、tool_use) | `messages[].content` + `tool_calls` |
+| `tools` 配列 (JSON Schema) | `tools` 配列 (function 形式) |
+| `tool_choice` | `tool_choice` |
+| `max_tokens` | `max_tokens` |
+| `temperature`、`top_p` | 直接マッピング |
+
+### レスポンス変換 (OpenAI → Anthropic)
+
+| OpenAI | Anthropic |
+|--------|-----------|
+| `choices[0].message.content` | `content` ブロック |
+| `choices[0].message.tool_calls` | `tool_use` コンテントブロック |
+| `finish_reason: stop` | `stop_reason: end_turn` |
+| `finish_reason: tool_calls` | `stop_reason: tool_use` |
+| `usage.prompt_tokens` / `completion_tokens` | `usage.input_tokens` / `output_tokens` |
+
+## ストリーミング変換
+
+Claudex は SSE (Server-Sent Events) ストリーミングを完全にサポートし、OpenAI のストリームチャンクをリアルタイムで Anthropic のストリームイベントに変換します:
+
+| OpenAI SSE | Anthropic SSE |
+|------------|---------------|
+| 最初のチャンク | `message_start` + `content_block_start` |
+| `choices[0].delta.content` | `content_block_delta` (text_delta) |
+| `choices[0].delta.tool_calls` | `content_block_delta` (input_json_delta) |
+| `finish_reason` あり | `content_block_stop` + `message_delta` + `message_stop` |
+
+ストリーミング変換機能はステートマシンを維持し、ツールコールの蓄積とコンテントブロックの境界を適切に処理します。
+
+## 対応プロバイダー
+
+| プロバイダー | タイプ | ベース URL |
+|------------|--------|-----------|
+| Anthropic | DirectAnthropic | `https://api.anthropic.com` |
+| MiniMax | DirectAnthropic | `https://api.minimax.io/anthropic` |
+| OpenRouter | OpenAICompatible | `https://openrouter.ai/api/v1` |
+| Grok (xAI) | OpenAICompatible | `https://api.x.ai/v1` |
+| OpenAI | OpenAICompatible | `https://api.openai.com/v1` |
+| DeepSeek | OpenAICompatible | `https://api.deepseek.com` |
+| Kimi/Moonshot | OpenAICompatible | `https://api.moonshot.cn/v1` |
+| GLM (Zhipu) | OpenAICompatible | `https://open.bigmodel.cn/api/paas/v4` |
+| Ollama | OpenAICompatible | `http://localhost:11434/v1` |
+| vLLM | OpenAICompatible | `http://localhost:8000/v1` |
+| ChatGPT/Codex サブスクリプション | OpenAIResponses | `https://chatgpt.com/backend-api/codex` |
+
+<Aside type="tip">
+  DirectAnthropic プロバイダーは変換を必要としません。OpenAIResponses プロバイダーは Chat Completions (`/chat/completions`) ではなく Responses API (`/responses` エンドポイント) を使用します。
+</Aside>
+
+## プロキシ管理
+
+```bash
+# プロキシをデーモンとして起動
+claudex proxy start -d
+
+# プロキシの状態を確認
+claudex proxy status
+
+# プロキシデーモンを停止
+claudex proxy stop
+
+# カスタムポートで起動
+claudex proxy start -p 8080
+```
+
+`claudex run <profile>` を実行すると、プロキシがまだ実行されていない場合はバックグラウンドで自動的に起動されます。

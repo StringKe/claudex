@@ -1,0 +1,65 @@
+---
+title: 설치
+description: 시스템에 Claudex를 설치하는 방법
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+## 설치 방법
+
+<Tabs>
+  <TabItem label="원라이너" icon="terminal">
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/StringKe/claudex/main/install.sh | bash
+    ```
+    설치 스크립트가 OS와 아키텍처를 자동으로 감지하고, GitHub에서 최신 릴리스를 다운로드하여 `~/.local/bin/claudex`에 설치합니다.
+
+    설치 디렉토리 변경:
+    ```bash
+    CLAUDEX_INSTALL_DIR=/usr/local/bin curl -fsSL https://raw.githubusercontent.com/StringKe/claudex/main/install.sh | bash
+    ```
+  </TabItem>
+  <TabItem label="Cargo" icon="seti:rust">
+    ```bash
+    cargo install --git https://github.com/StringKe/claudex
+    ```
+    Rust 툴체인이 필요합니다. 바이너리는 `~/.cargo/bin/claudex`에 설치됩니다.
+  </TabItem>
+  <TabItem label="GitHub Releases" icon="github">
+    [GitHub Releases](https://github.com/StringKe/claudex/releases)에서 플랫폼에 맞는 사전 빌드 바이너리를 다운로드하세요.
+
+    사용 가능한 빌드 타겟:
+    - `x86_64-unknown-linux-gnu`
+    - `x86_64-unknown-linux-musl`
+    - `aarch64-unknown-linux-gnu`
+    - `aarch64-unknown-linux-musl`
+    - `x86_64-apple-darwin`
+    - `aarch64-apple-darwin`
+    - `x86_64-pc-windows-msvc`
+
+    바이너리를 압축 해제하고 `PATH`에 배치:
+    ```bash
+    tar xzf claudex-v*.tar.gz
+    chmod +x claudex
+    mv claudex ~/.local/bin/
+    ```
+  </TabItem>
+</Tabs>
+
+## 시스템 요구 사항
+
+| 요구 사항 | 상세 내용 |
+|-----------|---------|
+| **OS** | macOS (Intel / Apple Silicon), Linux (x86_64 / ARM64), Windows (x86_64) |
+| **Claude Code** | `claude` 명령으로 PATH에서 접근 가능하게 설치되어 있어야 함 |
+| **선택 사항** | 스마트 라우팅 및 컨텍스트 엔진 기능을 위한 [Ollama](https://ollama.com) |
+
+## 설치 확인
+
+```bash
+claudex --version
+```
+
+## 다음 단계
+
+설치 후 [첫 번째 제공자 프로파일을 설정](/ko/configuration/)하세요.

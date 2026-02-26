@@ -1,0 +1,58 @@
+---
+title: Intelligentes Routing
+description: Absichtsbasiertes automatisches Anbieter-Routing
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Das intelligente Routing wählt für jede Anfrage automatisch den besten Anbieter anhand der Absichtsklassifikation aus. Mit `claudex run auto` aktivieren.
+
+## Funktionsweise
+
+1. Benutzer führt `claudex run auto` aus
+2. Claude Code sendet eine Anfrage an den Proxy
+3. Der Proxy extrahiert die Nachricht des Benutzers und sendet sie an einen lokalen Klassifikator (z. B. Ollama)
+4. Der Klassifikator gibt eine Absichtskategorie zurück (code, analysis, creative, search, math)
+5. Die Routing-Regeln ordnen die Absicht dem optimalen Anbieterprofil zu
+6. Die Anfrage wird an den ausgewählten Anbieter weitergeleitet
+
+## Konfiguration
+
+```toml
+[router]
+enabled = true
+profile = "local-qwen"      # base_url + api_key eines Profils wiederverwenden
+model = "qwen2.5:3b"        # Modell überschreiben (optional, Standard ist default_model des Profils)
+
+[router.rules]
+code = "deepseek"       # Programmieraufgaben → DeepSeek
+analysis = "grok"       # Analyseaufgaben → Grok
+creative = "chatgpt"    # Kreatives Schreiben → ChatGPT
+search = "kimi"         # Suche/Recherche → Kimi
+math = "deepseek"       # Mathematik/Logik → DeepSeek
+default = "grok"        # Fallback für nicht klassifizierte Anfragen
+```
+
+## Absichtskategorien
+
+| Absicht | Beschreibung | Beispielaufgaben |
+|--------|-------------|---------------|
+| `code` | Programmierung und Code-Generierung | Funktion schreiben, Fehler beheben, Code refaktorieren |
+| `analysis` | Datenanalyse und Schlussfolgern | Logs analysieren, Ansätze vergleichen, Konzepte erklären |
+| `creative` | Kreatives Schreiben und Ideenfindung | Dokumentation schreiben, Namen brainstormen, E-Mails verfassen |
+| `search` | Informationsabruf | API-Dokumentation suchen, Fehlercodes nachschlagen |
+| `math` | Mathematische und logische Aufgaben | Komplexität berechnen, Korrektheit beweisen |
+
+<Aside type="note">
+  Das intelligente Routing benötigt einen LLM-Dienst zur Absichtsklassifikation. Es verwendet `base_url` und `api_key` eines vorhandenen Profils wieder. Das Klassifikatormodell sollte klein und schnell sein — `qwen2.5:3b` funktioniert gut.
+</Aside>
+
+## Verwendung
+
+```bash
+# Mit intelligentem Routing ausführen
+claudex run auto
+
+# Modell auch beim Auto-Routing überschreiben
+claudex run auto -m grok-3-mini-beta
+```

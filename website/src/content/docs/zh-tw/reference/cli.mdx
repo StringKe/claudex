@@ -1,0 +1,215 @@
+---
+title: CLI 參考
+description: Claudex CLI 完整指令參考
+---
+
+## 全域用法
+
+```
+claudex [COMMAND]
+```
+
+不帶指令執行時，若已設定 profile，Claudex 會啟動 TUI 儀表板；若無 profile，則顯示歡迎訊息。
+
+## 指令
+
+### `run`
+
+以特定提供商 profile 執行 Claude Code。
+
+```bash
+claudex run <PROFILE> [PROMPT] [-m MODEL] [--print] [--dangerously-skip-permissions] [ARGS...]
+```
+
+| 引數 | 說明 |
+|------|------|
+| `PROFILE` | Profile 名稱，或 `auto` 以使用智慧路由 |
+| `PROMPT` | 選用的提示詞，用於非互動（一次性）執行 |
+| `-m, --model MODEL` | 覆寫此工作階段的預設模型 |
+| `--print` | 列印回應後退出（非互動模式） |
+| `--dangerously-skip-permissions` | 跳過所有權限提示（與 `--print` 搭配用於 CI/CD） |
+| `ARGS...` | 傳遞給 `claude` 的額外引數 |
+
+```bash
+# 使用 Grok（互動模式）
+claudex run grok
+
+# 使用 Grok 並指定特定模型
+claudex run grok -m grok-3-mini-beta
+
+# 智慧路由
+claudex run auto
+
+# 非互動一次性執行
+claudex run grok "Explain this codebase" --print
+
+# CI/CD 流水線使用（無提示、無權限）
+claudex run grok "Fix lint errors" --print --dangerously-skip-permissions
+
+# 傳遞額外引數給 claude
+claudex run grok -- --verbose
+```
+
+### `profile`
+
+管理提供商 profile。
+
+#### `profile list`
+
+```bash
+claudex profile list
+```
+
+列出所有已設定的 profile 及其狀態。
+
+#### `profile add`
+
+```bash
+claudex profile add
+```
+
+互動式精靈，用於新增 profile。引導完成提供商選擇、API 金鑰輸入（支援 keyring 儲存）、模型選擇和連線測試。
+
+#### `profile show`
+
+```bash
+claudex profile show <NAME>
+```
+
+顯示特定 profile 的詳細資訊。
+
+#### `profile remove`
+
+```bash
+claudex profile remove <NAME>
+```
+
+從設定中移除 profile。
+
+#### `profile test`
+
+```bash
+claudex profile test <NAME|all>
+```
+
+測試特定 profile 或所有 profile 的連線。
+
+### `auth`
+
+管理提供商 profile 的 OAuth 訂閱認證。
+
+#### `auth login`
+
+```bash
+claudex auth login <PROVIDER>
+```
+
+使用 OAuth 登入提供商。支援的提供商：`claude`、`openai`、`google`、`qwen`、`kimi`、`github`。
+
+對於 **OpenAI**，Claudex 從 Codex CLI 設定（`~/.codex/auth.json`）讀取 token。對於 **Claude**，從 `~/.claude` 讀取。其他提供商使用本地回呼伺服器或裝置碼流程。
+
+```bash
+# 登入 OpenAI（從 Codex CLI 讀取）
+claudex auth login openai
+
+# 登入 Claude（從 ~/.claude 讀取）
+claudex auth login claude
+
+# 登入 Google
+claudex auth login google
+```
+
+#### `auth status`
+
+```bash
+claudex auth status [PROVIDER]
+```
+
+顯示目前的認證狀態。不指定提供商時，顯示所有已設定 OAuth profile 的狀態。
+
+```bash
+# 檢查所有 OAuth profile
+claudex auth status
+
+# 檢查特定提供商
+claudex auth status openai
+```
+
+#### `auth refresh`
+
+```bash
+claudex auth refresh <PROVIDER>
+```
+
+手動刷新提供商的 OAuth token。代理也會在 token 過期時自動刷新。
+
+#### `auth logout`
+
+```bash
+claudex auth logout <PROVIDER>
+```
+
+移除提供商的已儲存 OAuth token。
+
+### `proxy`
+
+管理翻譯代理伺服器。
+
+#### `proxy start`
+
+```bash
+claudex proxy start [-p PORT] [-d]
+```
+
+| 旗標 | 說明 |
+|------|------|
+| `-p, --port PORT` | 覆寫代理埠（預設：來自設定） |
+| `-d, --daemon` | 以背景程式執行 |
+
+#### `proxy stop`
+
+```bash
+claudex proxy stop
+```
+
+停止代理背景程式（傳送 SIGTERM）。
+
+#### `proxy status`
+
+```bash
+claudex proxy status
+```
+
+顯示代理是否正在執行及使用的埠。
+
+### `dashboard`
+
+```bash
+claudex dashboard
+```
+
+啟動 TUI 儀表板進行即時監控和快速啟動。
+
+### `config`
+
+```bash
+claudex config [--init]
+```
+
+| 旗標 | 說明 |
+|------|------|
+| `--init` | 在目前目錄建立新的設定檔 |
+
+不帶 `--init` 時，顯示載入的設定檔路徑和搜尋順序。
+
+### `update`
+
+```bash
+claudex update [--check]
+```
+
+| 旗標 | 說明 |
+|------|------|
+| `--check` | 僅檢查更新，不安裝 |
+
+不帶 `--check` 時，下載並安裝最新版本。

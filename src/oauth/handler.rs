@@ -3,37 +3,28 @@ use anyhow::Result;
 use super::{OAuthProvider, OAuthToken};
 
 /// Trait abstracting per-provider OAuth operations.
-///
-/// Each provider implements login (obtain initial token) and refresh
-/// (re-validate or refresh an expired token). The trait uses dynamic
-/// dispatch so providers can be selected at runtime.
 pub trait OAuthProviderHandler: Send + Sync {
-    /// Which provider this handler serves.
     fn provider(&self) -> OAuthProvider;
 
-    /// Obtain an initial OAuth token (interactive: may open browser, read CLI files, etc.)
     fn login(
         &self,
         profile_name: &str,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<OAuthToken>> + Send + '_>>;
 
-    /// Refresh an existing token. Returns the new token.
     fn refresh(
         &self,
         profile_name: &str,
         token: &OAuthToken,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<OAuthToken>> + Send + '_>>;
 
-    /// Read token from external CLI files (non-interactive).
-    /// Falls back to keyring if no external CLI is available.
     fn read_external_token(&self) -> Result<OAuthToken>;
 }
 
 /// Factory: get the handler for a given provider.
 pub fn for_provider(provider: &OAuthProvider) -> Box<dyn OAuthProviderHandler> {
-    match provider {
+    match provider.normalize() {
         OAuthProvider::Claude => Box::new(ClaudeHandler),
-        OAuthProvider::Openai => Box::new(OpenaiHandler),
+        OAuthProvider::Chatgpt | OAuthProvider::Openai => Box::new(ChatgptHandler),
         OAuthProvider::Google => Box::new(ExternalCliHandler {
             provider: OAuthProvider::Google,
         }),
@@ -43,13 +34,11 @@ pub fn for_provider(provider: &OAuthProvider) -> Box<dyn OAuthProviderHandler> {
         OAuthProvider::Qwen => Box::new(DeviceCodeHandler {
             provider: OAuthProvider::Qwen,
         }),
-        OAuthProvider::Github => Box::new(DeviceCodeHandler {
-            provider: OAuthProvider::Github,
-        }),
+        OAuthProvider::Github => Box::new(GithubHandler),
     }
 }
 
-// ── Claude: read ~/.claude/.credentials.json ──
+// ── Claude ──
 
 struct ClaudeHandler;
 
@@ -63,11 +52,8 @@ impl OAuthProviderHandler for ClaudeHandler {
         _profile_name: &str,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<OAuthToken>> + Send + '_>> {
         Box::pin(async {
-            println!("Reading Claude credentials from ~/.claude/.credentials.json...");
-            let token = super::token::read_claude_credentials()
-                .map_err(|e| anyhow::anyhow!("Failed to read Claude credentials: {e}"))?;
-            println!("Note: Claude subscription profiles bypass the proxy (Claude Code uses its own OAuth).");
-            Ok(token)
+            let cred = super::source::read_claude_credentials()?;
+            Ok(cred.into_oauth_token())
         })
     }
 
@@ -77,57 +63,32 @@ impl OAuthProviderHandler for ClaudeHandler {
         _token: &OAuthToken,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<OAuthToken>> + Send + '_>> {
         Box::pin(async {
-            let token = super::token::read_claude_credentials()?;
-            println!("Refreshed Claude token from ~/.claude/.credentials.json");
-            Ok(token)
+            let cred = super::source::read_claude_credentials()?;
+            Ok(cred.into_oauth_token())
         })
     }
 
     fn read_external_token(&self) -> Result<OAuthToken> {
-        super::token::read_claude_credentials()
+        super::source::read_claude_credentials().map(|c| c.into_oauth_token())
     }
 }
 
-// ── OpenAI: read Codex CLI + refresh_token ──
+// ── ChatGPT (was OpenAI) ──
 
-struct OpenaiHandler;
+struct ChatgptHandler;
 
-impl OAuthProviderHandler for OpenaiHandler {
+impl OAuthProviderHandler for ChatgptHandler {
     fn provider(&self) -> OAuthProvider {
-        OAuthProvider::Openai
+        OAuthProvider::Chatgpt
     }
 
     fn login(
         &self,
-        profile_name: &str,
+        _profile_name: &str,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<OAuthToken>> + Send + '_>> {
-        let profile_name = profile_name.to_string();
-        Box::pin(async move {
-            match super::token::read_codex_credentials() {
-                Ok(token) => {
-                    let auth_mode = token
-                        .extra
-                        .as_ref()
-                        .and_then(|e| e.get("auth_mode"))
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("unknown");
-                    println!("Found Codex CLI credentials (auth_mode: {auth_mode})");
-                    println!("Token will be refreshed automatically from ~/.codex/auth.json");
-                    Ok(token)
-                }
-                Err(_) => {
-                    println!("No Codex CLI credentials found at ~/.codex/auth.json");
-                    println!();
-                    println!("To use your ChatGPT subscription with Claudex:");
-                    println!("  1. Install Codex CLI: npm install -g @openai/codex");
-                    println!("  2. Login: codex --login");
-                    println!(
-                        "  3. Re-run: claudex auth login openai --profile {}",
-                        profile_name
-                    );
-                    anyhow::bail!("no OpenAI credentials available")
-                }
-            }
+        Box::pin(async {
+            let cred = super::source::read_codex_credentials()?;
+            Ok(cred.into_oauth_token())
         })
     }
 
@@ -138,18 +99,15 @@ impl OAuthProviderHandler for OpenaiHandler {
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<OAuthToken>> + Send + '_>> {
         let refresh_tok = token.refresh_token.clone();
         Box::pin(async move {
-            let refresh_tok = refresh_tok.ok_or_else(|| {
-                anyhow::anyhow!(
-                    "no refresh_token in Codex credentials, please re-login with `codex --login`"
-                )
-            })?;
-            super::providers::refresh_openai_token_pub(&refresh_tok, Some(refresh_tok.clone()))
-                .await
+            let refresh_tok = refresh_tok
+                .ok_or_else(|| anyhow::anyhow!("no refresh_token, please re-login"))?;
+            let client = reqwest::Client::new();
+            super::exchange::refresh_chatgpt_token(&client, &refresh_tok).await
         })
     }
 
     fn read_external_token(&self) -> Result<OAuthToken> {
-        super::token::read_external_token(&OAuthProvider::Openai)
+        super::source::read_codex_credentials().map(|c| c.into_oauth_token())
     }
 }
 
@@ -170,12 +128,8 @@ impl OAuthProviderHandler for ExternalCliHandler {
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<OAuthToken>> + Send + '_>> {
         let provider = self.provider.clone();
         Box::pin(async move {
-            println!(
-                "Reading {} credentials from external CLI...",
-                provider.display_name()
-            );
-            let token = super::token::read_external_token(&provider)?;
-            Ok(token)
+            let cred = super::source::load_credential_chain(&provider)?;
+            Ok(cred.into_oauth_token())
         })
     }
 
@@ -186,21 +140,72 @@ impl OAuthProviderHandler for ExternalCliHandler {
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<OAuthToken>> + Send + '_>> {
         let provider = self.provider.clone();
         Box::pin(async move {
-            let token = super::token::read_external_token(&provider)?;
-            println!(
-                "Refreshed {} token from external CLI",
-                provider.display_name()
-            );
-            Ok(token)
+            let cred = super::source::load_credential_chain(&provider)?;
+            Ok(cred.into_oauth_token())
         })
     }
 
     fn read_external_token(&self) -> Result<OAuthToken> {
-        super::token::read_external_token(&self.provider)
+        super::source::load_credential_chain(&self.provider).map(|c| c.into_oauth_token())
     }
 }
 
-// ── Device Code: GitHub, Qwen ──
+// ── GitHub Copilot ──
+
+struct GithubHandler;
+
+impl OAuthProviderHandler for GithubHandler {
+    fn provider(&self) -> OAuthProvider {
+        OAuthProvider::Github
+    }
+
+    fn login(
+        &self,
+        _profile_name: &str,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<OAuthToken>> + Send + '_>> {
+        Box::pin(async {
+            let cred = super::source::load_credential_chain(&OAuthProvider::Github)?;
+            let client = reqwest::Client::new();
+            let copilot =
+                super::exchange::exchange_github_for_copilot(&client, &cred.access_token).await?;
+            Ok(OAuthToken {
+                access_token: copilot.token,
+                refresh_token: None,
+                expires_at: Some(copilot.expires_at * 1000),
+                token_type: Some("Bearer".to_string()),
+                scopes: None,
+                extra: Some(serde_json::json!({"provider": "copilot"})),
+            })
+        })
+    }
+
+    fn refresh(
+        &self,
+        _profile_name: &str,
+        _token: &OAuthToken,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<OAuthToken>> + Send + '_>> {
+        Box::pin(async {
+            let cred = super::source::load_credential_chain(&OAuthProvider::Github)?;
+            let client = reqwest::Client::new();
+            let copilot =
+                super::exchange::exchange_github_for_copilot(&client, &cred.access_token).await?;
+            Ok(OAuthToken {
+                access_token: copilot.token,
+                refresh_token: None,
+                expires_at: Some(copilot.expires_at * 1000),
+                token_type: Some("Bearer".to_string()),
+                scopes: None,
+                extra: Some(serde_json::json!({"provider": "copilot"})),
+            })
+        })
+    }
+
+    fn read_external_token(&self) -> Result<OAuthToken> {
+        super::source::read_copilot_config().map(|c| c.into_oauth_token())
+    }
+}
+
+// ── Device Code: Qwen ──
 
 struct DeviceCodeHandler {
     provider: OAuthProvider,
@@ -217,9 +222,11 @@ impl OAuthProviderHandler for DeviceCodeHandler {
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<OAuthToken>> + Send + '_>> {
         let provider = self.provider.clone();
         Box::pin(async move {
-            // Device code login is handled by providers::login_device_code
-            // which requires interactive I/O. Delegate to the existing impl.
-            super::providers::login_device_code_pub(&provider).await
+            // Qwen device code login requires interactive I/O
+            anyhow::bail!(
+                "use `claudex auth login {}` for interactive device code flow",
+                provider.display_name().to_lowercase()
+            )
         })
     }
 
@@ -228,15 +235,32 @@ impl OAuthProviderHandler for DeviceCodeHandler {
         profile_name: &str,
         _token: &OAuthToken,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<OAuthToken>> + Send + '_>> {
-        let provider = self.provider.clone();
         let profile_name = profile_name.to_string();
         Box::pin(async move {
-            super::providers::refresh_device_code_pub(&provider, &profile_name).await
+            let token = super::source::load_keyring(&profile_name)?;
+            let refresh_token = token
+                .refresh_token
+                .as_ref()
+                .ok_or_else(|| anyhow::anyhow!("no refresh_token, please re-login"))?;
+            let client = reqwest::Client::new();
+            let resp = super::server::refresh_access_token(
+                &client,
+                "https://chat.qwen.ai/api/oauth/token",
+                refresh_token,
+                "claudex-qwen",
+            )
+            .await?;
+            let mut new_token = OAuthToken::from_token_response(&resp)
+                .ok_or_else(|| anyhow::anyhow!("failed to parse refreshed token"))?;
+            if new_token.refresh_token.is_none() {
+                new_token.refresh_token = token.refresh_token;
+            }
+            Ok(new_token)
         })
     }
 
     fn read_external_token(&self) -> Result<OAuthToken> {
-        super::token::read_external_token(&self.provider)
+        anyhow::bail!("Qwen has no external CLI credentials")
     }
 }
 
@@ -246,29 +270,21 @@ mod tests {
 
     #[test]
     fn test_factory_returns_correct_provider() {
-        let handler = for_provider(&OAuthProvider::Claude);
-        assert_eq!(handler.provider(), OAuthProvider::Claude);
-
-        let handler = for_provider(&OAuthProvider::Openai);
-        assert_eq!(handler.provider(), OAuthProvider::Openai);
-
-        let handler = for_provider(&OAuthProvider::Google);
-        assert_eq!(handler.provider(), OAuthProvider::Google);
-
-        let handler = for_provider(&OAuthProvider::Qwen);
-        assert_eq!(handler.provider(), OAuthProvider::Qwen);
-
-        let handler = for_provider(&OAuthProvider::Kimi);
-        assert_eq!(handler.provider(), OAuthProvider::Kimi);
-
-        let handler = for_provider(&OAuthProvider::Github);
-        assert_eq!(handler.provider(), OAuthProvider::Github);
+        assert_eq!(for_provider(&OAuthProvider::Claude).provider(), OAuthProvider::Claude);
+        assert_eq!(for_provider(&OAuthProvider::Chatgpt).provider(), OAuthProvider::Chatgpt);
+        // Openai normalizes to Chatgpt handler
+        assert_eq!(for_provider(&OAuthProvider::Openai).provider(), OAuthProvider::Chatgpt);
+        assert_eq!(for_provider(&OAuthProvider::Google).provider(), OAuthProvider::Google);
+        assert_eq!(for_provider(&OAuthProvider::Qwen).provider(), OAuthProvider::Qwen);
+        assert_eq!(for_provider(&OAuthProvider::Kimi).provider(), OAuthProvider::Kimi);
+        assert_eq!(for_provider(&OAuthProvider::Github).provider(), OAuthProvider::Github);
     }
 
     #[test]
     fn test_all_providers_have_handler() {
         let providers = [
             OAuthProvider::Claude,
+            OAuthProvider::Chatgpt,
             OAuthProvider::Openai,
             OAuthProvider::Google,
             OAuthProvider::Qwen,
@@ -276,8 +292,7 @@ mod tests {
             OAuthProvider::Github,
         ];
         for p in &providers {
-            let handler = for_provider(p);
-            assert_eq!(&handler.provider(), p);
+            let _handler = for_provider(p);
         }
     }
 }

@@ -1,0 +1,63 @@
+---
+title: Circuit Breaker e Failover
+description: Rilevamento automatico dei guasti e failover del provider
+---
+
+Claudex include un circuit breaker integrato per ogni profilo provider, con failover automatico verso provider di backup quando vengono rilevati guasti.
+
+## Stati del Circuit Breaker
+
+```
+         successo
+    ┌──────────────┐
+    │              │
+    ▼    guasto    │
+ Chiuso ────────► Aperto
+    ▲              │
+    │   timeout    │
+    │   scaduto    ▼
+    └─────────── SemiAperto
+                   │
+                guasto → torna ad Aperto
+```
+
+| Stato | Comportamento |
+|-------|--------------|
+| **Chiuso** | Funzionamento normale. Le richieste passano. I guasti vengono contati. |
+| **Aperto** | Le richieste vengono bloccate. Attiva il failover verso i provider di backup. |
+| **SemiAperto** | Dopo il timeout di recupero, viene consentita una richiesta sonda. Successo → Chiuso; Guasto → torna ad Aperto. |
+
+## Parametri Predefiniti
+
+| Parametro | Valore |
+|-----------|--------|
+| Soglia di guasto | 3 guasti consecutivi |
+| Timeout di recupero | 30 secondi |
+
+## Configurazione del Failover
+
+Definisci provider di backup nel tuo profilo per abilitare il failover automatico:
+
+```toml
+[[profiles]]
+name = "grok"
+provider_type = "OpenAICompatible"
+base_url = "https://api.x.ai/v1"
+api_key = "xai-..."
+default_model = "grok-3-beta"
+backup_providers = ["deepseek", "chatgpt"]   # catena di failover
+```
+
+Quando `grok` fallisce 3 volte di seguito:
+1. Il circuit breaker si apre per `grok`
+2. La richiesta viene riprovata con `deepseek`
+3. Se anche `deepseek` fallisce, si prova `chatgpt`
+4. Ogni provider di backup ha il proprio circuit breaker indipendente
+
+## Verifica dello Stato
+
+Un controllo dello stato in background viene eseguito ogni ~30 secondi, inviando richieste sonda leggere a tutti i profili abilitati. Lo stato viene visualizzato nella dashboard TUI con codifica a colori:
+
+- Verde: sano
+- Giallo: degradato (guasti recenti)
+- Rosso: circuit breaker aperto

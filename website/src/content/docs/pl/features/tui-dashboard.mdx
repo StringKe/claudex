@@ -1,0 +1,52 @@
+---
+title: Pulpit TUI
+description: Terminalowy pulpit czasu rzeczywistego do monitorowania i zarządzania profilami
+---
+
+Pulpit TUI zapewnia terminalowy interfejs czasu rzeczywistego do monitorowania kondycji profili, przeglądania metryk i szybkiego uruchamiania sesji Claude Code.
+
+## Uruchomienie
+
+```bash
+# Jawne uruchomienie
+claudex dashboard
+
+# Automatyczne uruchomienie (gdy profile istnieją i nie podano podpolecenia)
+claudex
+```
+
+## Skróty klawiaturowe
+
+| Klawisz | Akcja |
+|---------|-------|
+| `j` / `↓` | Przesuń zaznaczenie w dół |
+| `k` / `↑` | Przesuń zaznaczenie w górę |
+| `Enter` | Uruchom Claude Code z wybranym profilem |
+| `t` | Przetestuj łączność dla wybranego profilu |
+| `a` | Dodaj nowy profil (pokazuje podpowiedź) |
+| `d` | Usuń wybrany profil (pokazuje podpowiedź) |
+| `p` | Przełącz uruchomienie/zatrzymanie proxy |
+| `/` | Wejdź w tryb wyszukiwania |
+| `Esc` | Wyjdź z trybu wyszukiwania / zamknij pomoc |
+| `?` | Pokaż wyskakujące okno pomocy |
+| `q` / `Ctrl+C` | Zamknij pulpit |
+
+## Układ pulpitu
+
+Pulpit wyświetla:
+
+- **Lista profili** — Wszystkie skonfigurowane profile z nazwą, modelem, typem dostawcy i statusem kondycji
+- **Wskaźniki kondycji** — Status kodowany kolorami (zielony = zdrowy, żółty = zdegradowany, czerwony = wyłącznik automatyczny otwarty)
+- **Panel metryk** — Liczba żądań per profil, wskaźnik sukcesu, średnie opóźnienie
+- **Panel logów** — Wyjście logów przewijane w czasie rzeczywistym
+
+## Status kondycji
+
+Pulpit uruchamia sprawdzanie kondycji w tle, które pinguje wszystkie aktywne profile co ~30 sekund. Status kondycji jest odzwierciedlany w czasie rzeczywistym:
+
+| Kolor | Znaczenie |
+|-------|-----------|
+| Zielony | Dostawca odpowiada normalnie |
+| Żółty | Wykryto ostatnie awarie |
+| Czerwony | Wyłącznik automatyczny jest otwarty |
+| Szary | Profil jest wyłączony |

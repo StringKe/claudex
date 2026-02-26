@@ -1,0 +1,102 @@
+---
+title: 번역 프록시
+description: Anthropic-to-OpenAI 프로토콜 자동 변환
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+번역 프록시는 Claudex의 핵심입니다. Claude Code와 AI 제공자 사이에 위치하여, Anthropic Messages API와 OpenAI Chat Completions API 간을 투명하게 변환합니다.
+
+## 작동 방식
+
+```
+Claude Code → Anthropic Messages API 요청
+    │
+    └── Claudex 프록시 (127.0.0.1:13456)
+        │
+        ├── DirectAnthropic 제공자 → 헤더와 함께 전달
+        │
+        ├── OpenAICompatible 제공자
+        │   ├── 요청 변환: Anthropic → OpenAI Chat Completions
+        │   ├── 제공자에 전달
+        │   └── 응답 변환: OpenAI → Anthropic
+        │
+        └── OpenAIResponses 제공자
+            ├── 요청 변환: Anthropic → OpenAI Responses API
+            ├── 제공자에 전달
+            └── 응답 변환: Responses → Anthropic
+```
+
+## 변환 대상
+
+### 요청 변환 (Anthropic → OpenAI)
+
+| Anthropic | OpenAI |
+|-----------|--------|
+| `system` 필드 | `messages` 배열의 시스템 메시지 |
+| `messages[].content` 블록 (text, image, tool_use) | `messages[].content` + `tool_calls` |
+| `tools` 배열 (JSON Schema) | `tools` 배열 (함수 형식) |
+| `tool_choice` | `tool_choice` |
+| `max_tokens` | `max_tokens` |
+| `temperature`, `top_p` | 직접 매핑 |
+
+### 응답 변환 (OpenAI → Anthropic)
+
+| OpenAI | Anthropic |
+|--------|-----------|
+| `choices[0].message.content` | `content` 블록 |
+| `choices[0].message.tool_calls` | `tool_use` 콘텐츠 블록 |
+| `finish_reason: stop` | `stop_reason: end_turn` |
+| `finish_reason: tool_calls` | `stop_reason: tool_use` |
+| `usage.prompt_tokens` / `completion_tokens` | `usage.input_tokens` / `output_tokens` |
+
+## 스트리밍 변환
+
+Claudex는 SSE(Server-Sent Events) 스트리밍을 완전히 지원하며, OpenAI 스트림 청크를 실시간으로 Anthropic 스트림 이벤트로 변환합니다:
+
+| OpenAI SSE | Anthropic SSE |
+|------------|---------------|
+| 첫 번째 청크 | `message_start` + `content_block_start` |
+| `choices[0].delta.content` | `content_block_delta` (text_delta) |
+| `choices[0].delta.tool_calls` | `content_block_delta` (input_json_delta) |
+| `finish_reason` 존재 | `content_block_stop` + `message_delta` + `message_stop` |
+
+스트리밍 변환기는 도구 호출 누적과 콘텐츠 블록 경계를 올바르게 처리하기 위해 상태 머신을 유지합니다.
+
+## 지원 제공자
+
+| 제공자 | 유형 | Base URL |
+|----------|------|----------|
+| Anthropic | DirectAnthropic | `https://api.anthropic.com` |
+| MiniMax | DirectAnthropic | `https://api.minimax.io/anthropic` |
+| OpenRouter | OpenAICompatible | `https://openrouter.ai/api/v1` |
+| Grok (xAI) | OpenAICompatible | `https://api.x.ai/v1` |
+| OpenAI | OpenAICompatible | `https://api.openai.com/v1` |
+| DeepSeek | OpenAICompatible | `https://api.deepseek.com` |
+| Kimi/Moonshot | OpenAICompatible | `https://api.moonshot.cn/v1` |
+| GLM (Zhipu) | OpenAICompatible | `https://open.bigmodel.cn/api/paas/v4` |
+| Ollama | OpenAICompatible | `http://localhost:11434/v1` |
+| vLLM | OpenAICompatible | `http://localhost:8000/v1` |
+| ChatGPT/Codex 구독 | OpenAIResponses | `https://chatgpt.com/backend-api/codex` |
+
+<Aside type="tip">
+  DirectAnthropic 제공자는 변환이 필요 없습니다. OpenAIResponses 제공자는 Chat Completions(`/chat/completions`) 대신 Responses API(`/responses` 엔드포인트)를 사용합니다.
+</Aside>
+
+## 프록시 관리
+
+```bash
+# 데몬으로 프록시 시작
+claudex proxy start -d
+
+# 프록시 상태 확인
+claudex proxy status
+
+# 프록시 데몬 중지
+claudex proxy stop
+
+# 커스텀 포트로 시작
+claudex proxy start -p 8080
+```
+
+`claudex run <profile>`을 실행하면 프록시가 실행 중이 아닌 경우 백그라운드에서 자동으로 시작됩니다.

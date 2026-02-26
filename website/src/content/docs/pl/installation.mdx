@@ -1,0 +1,65 @@
+---
+title: Instalacja
+description: Jak zainstalować Claudex w swoim systemie
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+## Metody instalacji
+
+<Tabs>
+  <TabItem label="Jedna linia" icon="terminal">
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/StringKe/claudex/main/install.sh | bash
+    ```
+    Skrypt instalacyjny automatycznie wykrywa system operacyjny i architekturę, pobiera najnowsze wydanie z GitHub i instaluje do `~/.local/bin/claudex`.
+
+    Zmień katalog instalacyjny:
+    ```bash
+    CLAUDEX_INSTALL_DIR=/usr/local/bin curl -fsSL https://raw.githubusercontent.com/StringKe/claudex/main/install.sh | bash
+    ```
+  </TabItem>
+  <TabItem label="Cargo" icon="seti:rust">
+    ```bash
+    cargo install --git https://github.com/StringKe/claudex
+    ```
+    Wymaga łańcucha narzędzi Rust. Plik binarny zostanie zainstalowany w `~/.cargo/bin/claudex`.
+  </TabItem>
+  <TabItem label="GitHub Releases" icon="github">
+    Pobierz prekompilowany plik binarny dla swojej platformy z [GitHub Releases](https://github.com/StringKe/claudex/releases).
+
+    Dostępne platformy docelowe:
+    - `x86_64-unknown-linux-gnu`
+    - `x86_64-unknown-linux-musl`
+    - `aarch64-unknown-linux-gnu`
+    - `aarch64-unknown-linux-musl`
+    - `x86_64-apple-darwin`
+    - `aarch64-apple-darwin`
+    - `x86_64-pc-windows-msvc`
+
+    Rozpakuj i umieść plik binarny w swojej zmiennej `PATH`:
+    ```bash
+    tar xzf claudex-v*.tar.gz
+    chmod +x claudex
+    mv claudex ~/.local/bin/
+    ```
+  </TabItem>
+</Tabs>
+
+## Wymagania systemowe
+
+| Wymaganie | Szczegóły |
+|-----------|-----------|
+| **System operacyjny** | macOS (Intel / Apple Silicon), Linux (x86_64 / ARM64), Windows (x86_64) |
+| **Claude Code** | Musi być zainstalowany i dostępny jako `claude` w zmiennej PATH |
+| **Opcjonalne** | [Ollama](https://ollama.com) dla funkcji inteligentnego trasowania i silnika kontekstu |
+
+## Weryfikacja instalacji
+
+```bash
+claudex --version
+```
+
+## Kolejne kroki
+
+Po instalacji [skonfiguruj swój pierwszy profil dostawcy](/pl/configuration/).

@@ -1,0 +1,63 @@
+---
+title: Circuit Breaker & Failover
+description: Automatische Fehlererkennung und Anbieter-Failover
+---
+
+Claudex enthält für jedes Anbieterprofil einen integrierten Circuit Breaker mit automatischem Failover zu Backup-Anbietern, wenn Fehler erkannt werden.
+
+## Circuit-Breaker-Zustände
+
+```
+         Erfolg
+    ┌──────────────┐
+    │              │
+    ▼    Fehler    │
+ Geschlossen ───► Offen
+    ▲              │
+    │   Timeout    │
+    │   abgelaufen ▼
+    └─────────── HalfOpen
+                   │
+                Fehler → zurück zu Offen
+```
+
+| Zustand | Verhalten |
+|-------|----------|
+| **Geschlossen** | Normalbetrieb. Anfragen werden durchgeleitet. Fehler werden gezählt. |
+| **Offen** | Anfragen werden blockiert. Löst Failover zu Backup-Anbietern aus. |
+| **HalfOpen** | Nach dem Wiederherstellungs-Timeout wird eine Testanfrage zugelassen. Erfolg → Geschlossen; Fehler → zurück zu Offen. |
+
+## Standardparameter
+
+| Parameter | Wert |
+|-----------|-------|
+| Fehlerschwellenwert | 3 aufeinanderfolgende Fehler |
+| Wiederherstellungs-Timeout | 30 Sekunden |
+
+## Failover-Konfiguration
+
+Backup-Anbieter im Profil definieren, um automatisches Failover zu aktivieren:
+
+```toml
+[[profiles]]
+name = "grok"
+provider_type = "OpenAICompatible"
+base_url = "https://api.x.ai/v1"
+api_key = "xai-..."
+default_model = "grok-3-beta"
+backup_providers = ["deepseek", "chatgpt"]   # Failover-Kette
+```
+
+Wenn `grok` 3 Mal nacheinander fehlschlägt:
+1. Circuit Breaker öffnet für `grok`
+2. Anfrage wird mit `deepseek` wiederholt
+3. Wenn `deepseek` ebenfalls fehlschlägt, `chatgpt` versuchen
+4. Jeder Backup-Anbieter hat seinen eigenen unabhängigen Circuit Breaker
+
+## Gesundheitsprüfung
+
+Ein Hintergrund-Gesundheitsprüfer läuft alle ~30 Sekunden und sendet leichte Testanfragen an alle aktivierten Profile. Der Gesundheitsstatus wird im TUI-Dashboard farbcodiert angezeigt:
+
+- Grün: gesund
+- Gelb: beeinträchtigt (kürzliche Fehler)
+- Rot: Circuit Breaker offen

@@ -1,0 +1,396 @@
+---
+title: 設定リファレンス
+description: Claudex のすべての設定オプションの完全なリファレンス
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## 設定ファイルの場所
+
+Claudex は以下の順序で設定ファイルを検索します:
+
+1. `$CLAUDEX_CONFIG` 環境変数
+2. `./claudex.toml` (カレントディレクトリ)
+3. `./.claudex/config.toml` (カレントディレクトリ)
+4. 親ディレクトリ (最大10階層)、両方のパターンを確認
+5. `~/.config/claudex/config.toml` (XDG — プラットフォーム固有のパスより**先に**確認)
+
+詳細は [設定](/ja/configuration/) を参照してください。
+
+## グローバル設定
+
+```toml
+# claude バイナリへのパス (デフォルト: PATH から "claude")
+claude_binary = "claude"
+
+# プロキシサーバーのバインドポート
+proxy_port = 13456
+
+# プロキシサーバーのバインドアドレス
+proxy_host = "127.0.0.1"
+
+# ログレベル: trace, debug, info, warn, error
+log_level = "info"
+```
+
+| フィールド | 型 | デフォルト | 説明 |
+|------------|-----|------------|------|
+| `claude_binary` | string | `"claude"` | Claude Code CLI バイナリへのパス |
+| `proxy_port` | integer | `13456` | 翻訳プロキシがリッスンするポート |
+| `proxy_host` | string | `"127.0.0.1"` | プロキシがバインドするアドレス |
+| `log_level` | string | `"info"` | 最小ログレベル |
+
+## モデルエイリアス
+
+モデル識別子の短縮名を定義します:
+
+```toml
+[model_aliases]
+grok3 = "grok-3-beta"
+gpt4o = "gpt-4o"
+ds3 = "deepseek-chat"
+claude = "claude-sonnet-4-20250514"
+```
+
+`-m` でエイリアスを使用します:
+
+```bash
+claudex run grok -m grok3
+```
+
+## プロファイル設定
+
+```toml
+[[profiles]]
+name = "grok"
+provider_type = "OpenAICompatible"
+base_url = "https://api.x.ai/v1"
+api_key = "xai-..."
+# api_key_keyring = "grok-api-key"
+default_model = "grok-3-beta"
+auth_type = "api-key"              # "api-key" (デフォルト) または "oauth"
+# oauth_provider = "openai"        # auth_type = "oauth" の場合に必須
+backup_providers = ["deepseek"]
+custom_headers = {}
+extra_env = {}
+priority = 100
+enabled = true
+
+# モデルスロットマッピング (任意)
+[profiles.models]
+haiku = "grok-3-mini-beta"
+sonnet = "grok-3-beta"
+opus = "grok-3-beta"
+```
+
+| フィールド | 型 | デフォルト | 説明 |
+|------------|-----|------------|------|
+| `name` | string | *必須* | ユニークなプロファイル識別子 |
+| `provider_type` | string | `"DirectAnthropic"` | `"DirectAnthropic"`、`"OpenAICompatible"`、または `"OpenAIResponses"` |
+| `base_url` | string | *必須* | プロバイダー API エンドポイント URL |
+| `api_key` | string | `""` | 平文の API キー |
+| `api_key_keyring` | string | — | OS キーチェーンのエントリ名 (`api_key` を上書き) |
+| `default_model` | string | *必須* | デフォルトで使用するモデル識別子 |
+| `auth_type` | string | `"api-key"` | 認証方法: `"api-key"` または `"oauth"` |
+| `oauth_provider` | string | — | OAuth プロバイダー名 (`auth_type = "oauth"` の場合に必須)。`claude`、`openai`、`google`、`qwen`、`kimi`、`github` のいずれか |
+| `backup_providers` | string[] | `[]` | フェイルオーバー用プロファイル名 (順番通りに試みる) |
+| `custom_headers` | map | `{}` | すべてのリクエストに送信する追加 HTTP ヘッダー |
+| `extra_env` | map | `{}` | Claude 起動時に設定する環境変数 |
+| `priority` | integer | `100` | スマートルーティングの優先度ウェイト (高いほど優先) |
+| `enabled` | boolean | `true` | このプロファイルが有効かどうか |
+
+### モデルスロットマッピング
+
+任意の `[profiles.models]` テーブルは Claude Code の `/model` スイッチャースロットをプロバイダー固有のモデル名にマッピングします。Claude Code 内でモデルを切り替えると (例: `/model opus`)、Claudex はリクエストをマッピングされたモデルに変換します。
+
+```toml
+[profiles.models]
+haiku = "grok-3-mini-beta"    # /model haiku をマッピング
+sonnet = "grok-3-beta"        # /model sonnet をマッピング
+opus = "grok-3-beta"          # /model opus をマッピング
+```
+
+| フィールド | 型 | 説明 |
+|------------|-----|------|
+| `haiku` | string | Claude Code が `haiku` を選択した際に使用するモデル |
+| `sonnet` | string | Claude Code が `sonnet` を選択した際に使用するモデル |
+| `opus` | string | Claude Code が `opus` を選択した際に使用するモデル |
+
+<Aside type="tip">
+  スロットが定義されていない場合、プロファイルの `default_model` がフォールバックとして使用されます。
+</Aside>
+
+### プロバイダー設定例
+
+```toml
+# Anthropic (DirectAnthropic — 変換なし)
+[[profiles]]
+name = "anthropic"
+provider_type = "DirectAnthropic"
+base_url = "https://api.anthropic.com"
+api_key = "sk-ant-..."
+default_model = "claude-sonnet-4-20250514"
+
+# MiniMax (DirectAnthropic — 変換なし)
+[[profiles]]
+name = "minimax"
+provider_type = "DirectAnthropic"
+base_url = "https://api.minimax.io/anthropic"
+api_key = "..."
+default_model = "claude-sonnet-4-20250514"
+backup_providers = ["anthropic"]
+
+# OpenRouter (OpenAICompatible — 変換が必要)
+[[profiles]]
+name = "openrouter"
+provider_type = "OpenAICompatible"
+base_url = "https://openrouter.ai/api/v1"
+api_key = "..."
+default_model = "anthropic/claude-sonnet-4"
+
+# Grok (OpenAICompatible — 変換が必要)
+[[profiles]]
+name = "grok"
+provider_type = "OpenAICompatible"
+base_url = "https://api.x.ai/v1"
+api_key = "xai-..."
+default_model = "grok-3-beta"
+backup_providers = ["deepseek"]
+
+# OpenAI (OpenAICompatible — 変換が必要)
+[[profiles]]
+name = "chatgpt"
+provider_type = "OpenAICompatible"
+base_url = "https://api.openai.com/v1"
+api_key = "sk-..."
+default_model = "gpt-4o"
+
+# DeepSeek (OpenAICompatible — 変換が必要)
+[[profiles]]
+name = "deepseek"
+provider_type = "OpenAICompatible"
+base_url = "https://api.deepseek.com"
+api_key = "..."
+default_model = "deepseek-chat"
+backup_providers = ["grok"]
+
+# Kimi / Moonshot (OpenAICompatible — 変換が必要)
+[[profiles]]
+name = "kimi"
+provider_type = "OpenAICompatible"
+base_url = "https://api.moonshot.cn/v1"
+api_key = "..."
+default_model = "moonshot-v1-128k"
+
+# GLM / 智谱 (OpenAICompatible — 変換が必要)
+[[profiles]]
+name = "glm"
+provider_type = "OpenAICompatible"
+base_url = "https://open.bigmodel.cn/api/paas/v4"
+api_key = "..."
+default_model = "glm-4-plus"
+
+# Ollama (ローカル、API キー不要)
+[[profiles]]
+name = "local-qwen"
+provider_type = "OpenAICompatible"
+base_url = "http://localhost:11434/v1"
+api_key = ""
+default_model = "qwen2.5:72b"
+enabled = false
+
+# vLLM / LM Studio (ローカル)
+[[profiles]]
+name = "local-llama"
+provider_type = "OpenAICompatible"
+base_url = "http://localhost:8000/v1"
+api_key = ""
+default_model = "llama-3.3-70b"
+enabled = false
+
+# ChatGPT/Codex サブスクリプション (OpenAIResponses — Responses API 変換)
+[[profiles]]
+name = "codex-sub"
+provider_type = "OpenAIResponses"
+base_url = "https://chatgpt.com/backend-api/codex"
+default_model = "gpt-4o"
+auth_type = "oauth"
+oauth_provider = "openai"
+```
+
+### OAuth プロファイル設定例
+
+```toml
+# OpenAI via OAuth (Codex CLI ~/.codex/auth.json からトークンを読み取り)
+[[profiles]]
+name = "chatgpt-oauth"
+provider_type = "OpenAICompatible"
+base_url = "https://api.openai.com/v1"
+default_model = "gpt-4o"
+auth_type = "oauth"
+oauth_provider = "openai"
+
+[profiles.models]
+haiku = "gpt-4o-mini"
+sonnet = "gpt-4o"
+opus = "o1"
+
+# Claude サブスクリプション (プロキシをスキップ、~/.claude のネイティブ OAuth を使用)
+[[profiles]]
+name = "claude-sub"
+provider_type = "DirectAnthropic"
+base_url = "https://api.anthropic.com"
+default_model = "claude-sonnet-4-20250514"
+auth_type = "oauth"
+oauth_provider = "claude"
+
+[profiles.models]
+haiku = "claude-haiku-4-20250514"
+sonnet = "claude-sonnet-4-20250514"
+opus = "claude-opus-4-20250514"
+
+# Google Gemini via OAuth
+[[profiles]]
+name = "gemini"
+provider_type = "OpenAICompatible"
+base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+default_model = "gemini-2.5-pro"
+auth_type = "oauth"
+oauth_provider = "google"
+
+# Kimi via OAuth
+[[profiles]]
+name = "kimi-oauth"
+provider_type = "OpenAICompatible"
+base_url = "https://api.moonshot.cn/v1"
+default_model = "moonshot-v1-128k"
+auth_type = "oauth"
+oauth_provider = "kimi"
+
+# Qwen via OAuth
+[[profiles]]
+name = "qwen-oauth"
+provider_type = "OpenAICompatible"
+base_url = "https://chat.qwenlm.ai/api/chat/v1"
+default_model = "qwen-max"
+auth_type = "oauth"
+oauth_provider = "qwen"
+
+# GitHub Copilot via OAuth
+[[profiles]]
+name = "github-copilot"
+provider_type = "OpenAICompatible"
+base_url = "https://api.githubcopilot.com"
+default_model = "gpt-4o"
+auth_type = "oauth"
+oauth_provider = "github"
+
+# ChatGPT/Codex サブスクリプション via OAuth (OpenAIResponses)
+[[profiles]]
+name = "codex-sub"
+provider_type = "OpenAIResponses"
+base_url = "https://chatgpt.com/backend-api/codex"
+default_model = "gpt-4o"
+auth_type = "oauth"
+oauth_provider = "openai"
+
+[profiles.models]
+haiku = "gpt-4o-mini"
+sonnet = "gpt-4o"
+opus = "o1-pro"
+```
+
+<Aside type="caution">
+  `claude` OAuth プロバイダーの場合、Claudex は特別なゲートウェイ認証モードを使用します: Claude Code 自身のサブスクリプションログインフローとの競合を避けるため、`ANTHROPIC_API_KEY` ではなく `ANTHROPIC_AUTH_TOKEN` を設定します。
+</Aside>
+
+## スマートルーター
+
+```toml
+[router]
+enabled = false
+profile = "local-qwen"    # プロファイルの base_url + api_key を再利用
+model = "qwen2.5:3b"      # モデルを上書き (任意)
+```
+
+| フィールド | 型 | デフォルト | 説明 |
+|------------|-----|------------|------|
+| `enabled` | boolean | `false` | スマートルーティングを有効化 |
+| `profile` | string | `""` | 分類に再利用するプロファイル名 (その `base_url` + `api_key` を使用) |
+| `model` | string | `""` | 分類のモデル上書き (デフォルトはプロファイルの `default_model`) |
+
+### ルーティングルール
+
+```toml
+[router.rules]
+code = "deepseek"
+analysis = "grok"
+creative = "chatgpt"
+search = "kimi"
+math = "deepseek"
+default = "grok"
+```
+
+| キー | 説明 |
+|------|------|
+| `code` | コーディングタスク用プロファイル |
+| `analysis` | 分析と推論用プロファイル |
+| `creative` | クリエイティブライティング用プロファイル |
+| `search` | 検索と調査用プロファイル |
+| `math` | 数学と論理用プロファイル |
+| `default` | インテントが未分類の場合のフォールバック |
+
+## コンテキストエンジン
+
+### 圧縮
+
+```toml
+[context.compression]
+enabled = false
+threshold_tokens = 50000
+keep_recent = 10
+profile = "local-qwen"    # プロファイルの base_url + api_key を再利用
+model = "qwen2.5:3b"      # モデルを上書き (任意)
+```
+
+| フィールド | 型 | デフォルト | 説明 |
+|------------|-----|------------|------|
+| `enabled` | boolean | `false` | 会話の圧縮を有効化 |
+| `threshold_tokens` | integer | `50000` | トークン数がこれを超えると圧縮 |
+| `keep_recent` | integer | `10` | 常に最新 N 件のメッセージを非圧縮で保持 |
+| `profile` | string | `""` | 要約に再利用するプロファイル名 (その `base_url` + `api_key` を使用) |
+| `model` | string | `""` | 要約のモデル上書き (デフォルトはプロファイルの `default_model`) |
+
+### クロスプロファイル共有
+
+```toml
+[context.sharing]
+enabled = false
+max_context_size = 2000
+```
+
+| フィールド | 型 | デフォルト | 説明 |
+|------------|-----|------------|------|
+| `enabled` | boolean | `false` | クロスプロファイルのコンテキスト共有を有効化 |
+| `max_context_size` | integer | `2000` | 他のプロファイルから注入する最大トークン数 |
+
+### ローカル RAG
+
+```toml
+[context.rag]
+enabled = false
+index_paths = ["./src", "./docs"]
+profile = "local-qwen"              # プロファイルの base_url + api_key を再利用
+model = "nomic-embed-text"           # エンベディングモデル
+chunk_size = 512
+top_k = 5
+```
+
+| フィールド | 型 | デフォルト | 説明 |
+|------------|-----|------------|------|
+| `enabled` | boolean | `false` | ローカル RAG を有効化 |
+| `index_paths` | string[] | `[]` | インデックス化するディレクトリ |
+| `profile` | string | `""` | エンベディングに再利用するプロファイル名 (その `base_url` + `api_key` を使用) |
+| `model` | string | `""` | エンベディングモデル名 (デフォルトはプロファイルの `default_model`) |
+| `chunk_size` | integer | `512` | トークン単位のテキストチャンクサイズ |
+| `top_k` | integer | `5` | 注入する結果数 |
