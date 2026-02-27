@@ -1,6 +1,6 @@
 [package]
 name = "claudex"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2021"
 description = "Multi-instance Claude Code manager with intelligent translation proxy"
 license = "MIT"

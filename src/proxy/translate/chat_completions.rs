@@ -35,20 +35,65 @@ pub fn anthropic_to_openai(
     if let Some(msgs) = anthropic.get("messages").and_then(|m| m.as_array()) {
         for msg in msgs {
             let role = msg.get("role").and_then(|r| r.as_str()).unwrap_or("user");
-            let content = convert_content_to_openai(msg.get("content"));
 
             match role {
-                "tool" => {
-                    // Anthropic tool_result → OpenAI tool message
-                    let tool_use_id = msg
-                        .get("tool_use_id")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("");
-                    messages.push(json!({
-                        "role": "tool",
-                        "tool_call_id": tool_use_id,
-                        "content": content_to_string(&content),
-                    }));
+                "user" => {
+                    // Anthropic user messages may contain tool_result blocks alongside text.
+                    // tool_result blocks must be extracted into separate "role: tool" messages,
+                    // while non-tool_result blocks remain in a user message.
+                    if let Some(content_arr) = msg.get("content").and_then(|c| c.as_array()) {
+                        let has_tool_result = content_arr
+                            .iter()
+                            .any(|b| b.get("type").and_then(|t| t.as_str()) == Some("tool_result"));
+
+                        if has_tool_result {
+                            let mut user_parts = Vec::new();
+                            for block in content_arr {
+                                match block.get("type").and_then(|t| t.as_str()) {
+                                    Some("tool_result") => {
+                                        let call_id = block
+                                            .get("tool_use_id")
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or("");
+                                        let result_text = extract_tool_result_content(block);
+                                        messages.push(json!({
+                                            "role": "tool",
+                                            "tool_call_id": call_id,
+                                            "content": result_text,
+                                        }));
+                                    }
+                                    Some("text") => {
+                                        if let Some(text) =
+                                            block.get("text").and_then(|t| t.as_str())
+                                        {
+                                            if !text.is_empty() {
+                                                user_parts.push(text.to_string());
+                                            }
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            if !user_parts.is_empty() {
+                                messages.push(json!({
+                                    "role": "user",
+                                    "content": user_parts.join("\n"),
+                                }));
+                            }
+                        } else {
+                            let content = convert_content_to_openai(msg.get("content"));
+                            messages.push(json!({
+                                "role": "user",
+                                "content": content,
+                            }));
+                        }
+                    } else {
+                        let content = convert_content_to_openai(msg.get("content"));
+                        messages.push(json!({
+                            "role": "user",
+                            "content": content,
+                        }));
+                    }
                 }
                 "assistant" => {
                     let mut assistant_msg = json!({"role": "assistant"});
@@ -94,12 +139,14 @@ pub fn anthropic_to_openai(
                             assistant_msg["tool_calls"] = json!(tool_calls);
                         }
                     } else {
+                        let content = convert_content_to_openai(msg.get("content"));
                         assistant_msg["content"] = content;
                     }
 
                     messages.push(assistant_msg);
                 }
                 _ => {
+                    let content = convert_content_to_openai(msg.get("content"));
                     messages.push(json!({
                         "role": role,
                         "content": content,
@@ -299,13 +346,9 @@ fn convert_content_to_openai(content: Option<&Value>) -> Value {
                                 }
                             }))
                         }
-                        Some("tool_result") => {
-                            let result_content = part.get("content");
-                            Some(json!({
-                                "type": "text",
-                                "text": content_to_string(&convert_content_to_openai(result_content)),
-                            }))
-                        }
+                        // tool_result blocks are handled at the message level,
+                        // not inside convert_content_to_openai
+                        Some("tool_result") => None,
                         _ => None,
                     }
                 })
@@ -319,6 +362,19 @@ fn convert_content_to_openai(content: Option<&Value>) -> Value {
             json!(openai_parts)
         }
         Some(other) => other.clone(),
+    }
+}
+
+fn extract_tool_result_content(block: &Value) -> String {
+    let content = block.get("content");
+    match content {
+        Some(Value::String(s)) => s.clone(),
+        Some(Value::Array(parts)) => parts
+            .iter()
+            .filter_map(|p| p.get("text").and_then(|t| t.as_str()))
+            .collect::<Vec<_>>()
+            .join("\n"),
+        _ => String::new(),
     }
 }
 
@@ -336,18 +392,26 @@ fn content_to_string(content: &Value) -> String {
 
 fn convert_tool_choice(tc: &Value, _tool_name_map: &ToolNameMap) -> Value {
     match tc {
+        // Anthropic string shorthand (legacy/convenience)
         Value::String(s) => match s.as_str() {
             "auto" => json!("auto"),
             "any" => json!("required"),
             "none" => json!("none"),
             _ => json!("auto"),
         },
+        // Anthropic Object format: {"type": "auto|any|none|tool", "name": "..."}
         Value::Object(obj) => {
-            if let Some(name) = obj.get("name").and_then(|n| n.as_str()) {
-                let truncated = truncate_tool_name(name);
-                json!({"type": "function", "function": {"name": truncated}})
-            } else {
-                json!("auto")
+            let tc_type = obj.get("type").and_then(|t| t.as_str()).unwrap_or("auto");
+            match tc_type {
+                "auto" => json!("auto"),
+                "any" => json!("required"),
+                "none" => json!("none"),
+                "tool" => {
+                    let name = obj.get("name").and_then(|n| n.as_str()).unwrap_or("");
+                    let truncated = truncate_tool_name(name);
+                    json!({"type": "function", "function": {"name": truncated}})
+                }
+                _ => json!("auto"),
             }
         }
         _ => json!("auto"),
@@ -456,18 +520,134 @@ mod tests {
     }
 
     #[test]
-    fn test_tool_result_message() {
+    fn test_tool_result_in_user_message() {
+        // Anthropic format: tool_result blocks are inside user messages
         let req = json!({
             "messages": [{
-                "role": "tool",
-                "tool_use_id": "call_1",
-                "content": "search result here"
+                "role": "user",
+                "content": [
+                    {"type": "tool_result", "tool_use_id": "call_1", "content": "search result here"}
+                ]
             }]
         });
         let result = a2o(&req, "m");
         let msg = &result["messages"][0];
         assert_eq!(msg["role"], "tool");
         assert_eq!(msg["tool_call_id"], "call_1");
+        assert_eq!(msg["content"], "search result here");
+    }
+
+    #[test]
+    fn test_tool_result_with_array_content() {
+        let req = json!({
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {"type": "tool_result", "tool_use_id": "call_1", "content": [
+                        {"type": "text", "text": "line 1"},
+                        {"type": "text", "text": "line 2"}
+                    ]}
+                ]
+            }]
+        });
+        let result = a2o(&req, "m");
+        let msg = &result["messages"][0];
+        assert_eq!(msg["role"], "tool");
+        assert_eq!(msg["tool_call_id"], "call_1");
+        assert_eq!(msg["content"], "line 1\nline 2");
+    }
+
+    #[test]
+    fn test_multiple_tool_results_in_one_user_message() {
+        let req = json!({
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {"type": "tool_result", "tool_use_id": "call_1", "content": "result 1"},
+                    {"type": "tool_result", "tool_use_id": "call_2", "content": "result 2"}
+                ]
+            }]
+        });
+        let result = a2o(&req, "m");
+        let msgs = result["messages"].as_array().unwrap();
+        assert_eq!(msgs.len(), 2);
+        assert_eq!(msgs[0]["role"], "tool");
+        assert_eq!(msgs[0]["tool_call_id"], "call_1");
+        assert_eq!(msgs[0]["content"], "result 1");
+        assert_eq!(msgs[1]["role"], "tool");
+        assert_eq!(msgs[1]["tool_call_id"], "call_2");
+        assert_eq!(msgs[1]["content"], "result 2");
+    }
+
+    #[test]
+    fn test_tool_result_mixed_with_text() {
+        // User message with both tool_result and text blocks
+        let req = json!({
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {"type": "tool_result", "tool_use_id": "call_1", "content": "result here"},
+                    {"type": "text", "text": "Now do something else"}
+                ]
+            }]
+        });
+        let result = a2o(&req, "m");
+        let msgs = result["messages"].as_array().unwrap();
+        assert_eq!(msgs.len(), 2);
+        // tool_result becomes role: tool
+        assert_eq!(msgs[0]["role"], "tool");
+        assert_eq!(msgs[0]["tool_call_id"], "call_1");
+        // remaining text becomes user message
+        assert_eq!(msgs[1]["role"], "user");
+        assert_eq!(msgs[1]["content"], "Now do something else");
+    }
+
+    #[test]
+    fn test_tool_result_empty_content() {
+        let req = json!({
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {"type": "tool_result", "tool_use_id": "call_1"}
+                ]
+            }]
+        });
+        let result = a2o(&req, "m");
+        let msg = &result["messages"][0];
+        assert_eq!(msg["role"], "tool");
+        assert_eq!(msg["content"], "");
+    }
+
+    #[test]
+    fn test_full_tool_use_roundtrip() {
+        // Simulate a complete tool use conversation
+        let req = json!({
+            "messages": [
+                {"role": "user", "content": "Search for Rust tutorials"},
+                {"role": "assistant", "content": [
+                    {"type": "text", "text": "Let me search for that."},
+                    {"type": "tool_use", "id": "toolu_1", "name": "search", "input": {"q": "Rust tutorials"}}
+                ]},
+                {"role": "user", "content": [
+                    {"type": "tool_result", "tool_use_id": "toolu_1", "content": "Found 10 results"}
+                ]}
+            ]
+        });
+        let result = a2o(&req, "m");
+        let msgs = result["messages"].as_array().unwrap();
+        assert_eq!(msgs.len(), 3);
+        // user message
+        assert_eq!(msgs[0]["role"], "user");
+        assert_eq!(msgs[0]["content"], "Search for Rust tutorials");
+        // assistant with tool call
+        assert_eq!(msgs[1]["role"], "assistant");
+        assert_eq!(msgs[1]["content"], "Let me search for that.");
+        assert_eq!(msgs[1]["tool_calls"][0]["id"], "toolu_1");
+        assert_eq!(msgs[1]["tool_calls"][0]["function"]["name"], "search");
+        // tool result
+        assert_eq!(msgs[2]["role"], "tool");
+        assert_eq!(msgs[2]["tool_call_id"], "toolu_1");
+        assert_eq!(msgs[2]["content"], "Found 10 results");
     }
 
     #[test]
@@ -488,30 +668,55 @@ mod tests {
         assert!(tool["function"]["parameters"]["properties"]["city"].is_object());
     }
 
+    // --- tool_choice: string shorthand ---
+
     #[test]
-    fn test_tool_choice_auto() {
+    fn test_tool_choice_string_auto() {
         let req = json!({"messages": [], "tool_choice": "auto"});
         let result = a2o(&req, "m");
         assert_eq!(result["tool_choice"], "auto");
     }
 
     #[test]
-    fn test_tool_choice_any() {
+    fn test_tool_choice_string_any() {
         let req = json!({"messages": [], "tool_choice": "any"});
         let result = a2o(&req, "m");
         assert_eq!(result["tool_choice"], "required");
     }
 
     #[test]
-    fn test_tool_choice_none() {
+    fn test_tool_choice_string_none() {
         let req = json!({"messages": [], "tool_choice": "none"});
         let result = a2o(&req, "m");
         assert_eq!(result["tool_choice"], "none");
     }
 
+    // --- tool_choice: Anthropic Object format (actual Claude Code format) ---
+
     #[test]
-    fn test_tool_choice_specific() {
-        let req = json!({"messages": [], "tool_choice": {"name": "my_tool"}});
+    fn test_tool_choice_object_auto() {
+        let req = json!({"messages": [], "tool_choice": {"type": "auto"}});
+        let result = a2o(&req, "m");
+        assert_eq!(result["tool_choice"], "auto");
+    }
+
+    #[test]
+    fn test_tool_choice_object_any() {
+        let req = json!({"messages": [], "tool_choice": {"type": "any"}});
+        let result = a2o(&req, "m");
+        assert_eq!(result["tool_choice"], "required");
+    }
+
+    #[test]
+    fn test_tool_choice_object_none() {
+        let req = json!({"messages": [], "tool_choice": {"type": "none"}});
+        let result = a2o(&req, "m");
+        assert_eq!(result["tool_choice"], "none");
+    }
+
+    #[test]
+    fn test_tool_choice_object_specific_tool() {
+        let req = json!({"messages": [], "tool_choice": {"type": "tool", "name": "my_tool"}});
         let result = a2o(&req, "m");
         assert_eq!(result["tool_choice"]["type"], "function");
         assert_eq!(result["tool_choice"]["function"]["name"], "my_tool");
