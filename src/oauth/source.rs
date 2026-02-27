@@ -524,6 +524,9 @@ pub fn write_codex_credentials_atomic(token: &OAuthToken) -> Result<()> {
 mod tests {
     use super::*;
 
+    /// 操作环境变量的测试必须串行执行，避免竞态条件
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     #[test]
     fn test_extract_jwt_exp() {
         use base64::Engine;
@@ -581,7 +584,7 @@ mod tests {
 
     #[test]
     fn test_credential_chain_env_var() {
-        // 测试 env var 优先级
+        let _lock = ENV_LOCK.lock().unwrap();
         std::env::set_var("ANTHROPIC_API_KEY", "test-key-123");
         let cred = load_credential_chain(&OAuthProvider::Claude).unwrap();
         assert_eq!(cred.access_token, "test-key-123");
@@ -591,6 +594,7 @@ mod tests {
 
     #[test]
     fn test_credential_chain_empty_env_skipped() {
+        let _lock = ENV_LOCK.lock().unwrap();
         std::env::set_var("ANTHROPIC_API_KEY", "");
         // 空值应被跳过，如果文件也不存在则报错
         let result = load_credential_chain(&OAuthProvider::Claude);
