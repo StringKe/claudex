@@ -30,6 +30,9 @@ proxy_port = 13456
 # Endereco de escuta do servidor proxy
 proxy_host = "127.0.0.1"
 
+# Tamanho maximo do corpo da requisicao de entrada em MB
+proxy_max_body_mb = 64
+
 # Nivel de log: trace, debug, info, warn, error
 log_level = "info"
 
@@ -42,6 +45,7 @@ hyperlinks = "auto"
 | `claude_binary` | string | `"claude"` | Caminho para o binario da CLI do Claude Code |
 | `proxy_port` | integer | `13456` | Porta em que o proxy de traducao escuta |
 | `proxy_host` | string | `"127.0.0.1"` | Endereco ao qual o proxy se vincula |
+| `proxy_max_body_mb` | integer | `64` | Tamanho maximo do corpo da requisicao de entrada em MB (a API da Anthropic aceita ate 32MB) |
 | `log_level` | string | `"info"` | Nivel minimo de log |
 | `hyperlinks` | string/bool | `"auto"` | Hyperlinks no terminal: `"auto"` (detectar), `true` (forcar ativacao), `false` (forcar desativacao) |
 

@@ -12,6 +12,7 @@ pub mod util;
 use std::sync::Arc;
 
 use anyhow::Result;
+use axum::extract::DefaultBodyLimit;
 use axum::routing::{get, post};
 use axum::Router;
 use tokio::sync::RwLock;
@@ -45,6 +46,7 @@ pub fn proxy_log_path() -> Option<std::path::PathBuf> {
 pub async fn start_proxy(config: ClaudexConfig, port_override: Option<u16>) -> Result<()> {
     let port = port_override.unwrap_or(config.proxy_port);
     let host = config.proxy_host.clone();
+    let max_body_bytes = config.proxy_max_body_mb.saturating_mul(1024 * 1024);
 
     let http_client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(300))
@@ -87,14 +89,7 @@ pub async fn start_proxy(config: ClaudexConfig, port_override: Option<u16>) -> R
 
     health::spawn_health_checker(state.clone());
 
-    let app = Router::new()
-        .route("/v1/models", get(models::list_models))
-        .route(
-            "/proxy/{profile}/v1/messages",
-            post(handler::handle_messages),
-        )
-        .route("/health", get(|| async { "ok" }))
-        .with_state(state);
+    let app = build_router(state, max_body_bytes);
 
     let bind_addr = format!("{host}:{port}");
     let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
@@ -107,4 +102,71 @@ pub async fn start_proxy(config: ClaudexConfig, port_override: Option<u16>) -> R
 
     crate::process::daemon::remove_pid()?;
     Ok(())
+}
+
+fn build_router(state: Arc<ProxyState>, max_body_bytes: usize) -> Router {
+    Router::new()
+        .route("/v1/models", get(models::list_models))
+        .route(
+            "/proxy/{profile}/v1/messages",
+            post(handler::handle_messages),
+        )
+        .route("/health", get(|| async { "ok" }))
+        .layer(DefaultBodyLimit::max(max_body_bytes))
+        .with_state(state)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use tower::ServiceExt;
+
+    fn test_state() -> Arc<ProxyState> {
+        let http_client = reqwest::Client::new();
+        Arc::new(ProxyState {
+            config: Arc::new(RwLock::new(ClaudexConfig::default())),
+            metrics: MetricsStore::new(),
+            http_client: http_client.clone(),
+            health_status: Arc::new(RwLock::new(health::HealthMap::new())),
+            circuit_breakers: fallback::new_circuit_breaker_map(),
+            shared_context: SharedContext::new(),
+            rag_index: None,
+            token_manager: crate::oauth::manager::TokenManager::new(http_client),
+        })
+    }
+
+    fn large_json_request(payload_len: usize) -> Request<Body> {
+        let body = format!(r#"{{"model":"m","pad":"{}"}}"#, "a".repeat(payload_len));
+        Request::builder()
+            .method("POST")
+            .uri("/proxy/nonexistent/v1/messages")
+            .header("content-type", "application/json")
+            .body(Body::from(body))
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn body_over_limit_is_rejected_with_413() {
+        let app = build_router(test_state(), 1024 * 1024);
+        let resp = app
+            .oneshot(large_json_request(2 * 1024 * 1024))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::PAYLOAD_TOO_LARGE);
+    }
+
+    #[tokio::test]
+    async fn body_within_limit_reaches_handler() {
+        // 3MB body exceeds axum's built-in 2MB default; with the configured
+        // limit it must reach the handler (404: profile not found), not 413.
+        let max_body = ClaudexConfig::default().proxy_max_body_mb * 1024 * 1024;
+        let app = build_router(test_state(), max_body);
+        let resp = app
+            .oneshot(large_json_request(3 * 1024 * 1024))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
 }

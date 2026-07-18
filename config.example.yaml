@@ -8,6 +8,9 @@
 # Proxy settings
 proxy_port: 13456
 proxy_host: 127.0.0.1
+# Max inbound request body size in MB (default 64).
+# Anthropic's API accepts up to 32MB; long conversations approach that at /compact time.
+# proxy_max_body_mb: 64
 
 # Log level: trace, debug, info, warn, error
 log_level: info

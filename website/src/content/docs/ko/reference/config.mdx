@@ -30,6 +30,9 @@ proxy_port = 13456
 # 프록시 서버 바인드 주소
 proxy_host = "127.0.0.1"
 
+# 인바운드 요청 본문 최대 크기 (MB)
+proxy_max_body_mb = 64
+
 # 로그 레벨: trace, debug, info, warn, error
 log_level = "info"
 
@@ -42,6 +45,7 @@ hyperlinks = "auto"
 | `claude_binary` | string | `"claude"` | Claude Code CLI 바이너리 경로 |
 | `proxy_port` | integer | `13456` | 번역 프록시가 수신하는 포트 |
 | `proxy_host` | string | `"127.0.0.1"` | 프록시가 바인딩되는 주소 |
+| `proxy_max_body_mb` | integer | `64` | 인바운드 요청 본문 최대 크기 (MB, Anthropic API는 최대 32MB 허용) |
 | `log_level` | string | `"info"` | 최소 로그 레벨 |
 | `hyperlinks` | string/bool | `"auto"` | 터미널 하이퍼링크: `"auto"` (감지), `true` (강제 활성화), `false` (강제 비활성화) |
 
