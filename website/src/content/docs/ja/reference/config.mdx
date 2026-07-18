@@ -30,6 +30,9 @@ proxy_port = 13456
 # プロキシサーバーのバインドアドレス
 proxy_host = "127.0.0.1"
 
+# 受信リクエストボディの最大サイズ（MB）
+proxy_max_body_mb = 64
+
 # ログレベル: trace, debug, info, warn, error
 log_level = "info"
 
@@ -42,6 +45,7 @@ hyperlinks = "auto"
 | `claude_binary` | string | `"claude"` | Claude Code CLI バイナリへのパス |
 | `proxy_port` | integer | `13456` | 翻訳プロキシがリッスンするポート |
 | `proxy_host` | string | `"127.0.0.1"` | プロキシがバインドするアドレス |
+| `proxy_max_body_mb` | integer | `64` | 受信リクエストボディの最大サイズ（MB）。Anthropic API の上限は 32MB |
 | `log_level` | string | `"info"` | 最小ログレベル |
 | `hyperlinks` | string/bool | `"auto"` | ターミナルハイパーリンク: `"auto"`（検出）、`true`（強制有効）、`false`（強制無効） |
 

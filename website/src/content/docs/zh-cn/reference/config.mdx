@@ -30,6 +30,9 @@ proxy_port = 13456
 # 代理服务器绑定地址
 proxy_host = "127.0.0.1"
 
+# 入站请求体大小上限（MB）
+proxy_max_body_mb = 64
+
 # 日志级别：trace, debug, info, warn, error
 log_level = "info"
 
@@ -42,6 +45,7 @@ hyperlinks = "auto"
 | `claude_binary` | string | `"claude"` | Claude Code CLI 二进制文件路径 |
 | `proxy_port` | integer | `13456` | 翻译代理监听端口 |
 | `proxy_host` | string | `"127.0.0.1"` | 代理绑定地址 |
+| `proxy_max_body_mb` | integer | `64` | 入站请求体大小上限（MB），Anthropic API 最大接受 32MB |
 | `log_level` | string | `"info"` | 最低日志级别 |
 | `hyperlinks` | string/bool | `"auto"` | 终端超链接：`"auto"`（检测）、`true`（强制开启）、`false`（强制关闭） |
 

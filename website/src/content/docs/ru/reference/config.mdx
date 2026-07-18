@@ -30,6 +30,9 @@ proxy_port = 13456
 # Адрес привязки прокси-сервера
 proxy_host = "127.0.0.1"
 
+# Максимальный размер тела входящего запроса в МБ
+proxy_max_body_mb = 64
+
 # Уровень логирования: trace, debug, info, warn, error
 log_level = "info"
 
@@ -42,6 +45,7 @@ hyperlinks = "auto"
 | `claude_binary` | string | `"claude"` | Путь к бинарному файлу Claude Code CLI |
 | `proxy_port` | integer | `13456` | Порт, на котором слушает прокси-переводчик |
 | `proxy_host` | string | `"127.0.0.1"` | Адрес привязки прокси |
+| `proxy_max_body_mb` | integer | `64` | Максимальный размер тела входящего запроса в МБ (API Anthropic принимает до 32MB) |
 | `log_level` | string | `"info"` | Минимальный уровень логирования |
 | `hyperlinks` | string/bool | `"auto"` | Терминальные гиперссылки: `"auto"` (определять), `true` (включить), `false` (выключить) |
 
