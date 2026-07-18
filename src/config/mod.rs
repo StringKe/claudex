@@ -37,6 +37,10 @@ pub struct ClaudexConfig {
     pub proxy_port: u16,
     #[serde(default = "default_proxy_host")]
     pub proxy_host: String,
+    /// Max inbound request body size in MB. Anthropic's API accepts up to 32MB;
+    /// long conversations approach that at /compact time, so the default leaves headroom.
+    #[serde(default = "default_proxy_max_body_mb")]
+    pub proxy_max_body_mb: usize,
     #[serde(default = "default_log_level")]
     pub log_level: String,
     #[serde(default)]
@@ -251,6 +255,10 @@ fn default_proxy_port() -> u16 {
 
 fn default_proxy_host() -> String {
     "127.0.0.1".to_string()
+}
+
+fn default_proxy_max_body_mb() -> usize {
+    64
 }
 
 fn default_log_level() -> String {
@@ -580,6 +588,7 @@ impl Default for ClaudexConfig {
             claude_binary: default_claude_binary(),
             proxy_port: default_proxy_port(),
             proxy_host: default_proxy_host(),
+            proxy_max_body_mb: default_proxy_max_body_mb(),
             log_level: default_log_level(),
             profiles: Vec::new(),
             model_aliases: HashMap::new(),
