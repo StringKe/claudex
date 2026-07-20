@@ -87,6 +87,10 @@ strip_params = "auto"               # "auto" | "none" | ["temperature", "top_p"]
 [profiles.query_params]
 # api-version = "2024-12-01-preview"
 
+# 深度合并进翻译后请求体的额外 JSON 字段（可选）
+[profiles.extra_body]
+# enable_thinking = true
+
 # 模型槽位映射（可选）
 [profiles.models]
 haiku = "grok-3-mini-beta"
@@ -111,6 +115,7 @@ opus = "grok-3-beta"
 | `enabled` | boolean | `true` | 是否激活此 profile |
 | `max_tokens` | integer | -- | 限制发送给提供商的最大输出 token 数。设置时覆盖请求中的 `max_tokens` |
 | `strip_params` | string/array | `"auto"` | 从请求中剥离的参数。`"auto"` 检测已知端点；`"none"` 发送全部；数组指定特定参数 |
+| `extra_body` | map | -- | 深度合并进翻译后请求体的额外 JSON 字段（在 `strip_params` 之后应用，显式配置的值始终生效） |
 
 ### 查询参数
 
@@ -124,6 +129,31 @@ api-version = "2024-12-01-preview"
 | `query_params` | map | 作为 URL 查询参数附加到每个请求的键值对 |
 
 主要用于 Azure OpenAI（`api-version`），但适用于任何提供商。
+
+### 额外请求体字段
+
+可选的 `[profiles.extra_body]` 表会在请求发送给提供商之前深度合并进翻译后的请求体。对象递归合并；标量和数组以配置值覆盖。用于设置协议翻译本身不会产生的提供商特定参数。
+
+```toml
+# OpenAI Responses API：指定 reasoning effort
+[profiles.extra_body.reasoning]
+effort = "high"
+```
+
+```toml
+# DashScope（Qwen）：开启思考模式并设置预算
+[profiles.extra_body]
+enable_thinking = true
+thinking_budget = 32768
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `extra_body` | map | 深度合并进每个翻译后请求体的 JSON 字段 |
+
+<Aside type="note">
+  `extra_body` 在 `strip_params` 之后应用，因此显式配置的字段不会被自动剥离。适用于全部三种 provider 类型，包括 `DirectAnthropic` 透传。
+</Aside>
 
 ### 模型槽位映射
 

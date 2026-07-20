@@ -87,6 +87,10 @@ strip_params = "auto"               # "auto" | "none" | ["temperature", "top_p"]
 [profiles.query_params]
 # api-version = "2024-12-01-preview"
 
+# Extra JSON deep-merged into the translated request body (optional)
+[profiles.extra_body]
+# enable_thinking = true
+
 # Model slot mapping (optional)
 [profiles.models]
 haiku = "grok-3-mini-beta"
@@ -111,6 +115,7 @@ opus = "grok-3-beta"
 | `enabled` | boolean | `true` | Whether this profile is active |
 | `max_tokens` | integer | — | Cap max output tokens sent to provider. When set, overrides the `max_tokens` in requests |
 | `strip_params` | string/array | `"auto"` | Parameters to strip from requests. `"auto"` detects known endpoints; `"none"` sends all; array strips specific params |
+| `extra_body` | map | — | Extra JSON deep-merged into the translated request body (applied after `strip_params`, so explicit values always win) |
 
 ### Query Parameters
 
@@ -124,6 +129,31 @@ api-version = "2024-12-01-preview"
 | `query_params` | map | Key-value pairs appended as URL query parameters to every request |
 
 Used primarily for Azure OpenAI (`api-version`), but works with any provider.
+
+### Extra Body
+
+The optional `[profiles.extra_body]` table is deep-merged into the translated request body before it is sent to the provider. Objects are merged recursively; scalars and arrays are overwritten by the configured value. This lets you set provider-specific parameters that the protocol translation does not produce by itself.
+
+```toml
+# OpenAI Responses API: request a specific reasoning effort
+[profiles.extra_body.reasoning]
+effort = "high"
+```
+
+```toml
+# DashScope (Qwen): enable thinking mode with a budget
+[profiles.extra_body]
+enable_thinking = true
+thinking_budget = 32768
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `extra_body` | map | JSON fields deep-merged into every translated request body |
+
+<Aside type="note">
+  `extra_body` is applied after `strip_params`, so an explicitly configured field is never auto-stripped. It works with all three provider types, including `DirectAnthropic` passthrough.
+</Aside>
 
 ### Model Slot Mapping
 

@@ -41,6 +41,9 @@ pub async fn show_profile(config: &ClaudexConfig, name: &str) -> Result<()> {
     if !profile.custom_headers.is_empty() {
         println!("Custom Headers: {:?}", profile.custom_headers);
     }
+    if let Some(extra_body) = &profile.extra_body {
+        println!("Extra Body:     {extra_body}");
+    }
     Ok(())
 }
 

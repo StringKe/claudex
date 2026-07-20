@@ -127,6 +127,10 @@ pub struct ProfileConfig {
     /// 追加到请求 URL 的 query 参数（如 Azure OpenAI 的 api-version）
     #[serde(default)]
     pub query_params: HashMap<String, String>,
+    /// 深度合并进翻译后请求体的额外 JSON 字段（用户值优先，在 strip_params 之后应用）
+    /// 例如 Responses API 的 reasoning.effort、DashScope 的 enable_thinking/thinking_budget
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extra_body: Option<serde_json::Value>,
 }
 
 /// 参数剥离配置
@@ -220,6 +224,7 @@ impl Default for ProfileConfig {
             max_tokens: None,
             strip_params: StripParams::default(),
             query_params: HashMap::new(),
+            extra_body: None,
         }
     }
 }
@@ -686,6 +691,37 @@ mod tests {
         assert_eq!(config.proxy_host, "127.0.0.1");
         assert_eq!(config.log_level, "debug");
         assert!(config.profiles[0].enabled);
+    }
+
+    #[test]
+    fn test_parse_profile_extra_body() {
+        let toml_str = r#"
+            [[profiles]]
+            name = "codex"
+            base_url = "https://chatgpt.com/backend-api/codex"
+            default_model = "gpt-5.3-codex"
+
+            [profiles.extra_body]
+            enable_thinking = true
+
+            [profiles.extra_body.reasoning]
+            effort = "high"
+        "#;
+        let config: ClaudexConfig = toml::from_str(toml_str).unwrap();
+        let extra = config.profiles[0].extra_body.as_ref().unwrap();
+        assert_eq!(extra["reasoning"]["effort"], "high");
+        assert_eq!(extra["enable_thinking"], true);
+        // 未配置时保持 None（不序列化回配置文件）
+        let minimal: ClaudexConfig = toml::from_str(
+            r#"
+            [[profiles]]
+            name = "t"
+            base_url = "http://localhost"
+            default_model = "m"
+        "#,
+        )
+        .unwrap();
+        assert!(minimal.profiles[0].extra_body.is_none());
     }
 
     #[test]
