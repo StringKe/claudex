@@ -53,6 +53,12 @@ claude = "claude-sonnet-4-20250514"
 #
 #   [profiles.query_params]                    # URL query params (e.g. Azure api-version)
 #   api-version = "2024-12-01-preview"
+#
+#   [profiles.extra_body]                      # extra JSON deep-merged into the request body
+#   enable_thinking = true                     # e.g. DashScope thinking mode
+#
+#   [profiles.extra_body.reasoning]            # e.g. Responses API reasoning effort
+#   effort = "high"
 
 # ─── Profiles ───────────────────────────────────────────
 

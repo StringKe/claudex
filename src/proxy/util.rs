@@ -40,6 +40,27 @@ pub fn format_key_preview(key: &str) -> String {
     }
 }
 
+/// 将 profile 的 extra_body 深度合并进翻译后的请求体：
+/// 两边都是对象时递归合并，否则以 extra 的值覆盖。
+/// 顶层 extra 不是对象时不做任何修改（配置错误由 validate 提示）。
+pub fn merge_extra_body(body: &mut Value, extra: &Value) {
+    let (Some(base), Some(ext)) = (body.as_object_mut(), extra.as_object()) else {
+        return;
+    };
+    for (k, v) in ext {
+        let merged_nested = match base.get_mut(k) {
+            Some(slot) if slot.is_object() && v.is_object() => {
+                merge_extra_body(slot, v);
+                true
+            }
+            _ => false,
+        };
+        if !merged_nested {
+            base.insert(k.clone(), v.clone());
+        }
+    }
+}
+
 /// 构造 Anthropic 格式的错误 JSON
 pub fn to_anthropic_error(status: u16, message: &str) -> Value {
     let error_type = match status {
@@ -121,5 +142,48 @@ mod tests {
         let err = to_anthropic_error(401, "invalid key");
         assert_eq!(err["error"]["type"], "authentication_error");
         assert_eq!(err["error"]["message"], "invalid key");
+    }
+
+    #[test]
+    fn test_merge_extra_body_inserts_missing_key() {
+        let mut body = json!({"model": "gpt-5.3-codex", "input": []});
+        merge_extra_body(&mut body, &json!({"reasoning": {"effort": "high"}}));
+        assert_eq!(body["reasoning"]["effort"], "high");
+        assert_eq!(body["model"], "gpt-5.3-codex");
+    }
+
+    #[test]
+    fn test_merge_extra_body_deep_merges_objects() {
+        let mut body = json!({"reasoning": {"summary": "auto"}});
+        merge_extra_body(&mut body, &json!({"reasoning": {"effort": "high"}}));
+        // 已有的兄弟字段保留，新字段合入
+        assert_eq!(body["reasoning"]["summary"], "auto");
+        assert_eq!(body["reasoning"]["effort"], "high");
+    }
+
+    #[test]
+    fn test_merge_extra_body_overwrites_scalars() {
+        let mut body = json!({"temperature": 1.0, "enable_thinking": false});
+        merge_extra_body(
+            &mut body,
+            &json!({"enable_thinking": true, "thinking_budget": 32768}),
+        );
+        assert_eq!(body["enable_thinking"], true);
+        assert_eq!(body["thinking_budget"], 32768);
+        assert_eq!(body["temperature"], 1.0);
+    }
+
+    #[test]
+    fn test_merge_extra_body_object_replaces_scalar() {
+        let mut body = json!({"reasoning": "none"});
+        merge_extra_body(&mut body, &json!({"reasoning": {"effort": "low"}}));
+        assert_eq!(body["reasoning"]["effort"], "low");
+    }
+
+    #[test]
+    fn test_merge_extra_body_non_object_extra_is_noop() {
+        let mut body = json!({"model": "m"});
+        merge_extra_body(&mut body, &json!("not-an-object"));
+        assert_eq!(body, json!({"model": "m"}));
     }
 }

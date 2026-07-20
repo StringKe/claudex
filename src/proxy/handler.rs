@@ -343,6 +343,11 @@ async fn try_forward(
     let mut translated = adapter.translate_request(body, profile)?;
     adapter.filter_translated_body(&mut translated.body, profile);
 
+    // extra_body 在 strip_params 之后合并：用户显式配置的字段优先于自动剥离
+    if let Some(extra) = &profile.extra_body {
+        super::util::merge_extra_body(&mut translated.body, extra);
+    }
+
     let mut url = format!(
         "{}{}",
         profile.base_url.trim_end_matches('/'),
