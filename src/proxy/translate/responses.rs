@@ -21,7 +21,6 @@ pub fn anthropic_to_responses(
 
             match role {
                 "user" => {
-                    // Check if this is a tool_result message
                     let has_tool_result = content.and_then(|c| c.as_array()).is_some_and(|arr| {
                         arr.iter()
                             .any(|b| b.get("type").and_then(|t| t.as_str()) == Some("tool_result"))
@@ -29,21 +28,17 @@ pub fn anthropic_to_responses(
 
                     if has_tool_result {
                         if let Some(blocks) = content.and_then(|c| c.as_array()) {
+                            let mut user_parts = Vec::new();
                             for block in blocks {
                                 if block.get("type").and_then(|t| t.as_str()) == Some("tool_result")
                                 {
-                                    let call_id = block
-                                        .get("tool_use_id")
-                                        .and_then(|v| v.as_str())
-                                        .unwrap_or("call_0");
-                                    let output = extract_tool_result_content(block);
-                                    input.push(json!({
-                                        "type": "function_call_output",
-                                        "call_id": call_id,
-                                        "output": output,
-                                    }));
+                                    push_user_message(&mut input, &mut user_parts);
+                                    input.push(convert_tool_result(block));
+                                } else if let Some(part) = convert_user_content_block(block) {
+                                    user_parts.push(part);
                                 }
                             }
+                            push_user_message(&mut input, &mut user_parts);
                         }
                     } else {
                         let parts = convert_user_content(content);
@@ -325,40 +320,58 @@ fn convert_user_content(content: Option<&Value>) -> Vec<Value> {
         Some(Value::String(s)) => vec![json!({"type": "input_text", "text": s})],
         Some(Value::Array(parts)) => parts
             .iter()
-            .filter_map(|p| {
-                let block_type = p.get("type").and_then(|t| t.as_str());
-                match block_type {
-                    Some("text") => {
-                        let text = p.get("text").and_then(|t| t.as_str()).unwrap_or("");
-                        Some(json!({"type": "input_text", "text": text}))
-                    }
-                    Some("image") => {
-                        // Anthropic base64 image → OpenAI image_url
-                        let source = p.get("source");
-                        let media_type = source
-                            .and_then(|s| s.get("media_type"))
-                            .and_then(|m| m.as_str())
-                            .unwrap_or("image/png");
-                        let data = source
-                            .and_then(|s| s.get("data"))
-                            .and_then(|d| d.as_str())
-                            .unwrap_or("");
-                        Some(json!({
-                            "type": "input_image",
-                            "image_url": format!("data:{media_type};base64,{data}"),
-                        }))
-                    }
-                    Some("tool_result") => {
-                        // tool_result at user level → function_call_output
-                        // This shouldn't normally appear here but handle it
-                        None
-                    }
-                    _ => None,
-                }
-            })
+            .filter_map(convert_user_content_block)
             .collect(),
         _ => vec![],
     }
+}
+
+fn convert_user_content_block(block: &Value) -> Option<Value> {
+    match block.get("type").and_then(|t| t.as_str()) {
+        Some("text") => {
+            let text = block.get("text").and_then(|t| t.as_str()).unwrap_or("");
+            Some(json!({"type": "input_text", "text": text}))
+        }
+        Some("image") => {
+            let source = block.get("source");
+            let media_type = source
+                .and_then(|s| s.get("media_type"))
+                .and_then(|m| m.as_str())
+                .unwrap_or("image/png");
+            let data = source
+                .and_then(|s| s.get("data"))
+                .and_then(|d| d.as_str())
+                .unwrap_or("");
+            Some(json!({
+                "type": "input_image",
+                "image_url": format!("data:{media_type};base64,{data}"),
+            }))
+        }
+        _ => None,
+    }
+}
+
+fn push_user_message(input: &mut Vec<Value>, user_parts: &mut Vec<Value>) {
+    if !user_parts.is_empty() {
+        input.push(json!({
+            "role": "user",
+            "type": "message",
+            "content": std::mem::take(user_parts),
+        }));
+    }
+}
+
+fn convert_tool_result(block: &Value) -> Value {
+    let call_id = block
+        .get("tool_use_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("call_0");
+    let output = extract_tool_result_content(block);
+    json!({
+        "type": "function_call_output",
+        "call_id": call_id,
+        "output": output,
+    })
 }
 
 fn extract_tool_result_content(block: &Value) -> String {
@@ -436,6 +449,128 @@ mod tests {
         let tools = body["tools"].as_array().unwrap();
         assert_eq!(tools[0]["type"], "function");
         assert_eq!(tools[0]["name"], "get_weather");
+    }
+
+    #[test]
+    fn test_mixed_tool_result_and_text() {
+        let anthropic = json!({
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {"type": "tool_result", "tool_use_id": "call_1", "content": "result"},
+                    {"type": "text", "text": "Continue with this instruction"}
+                ]
+            }]
+        });
+
+        let (body, _) = anthropic_to_responses(&anthropic, "gpt-4o").unwrap();
+        assert_eq!(
+            body["input"],
+            json!([
+                {
+                    "type": "function_call_output",
+                    "call_id": "call_1",
+                    "output": "result"
+                },
+                {
+                    "type": "message",
+                    "role": "user",
+                    "content": [{
+                        "type": "input_text",
+                        "text": "Continue with this instruction"
+                    }]
+                }
+            ])
+        );
+    }
+
+    #[test]
+    fn test_mixed_tool_result_and_image() {
+        let anthropic = json!({
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {"type": "tool_result", "tool_use_id": "call_1", "content": "result"},
+                    {"type": "image", "source": {
+                        "type": "base64",
+                        "media_type": "image/jpeg",
+                        "data": "aW1hZ2U="
+                    }}
+                ]
+            }]
+        });
+
+        let (body, _) = anthropic_to_responses(&anthropic, "gpt-4o").unwrap();
+        assert_eq!(
+            body["input"],
+            json!([
+                {
+                    "type": "function_call_output",
+                    "call_id": "call_1",
+                    "output": "result"
+                },
+                {
+                    "type": "message",
+                    "role": "user",
+                    "content": [{
+                        "type": "input_image",
+                        "image_url": "data:image/jpeg;base64,aW1hZ2U="
+                    }]
+                }
+            ])
+        );
+    }
+
+    #[test]
+    fn test_multiple_tool_results_and_text() {
+        let anthropic = json!({
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {"type": "tool_result", "tool_use_id": "call_1", "content": "first"},
+                    {"type": "tool_result", "tool_use_id": "call_2", "content": "second"},
+                    {"type": "text", "text": "Summarize both"}
+                ]
+            }]
+        });
+
+        let (body, _) = anthropic_to_responses(&anthropic, "gpt-4o").unwrap();
+        let input = body["input"].as_array().unwrap();
+        assert_eq!(input.len(), 3);
+        assert_eq!(input[0]["call_id"], "call_1");
+        assert_eq!(input[1]["call_id"], "call_2");
+        assert_eq!(input[2]["content"][0]["text"], "Summarize both");
+    }
+
+    #[test]
+    fn test_mixed_user_content_preserves_source_order() {
+        let anthropic = json!({
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "before"},
+                    {"type": "tool_result", "tool_use_id": "call_1", "content": "first"},
+                    {"type": "text", "text": "between"},
+                    {"type": "image", "source": {
+                        "type": "base64",
+                        "media_type": "image/png",
+                        "data": "cG5n"
+                    }},
+                    {"type": "tool_result", "tool_use_id": "call_2", "content": "second"},
+                    {"type": "text", "text": "after"}
+                ]
+            }]
+        });
+
+        let (body, _) = anthropic_to_responses(&anthropic, "gpt-4o").unwrap();
+        let input = body["input"].as_array().unwrap();
+        assert_eq!(input.len(), 5);
+        assert_eq!(input[0]["content"][0]["text"], "before");
+        assert_eq!(input[1]["call_id"], "call_1");
+        assert_eq!(input[2]["content"][0]["text"], "between");
+        assert_eq!(input[2]["content"][1]["type"], "input_image");
+        assert_eq!(input[3]["call_id"], "call_2");
+        assert_eq!(input[4]["content"][0]["text"], "after");
     }
 
     #[test]
