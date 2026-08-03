@@ -1,3 +1,4 @@
+use std::io::IsTerminal;
 use std::process::Command;
 
 use anyhow::{bail, Context, Result};
@@ -88,20 +89,30 @@ pub fn launch_claude(
         "launching claude"
     );
 
+    let resume_hint = consume_resume_hint(&mut cmd, std::env::var("CLAUDEX_RESUME_HINT").ok());
+
     // PTY mode (Unix only): 非交互模式跳过 PTY
     #[cfg(unix)]
-    let use_pty = !is_noninteractive && should_use_pty(&config.hyperlinks, hyperlinks_override);
+    let use_pty = !is_noninteractive
+        && should_use_pty(
+            &config.hyperlinks,
+            hyperlinks_override,
+            resume_hint.is_some(),
+            std::io::stdin().is_terminal() && std::io::stdout().is_terminal(),
+        );
     #[cfg(not(unix))]
     let use_pty = false;
 
     let mut resume_session_id: Option<String> = None;
+    let mut managed_resume_hint_used = false;
 
     if use_pty {
         #[cfg(unix)]
         {
-            tracing::info!("hyperlinks enabled, using PTY proxy mode");
+            tracing::info!("using PTY proxy mode");
             let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("/"));
-            resume_session_id = terminal::pty::spawn_with_pty(cmd, cwd)?;
+            (resume_session_id, managed_resume_hint_used) =
+                terminal::pty::spawn_with_pty(cmd, cwd, resume_hint.as_deref())?;
         }
     } else {
         let mut child = cmd.spawn().context("failed to execute claude binary")?;
@@ -132,8 +143,10 @@ pub fn launch_claude(
     }
 
     // 追加 claudex resume 命令提示
-    if let Some(session_id) = resume_session_id {
-        print_claudex_resume_hint(&profile.name, &session_id, extra_args);
+    if !managed_resume_hint_used {
+        if let Some(session_id) = resume_session_id {
+            print_claudex_resume_hint(&profile.name, &session_id, extra_args);
+        }
     }
 
     Ok(())
@@ -171,10 +184,24 @@ fn build_resume_hint(profile_name: &str, session_id: &str, extra_args: &[String]
     format!("claudex run {profile_name} --resume {session_id}{args_str}")
 }
 
+fn valid_resume_hint(value: Option<String>) -> Option<String> {
+    value.filter(|hint| !hint.trim().is_empty() && !hint.chars().any(char::is_control))
+}
+
+fn consume_resume_hint(cmd: &mut Command, value: Option<String>) -> Option<String> {
+    cmd.env_remove("CLAUDEX_RESUME_HINT");
+    valid_resume_hint(value)
+}
+
 /// Decide whether to use PTY mode based on config + CLI flag.
 #[cfg(unix)]
-fn should_use_pty(config_hyperlinks: &HyperlinksConfig, cli_override: bool) -> bool {
-    if cli_override {
+fn should_use_pty(
+    config_hyperlinks: &HyperlinksConfig,
+    cli_override: bool,
+    managed_resume_hint: bool,
+    interactive_terminal: bool,
+) -> bool {
+    if cli_override || (managed_resume_hint && interactive_terminal) {
         return true;
     }
 
@@ -238,5 +265,61 @@ mod tests {
         let args = vec!["--resume".to_string(), "old-id".to_string()];
         let hint = build_resume_hint("p", "new-id", &args);
         assert_eq!(hint, "claudex run p --resume new-id");
+    }
+
+    #[test]
+    fn test_valid_resume_hint_accepts_one_line_command() {
+        assert_eq!(
+            valid_resume_hint(Some("orichum resume oc-s-0123456789abcdef".to_string())),
+            Some("orichum resume oc-s-0123456789abcdef".to_string())
+        );
+    }
+
+    #[test]
+    fn test_valid_resume_hint_rejects_control_characters() {
+        assert_eq!(
+            valid_resume_hint(Some("orichum resume safe\nunsafe".to_string())),
+            None
+        );
+        assert_eq!(
+            valid_resume_hint(Some("orichum resume safe\x1b[2J".to_string())),
+            None
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_managed_resume_hint_requires_pty() {
+        assert!(should_use_pty(
+            &HyperlinksConfig::Disabled,
+            false,
+            true,
+            true
+        ));
+        assert!(!should_use_pty(
+            &HyperlinksConfig::Disabled,
+            false,
+            true,
+            false
+        ));
+    }
+
+    #[test]
+    fn test_consume_resume_hint_removes_child_environment() {
+        let mut command = Command::new("claude");
+        command.env("CLAUDEX_RESUME_HINT", "inherited");
+
+        let hint = consume_resume_hint(
+            &mut command,
+            Some("orichum resume oc-s-0123456789abcdef".to_string()),
+        );
+
+        assert_eq!(
+            hint.as_deref(),
+            Some("orichum resume oc-s-0123456789abcdef")
+        );
+        assert!(command.get_envs().any(|(name, value)| {
+            name == std::ffi::OsStr::new("CLAUDEX_RESUME_HINT") && value.is_none()
+        }));
     }
 }
