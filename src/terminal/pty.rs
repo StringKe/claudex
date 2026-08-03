@@ -14,7 +14,11 @@ use super::osc8::LinkDetector;
 
 /// Launch a child process in a PTY and proxy its output through the link detector.
 /// Returns the detected resume session ID if Claude Code output a `claude --resume` line.
-pub fn spawn_with_pty(mut cmd: Command, cwd: PathBuf) -> Result<Option<String>> {
+pub fn spawn_with_pty(
+    mut cmd: Command,
+    cwd: PathBuf,
+    resume_hint: Option<&str>,
+) -> Result<(Option<String>, bool)> {
     // Open a PTY pair
     let pty = openpty(None, None).context("failed to open PTY")?;
     let master_fd = pty.master;
@@ -73,8 +77,8 @@ pub fn spawn_with_pty(mut cmd: Command, cwd: PathBuf) -> Result<Option<String>> 
             setup_sigwinch_handler(stdin.as_raw_fd(), master_fd.as_raw_fd());
 
             // Run the proxy loop
-            let (exit_code, resume_session_id) =
-                run_proxy_loop(&master_fd, &stdin, &mut LinkDetector::new(cwd));
+            let (exit_code, resume_session_id, managed_resume_hint_used) =
+                run_proxy_loop(&master_fd, &stdin, &mut LinkDetector::new(cwd), resume_hint);
 
             // Restore terminal settings
             if let Some(ref orig) = orig_termios {
@@ -96,7 +100,7 @@ pub fn spawn_with_pty(mut cmd: Command, cwd: PathBuf) -> Result<Option<String>> 
                 }
             }
 
-            Ok(resume_session_id)
+            Ok((resume_session_id, managed_resume_hint_used))
         }
     }
 }
@@ -107,10 +111,19 @@ fn run_proxy_loop(
     master_fd: &OwnedFd,
     stdin_handle: &std::io::Stdin,
     detector: &mut LinkDetector,
-) -> (Result<()>, Option<String>) {
+    resume_hint: Option<&str>,
+) -> (Result<()>, Option<String>, bool) {
     let mut resume_session_id: Option<String> = None;
-    let result = run_proxy_loop_inner(master_fd, stdin_handle, detector, &mut resume_session_id);
-    (result, resume_session_id)
+    let mut managed_resume_hint_used = false;
+    let result = run_proxy_loop_inner(
+        master_fd,
+        stdin_handle,
+        detector,
+        resume_hint,
+        &mut resume_session_id,
+        &mut managed_resume_hint_used,
+    );
+    (result, resume_session_id, managed_resume_hint_used)
 }
 
 /// Inner proxy loop with `?` operator support.
@@ -118,7 +131,9 @@ fn run_proxy_loop_inner(
     master_fd: &OwnedFd,
     stdin_handle: &std::io::Stdin,
     detector: &mut LinkDetector,
+    resume_hint: Option<&str>,
     resume_session_id: &mut Option<String>,
+    managed_resume_hint_used: &mut bool,
 ) -> Result<()> {
     let stdin_borrowed: BorrowedFd = stdin_handle.as_fd();
     let master_borrowed: BorrowedFd = master_fd.as_fd();
@@ -138,7 +153,9 @@ fn run_proxy_loop_inner(
         match nix::poll::poll(&mut fds, PollTimeout::from(50u16)) {
             Ok(0) => {
                 // Timeout: flush any incomplete line buffer to avoid display lag
-                if !line_buf.is_empty() {
+                if !line_buf.is_empty()
+                    && !(resume_hint.is_some() && is_partial_resume_line(&line_buf))
+                {
                     let enhanced = detector.enhance_line(&line_buf);
                     write!(stdout, "{enhanced}")?;
                     stdout.flush()?;
@@ -197,9 +214,13 @@ fn run_proxy_loop_inner(
                             line_buf = line_buf[pos + 1..].to_string();
 
                             // 检测 `claude --resume <session-id>`
-                            detect_resume_session(&line, resume_session_id);
-
-                            let enhanced = detector.enhance_line(&line);
+                            let output = resume_output_line(
+                                &line,
+                                resume_hint,
+                                resume_session_id,
+                                managed_resume_hint_used,
+                            );
+                            let enhanced = detector.enhance_line(output);
                             writeln!(stdout, "{enhanced}")?;
                         }
 
@@ -213,8 +234,13 @@ fn run_proxy_loop_inner(
             if revents.contains(PollFlags::POLLHUP) {
                 // Child exited: flush remaining buffer
                 if !line_buf.is_empty() {
-                    detect_resume_session(&line_buf, resume_session_id);
-                    let enhanced = detector.enhance_line(&line_buf);
+                    let output = resume_output_line(
+                        &line_buf,
+                        resume_hint,
+                        resume_session_id,
+                        managed_resume_hint_used,
+                    );
+                    let enhanced = detector.enhance_line(output);
                     write!(stdout, "{enhanced}")?;
                     stdout.flush()?;
                 }
@@ -227,7 +253,7 @@ fn run_proxy_loop_inner(
 }
 
 /// 从输出行中检测 `claude --resume <session-id>` 模式，提取 session ID。
-fn detect_resume_session(line: &str, session_id: &mut Option<String>) {
+fn detect_resume_session(line: &str, session_id: &mut Option<String>) -> bool {
     // 匹配 ANSI 转义序列剥离后的纯文本，支持带/不带终端控制字符
     let stripped = strip_ansi_escapes(line);
     let trimmed = stripped.trim();
@@ -235,8 +261,35 @@ fn detect_resume_session(line: &str, session_id: &mut Option<String>) {
         let id = rest.trim();
         if !id.is_empty() {
             *session_id = Some(id.to_string());
+            return true;
         }
     }
+    false
+}
+
+fn resume_output_line<'a>(
+    line: &'a str,
+    resume_hint: Option<&'a str>,
+    session_id: &mut Option<String>,
+    managed_resume_hint_used: &mut bool,
+) -> &'a str {
+    if detect_resume_session(line, session_id) {
+        if let Some(hint) = resume_hint {
+            *managed_resume_hint_used = true;
+            hint
+        } else {
+            line
+        }
+    } else {
+        line
+    }
+}
+
+fn is_partial_resume_line(line: &str) -> bool {
+    let stripped = strip_ansi_escapes(line);
+    let candidate = stripped.trim();
+    !candidate.is_empty()
+        && ("claude --resume ".starts_with(candidate) || candidate.starts_with("claude --resume "))
 }
 
 /// 剥离 ANSI 转义序列（CSI、OSC 等）
@@ -470,6 +523,45 @@ mod tests {
         let line = "\x1b]8;;https://example.com\x1b\\claude --resume abc-456\x1b]8;;\x1b\\";
         detect_resume_session(line, &mut id);
         assert_eq!(id.as_deref(), Some("abc-456"));
+    }
+
+    #[test]
+    fn test_resume_output_line_uses_managed_hint() {
+        let mut id = None;
+        let mut managed_hint_used = false;
+        let line = resume_output_line(
+            "claude --resume abc-123",
+            Some("orichum resume oc-s-0123456789abcdef"),
+            &mut id,
+            &mut managed_hint_used,
+        );
+
+        assert_eq!(line, "orichum resume oc-s-0123456789abcdef");
+        assert_eq!(id.as_deref(), Some("abc-123"));
+        assert!(managed_hint_used);
+    }
+
+    #[test]
+    fn test_resume_output_line_preserves_default_output() {
+        let mut id = None;
+        let mut managed_hint_used = false;
+        let line = resume_output_line(
+            "claude --resume abc-123",
+            None,
+            &mut id,
+            &mut managed_hint_used,
+        );
+
+        assert_eq!(line, "claude --resume abc-123");
+        assert_eq!(id.as_deref(), Some("abc-123"));
+        assert!(!managed_hint_used);
+    }
+
+    #[test]
+    fn test_partial_resume_line_is_held_across_timeouts() {
+        assert!(is_partial_resume_line("claude --res"));
+        assert!(is_partial_resume_line("claude --resume abc-123"));
+        assert!(!is_partial_resume_line("ordinary output"));
     }
 
     // ── find_utf8_safe_end ──────────────────────────────────

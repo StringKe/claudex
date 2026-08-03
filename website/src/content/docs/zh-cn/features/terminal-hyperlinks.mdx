@@ -89,6 +89,16 @@ PTY 代理对用户完全透明。仅在交互式会话中激活（使用 `--pri
   如果遇到终端渲染问题，可以在配置中设置 `hyperlinks = false` 或省略 `--hyperlinks` 参数来禁用超链接。
 </Aside>
 
+## 托管的恢复提示
+
+启动 Claudex 的工具可以通过 `CLAUDEX_RESUME_HINT` 设置一条完整的单行恢复命令。在 Unix 交互式会话中，Claudex 会用该值替换 Claude Code 原生的 `claude --resume` 命令，并省略额外的 Claudex 恢复提示。
+
+```bash
+CLAUDEX_RESUME_HINT="my-tool resume session-123" claudex run grok
+```
+
+即使终端超链接已禁用，托管恢复提示也会启用现有的 PTY 代理。空值或包含控制字符的值会被忽略。未设置该变量时，恢复输出保持不变。
+
 ## 强制启用/禁用
 
 对于不在自动检测列表中的终端，可以强制启用超链接：

@@ -89,6 +89,21 @@ The PTY proxy is transparent to the user. It is only activated for interactive s
   If you experience issues with terminal rendering, you can disable hyperlinks with `hyperlinks = false` in your config or by omitting the `--hyperlinks` flag.
 </Aside>
 
+## Managed Resume Hint
+
+Tools that launch Claudex can set `CLAUDEX_RESUME_HINT` to an exact one-line
+resume command. For interactive Unix sessions, Claudex replaces Claude Code's
+native `claude --resume` command with this value and omits its additional
+Claudex resume hint.
+
+```bash
+CLAUDEX_RESUME_HINT="my-tool resume session-123" claudex run grok
+```
+
+The managed hint activates the existing PTY proxy even when terminal
+hyperlinks are disabled. Empty values and values containing control characters
+are ignored. When the variable is unset, resume output is unchanged.
+
 ## Force Enable/Disable
 
 For terminals not in the auto-detection list, you can force hyperlinks:
