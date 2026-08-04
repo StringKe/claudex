@@ -88,9 +88,15 @@ pub fn launch_claude(
         "launching claude"
     );
 
+    let resume_hint_override = resume_hint_override();
+
     // PTY mode (Unix only): 非交互模式跳过 PTY
     #[cfg(unix)]
-    let use_pty = !is_noninteractive && should_use_pty(&config.hyperlinks, hyperlinks_override);
+    let use_pty = should_launch_with_pty(
+        is_noninteractive,
+        should_use_pty(&config.hyperlinks, hyperlinks_override),
+        resume_hint_override.is_some(),
+    );
     #[cfg(not(unix))]
     let use_pty = false;
 
@@ -101,7 +107,8 @@ pub fn launch_claude(
         {
             tracing::info!("hyperlinks enabled, using PTY proxy mode");
             let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("/"));
-            resume_session_id = terminal::pty::spawn_with_pty(cmd, cwd)?;
+            resume_session_id =
+                terminal::pty::spawn_with_pty(cmd, cwd, resume_hint_override.is_some())?;
         }
     } else {
         let mut child = cmd.spawn().context("failed to execute claude binary")?;
@@ -133,20 +140,44 @@ pub fn launch_claude(
 
     // 追加 claudex resume 命令提示
     if let Some(session_id) = resume_session_id {
-        print_claudex_resume_hint(&profile.name, &session_id, extra_args);
+        print_claudex_resume_hint(
+            &profile.name,
+            &session_id,
+            extra_args,
+            resume_hint_override.as_deref(),
+        );
     }
 
     Ok(())
 }
 
 /// 在 Claude Code 退出后追加 claudex resume 命令提示
-fn print_claudex_resume_hint(profile_name: &str, session_id: &str, extra_args: &[String]) {
-    let hint = build_resume_hint(profile_name, session_id, extra_args);
-    eprintln!("\nResume this session with claudex:\n  {hint}");
+fn print_claudex_resume_hint(
+    profile_name: &str,
+    session_id: &str,
+    extra_args: &[String],
+    override_hint: Option<&str>,
+) {
+    let hint = build_resume_hint(profile_name, session_id, extra_args, override_hint);
+    let owner = if override_hint.is_some() {
+        ""
+    } else {
+        " claudex"
+    };
+    eprintln!("\nResume this session with{owner}:\n  {hint}");
 }
 
 /// 构造 claudex resume 命令字符串（纯函数，便于测试）
-fn build_resume_hint(profile_name: &str, session_id: &str, extra_args: &[String]) -> String {
+fn build_resume_hint(
+    profile_name: &str,
+    session_id: &str,
+    extra_args: &[String],
+    override_hint: Option<&str>,
+) -> String {
+    if let Some(hint) = override_hint {
+        return hint.to_string();
+    }
+
     // 过滤掉原始 extra_args 中的 --resume 及其值参数
     let mut args_clean: Vec<&str> = Vec::new();
     let mut skip_next = false;
@@ -171,7 +202,26 @@ fn build_resume_hint(profile_name: &str, session_id: &str, extra_args: &[String]
     format!("claudex run {profile_name} --resume {session_id}{args_str}")
 }
 
+fn resume_hint_override() -> Option<String> {
+    let value = std::env::var("CLAUDEX_RESUME_HINT").ok()?;
+    let hint = value.trim();
+    if hint.is_empty() || hint.len() > 1024 || hint.chars().any(char::is_control) {
+        return None;
+    }
+    Some(hint.to_string())
+}
+
 /// Decide whether to use PTY mode based on config + CLI flag.
+#[cfg(unix)]
+fn should_launch_with_pty(
+    is_noninteractive: bool,
+    hyperlinks_enabled: bool,
+    has_owned_resume_hint: bool,
+) -> bool {
+    !is_noninteractive && (hyperlinks_enabled || has_owned_resume_hint)
+}
+
+/// Decide whether hyperlinks require PTY mode based on config + CLI flag.
 #[cfg(unix)]
 fn should_use_pty(config_hyperlinks: &HyperlinksConfig, cli_override: bool) -> bool {
     if cli_override {
@@ -191,7 +241,7 @@ mod tests {
 
     #[test]
     fn test_build_resume_hint_no_extra_args() {
-        let hint = build_resume_hint("codex-sub", "abc-123", &[]);
+        let hint = build_resume_hint("codex-sub", "abc-123", &[], None);
         assert_eq!(hint, "claudex run codex-sub --resume abc-123");
     }
 
@@ -201,7 +251,7 @@ mod tests {
             "--dangerously-skip-permissions".to_string(),
             "--verbose".to_string(),
         ];
-        let hint = build_resume_hint("codex-sub", "abc-123", &args);
+        let hint = build_resume_hint("codex-sub", "abc-123", &args, None);
         assert_eq!(
             hint,
             "claudex run codex-sub --resume abc-123 --dangerously-skip-permissions --verbose"
@@ -215,7 +265,7 @@ mod tests {
             "old-session-id".to_string(),
             "--dangerously-skip-permissions".to_string(),
         ];
-        let hint = build_resume_hint("codex-sub", "new-session-id", &args);
+        let hint = build_resume_hint("codex-sub", "new-session-id", &args, None);
         assert_eq!(
             hint,
             "claudex run codex-sub --resume new-session-id --dangerously-skip-permissions"
@@ -229,14 +279,32 @@ mod tests {
             "--resume".to_string(),
             "old-id".to_string(),
         ];
-        let hint = build_resume_hint("my-profile", "new-id", &args);
+        let hint = build_resume_hint("my-profile", "new-id", &args, None);
         assert_eq!(hint, "claudex run my-profile --resume new-id --verbose");
     }
 
     #[test]
     fn test_build_resume_hint_resume_only() {
         let args = vec!["--resume".to_string(), "old-id".to_string()];
-        let hint = build_resume_hint("p", "new-id", &args);
+        let hint = build_resume_hint("p", "new-id", &args, None);
         assert_eq!(hint, "claudex run p --resume new-id");
+    }
+
+    #[test]
+    fn test_build_resume_hint_prefers_owned_override() {
+        let hint = build_resume_hint(
+            "codex-sub",
+            "abc-123",
+            &[],
+            Some("orichum resume oc-s-0000000000000001"),
+        );
+        assert_eq!(hint, "orichum resume oc-s-0000000000000001");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_owned_resume_hint_forces_pty_without_hyperlinks() {
+        assert!(should_launch_with_pty(false, false, true));
+        assert!(!should_launch_with_pty(true, false, true));
     }
 }
