@@ -14,7 +14,11 @@ use super::osc8::LinkDetector;
 
 /// Launch a child process in a PTY and proxy its output through the link detector.
 /// Returns the detected resume session ID if Claude Code output a `claude --resume` line.
-pub fn spawn_with_pty(mut cmd: Command, cwd: PathBuf) -> Result<Option<String>> {
+pub fn spawn_with_pty(
+    mut cmd: Command,
+    cwd: PathBuf,
+    suppress_resume_footer: bool,
+) -> Result<Option<String>> {
     // Open a PTY pair
     let pty = openpty(None, None).context("failed to open PTY")?;
     let master_fd = pty.master;
@@ -73,8 +77,12 @@ pub fn spawn_with_pty(mut cmd: Command, cwd: PathBuf) -> Result<Option<String>> 
             setup_sigwinch_handler(stdin.as_raw_fd(), master_fd.as_raw_fd());
 
             // Run the proxy loop
-            let (exit_code, resume_session_id) =
-                run_proxy_loop(&master_fd, &stdin, &mut LinkDetector::new(cwd));
+            let (exit_code, resume_session_id) = run_proxy_loop(
+                &master_fd,
+                &stdin,
+                &mut LinkDetector::new(cwd),
+                suppress_resume_footer,
+            );
 
             // Restore terminal settings
             if let Some(ref orig) = orig_termios {
@@ -107,9 +115,16 @@ fn run_proxy_loop(
     master_fd: &OwnedFd,
     stdin_handle: &std::io::Stdin,
     detector: &mut LinkDetector,
+    suppress_resume_footer: bool,
 ) -> (Result<()>, Option<String>) {
     let mut resume_session_id: Option<String> = None;
-    let result = run_proxy_loop_inner(master_fd, stdin_handle, detector, &mut resume_session_id);
+    let result = run_proxy_loop_inner(
+        master_fd,
+        stdin_handle,
+        detector,
+        &mut resume_session_id,
+        suppress_resume_footer,
+    );
     (result, resume_session_id)
 }
 
@@ -119,6 +134,7 @@ fn run_proxy_loop_inner(
     stdin_handle: &std::io::Stdin,
     detector: &mut LinkDetector,
     resume_session_id: &mut Option<String>,
+    suppress_resume_footer: bool,
 ) -> Result<()> {
     let stdin_borrowed: BorrowedFd = stdin_handle.as_fd();
     let master_borrowed: BorrowedFd = master_fd.as_fd();
@@ -139,8 +155,10 @@ fn run_proxy_loop_inner(
             Ok(0) => {
                 // Timeout: flush any incomplete line buffer to avoid display lag
                 if !line_buf.is_empty() {
-                    let enhanced = detector.enhance_line(&line_buf);
-                    write!(stdout, "{enhanced}")?;
+                    if !should_suppress_resume_footer_line(&line_buf, suppress_resume_footer) {
+                        let enhanced = detector.enhance_line(&line_buf);
+                        write!(stdout, "{enhanced}")?;
+                    }
                     stdout.flush()?;
                     line_buf.clear();
                 }
@@ -199,8 +217,10 @@ fn run_proxy_loop_inner(
                             // 检测 `claude --resume <session-id>`
                             detect_resume_session(&line, resume_session_id);
 
-                            let enhanced = detector.enhance_line(&line);
-                            writeln!(stdout, "{enhanced}")?;
+                            if !should_suppress_resume_footer_line(&line, suppress_resume_footer) {
+                                let enhanced = detector.enhance_line(&line);
+                                writeln!(stdout, "{enhanced}")?;
+                            }
                         }
 
                         stdout.flush()?;
@@ -214,8 +234,10 @@ fn run_proxy_loop_inner(
                 // Child exited: flush remaining buffer
                 if !line_buf.is_empty() {
                     detect_resume_session(&line_buf, resume_session_id);
-                    let enhanced = detector.enhance_line(&line_buf);
-                    write!(stdout, "{enhanced}")?;
+                    if !should_suppress_resume_footer_line(&line_buf, suppress_resume_footer) {
+                        let enhanced = detector.enhance_line(&line_buf);
+                        write!(stdout, "{enhanced}")?;
+                    }
                     stdout.flush()?;
                 }
                 break;
@@ -237,6 +259,15 @@ fn detect_resume_session(line: &str, session_id: &mut Option<String>) {
             *session_id = Some(id.to_string());
         }
     }
+}
+
+fn should_suppress_resume_footer_line(line: &str, enabled: bool) -> bool {
+    if !enabled {
+        return false;
+    }
+    let stripped = strip_ansi_escapes(line);
+    let trimmed = stripped.trim();
+    trimmed == "Resume this session with:" || trimmed.starts_with("claude --resume ")
 }
 
 /// 剥离 ANSI 转义序列（CSI、OSC 等）
@@ -503,5 +534,21 @@ mod tests {
         // "hi" + incomplete "中" (2 of 3 bytes)
         let data = &[b'h', b'i', 0xE4, 0xB8];
         assert_eq!(find_utf8_safe_end(data), 2);
+    }
+
+    #[test]
+    fn test_owned_resume_hint_suppresses_claude_footer_lines() {
+        assert!(should_suppress_resume_footer_line(
+            "Resume this session with:",
+            true,
+        ));
+        assert!(should_suppress_resume_footer_line(
+            "  claude --resume abc-123",
+            true,
+        ));
+        assert!(!should_suppress_resume_footer_line(
+            "Resume this session with:",
+            false,
+        ));
     }
 }
